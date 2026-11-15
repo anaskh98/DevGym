@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+*.log
+
+# build output (the plugin bundle in packages/plugin/dist is committed on purpose)
+packages/web/dist/
+packages/eval/results/
+packages/web/public/mock-local/
+
+# local data never belongs in git
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
+.env.local

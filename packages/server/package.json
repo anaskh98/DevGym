@@ -1,0 +1,29 @@
+{
+  "name": "@ftc/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "mcp": "tsx --disable-warning=ExperimentalWarning src/mcp/main.ts",
+    "bundle": "node scripts/bundle.mjs",
+    "bundle:check": "node scripts/bundle.mjs --check",
+    "db:migrate": "tsx --disable-warning=ExperimentalWarning src/cli/migrate.ts",
+    "db:seed": "tsx --disable-warning=ExperimentalWarning src/cli/seed.ts",
+    "db:export-mock": "tsx --disable-warning=ExperimentalWarning src/cli/export-mock.ts",
+    "smoke": "tsx --disable-warning=ExperimentalWarning src/cli/smoke.ts"
+  },
+  "dependencies": {
+    "@ftc/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

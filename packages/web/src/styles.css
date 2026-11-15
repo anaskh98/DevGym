@@ -1,0 +1,580 @@
+/*
+ * Fork, Paper Trail, Coach: local web app.
+ *
+ * One idea carries the look: a fork is drawn as a fork. Questions split into
+ * branches; the branch that was taken is a solid line in pine when the PO
+ * chose it, and a dashed line in ochre when the developer assumed it.
+ * Everything else stays quiet.
+ */
+
+:root {
+  --paper: #f1f4f3;
+  --surface: #ffffff;
+  --ink: #15212b;
+  --ink-soft: #4d5c67;
+  --line: #c5cfd0;
+  --line-soft: #dde4e4;
+  --link: #24468f;
+
+  /* The two ways a fork gets resolved. */
+  --po: #1b6652;
+  --po-wash: #dcede6;
+  --dev: #9a5210;
+  --dev-wash: #f7e8d3;
+
+  --font: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 2rem;
+
+  --rail: 13.5rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--step-0);
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.18em;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--line-soft);
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  background: var(--ink);
+  color: var(--surface);
+  padding: 0.5rem 0.75rem;
+  z-index: 10;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+/* ---- Shell ------------------------------------------------------------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1.75rem 1.25rem 1.25rem;
+  border-right: 1px solid var(--line);
+}
+
+.rail__name {
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.rail nav ul {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.rail nav a {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  margin-left: -0.6rem;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.rail nav a:hover {
+  color: var(--ink);
+  background: var(--line-soft);
+}
+.rail nav a.active {
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--ink);
+  border-radius: 0 4px 4px 0;
+}
+
+.rail__foot {
+  margin-top: auto;
+  display: grid;
+  gap: 0.5rem;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.rail__source--mock {
+  color: var(--dev);
+  font-weight: 600;
+}
+
+.main {
+  padding: 2.5rem clamp(1.25rem, 4vw, 3.5rem) 4rem;
+  max-width: 82rem;
+}
+
+.page-title {
+  font-size: var(--step-3);
+  line-height: 1.15;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* ---- Fork page --------------------------------------------------------- */
+
+.fork-page__id {
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 0.25rem;
+}
+
+.fork-page__head {
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.summary {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.6rem;
+  max-width: 44rem;
+}
+
+.summary__line {
+  margin-top: 1rem;
+  font-size: var(--step-1);
+  color: var(--ink-soft);
+  max-width: 44rem;
+}
+.summary .summary__line {
+  margin-top: 0;
+}
+
+/* One cell per question, in order: the run at a glance. */
+.summary__bar {
+  display: flex;
+  gap: 4px;
+  max-width: 22rem;
+}
+.summary__cell {
+  flex: 1;
+  height: 10px;
+  border-radius: 2px;
+}
+.summary__cell--answered_by_po {
+  background: var(--po);
+}
+.summary__cell--assumed_by_dev {
+  background: var(--dev-wash);
+  outline: 1.5px dashed var(--dev);
+  outline-offset: -1.5px;
+}
+
+.fork-page__body {
+  display: grid;
+  grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  padding-top: 2rem;
+  align-items: start;
+}
+
+.fork-page__body h2 {
+  font-size: var(--step-0);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.ticket {
+  position: sticky;
+  top: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.25rem 1.4rem 1.4rem;
+}
+
+.ticket-body {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.ticket-body h3 {
+  font-size: var(--step-0);
+  font-weight: 700;
+  margin-top: 0.6rem;
+}
+.ticket-body ul {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.ticket-body li::marker {
+  color: var(--line);
+}
+
+.forks__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.run-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+.run-picker select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+
+.fork-list {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 2.25rem;
+}
+
+/* ---- One fork ---------------------------------------------------------- */
+
+.fork {
+  --tone: var(--dev);
+  --wash: var(--dev-wash);
+  --trunk: 0.7rem;
+  --reach: 1.5rem;
+  max-width: 44rem;
+}
+.fork--answered_by_po {
+  --tone: var(--po);
+  --wash: var(--po-wash);
+}
+
+.fork__question {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr);
+  gap: 0.6rem;
+  font-size: var(--step-2);
+  line-height: 1.3;
+  font-weight: 650;
+  text-wrap: pretty;
+}
+
+.fork__number {
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 0.2rem;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* The branches hang from the centre of the numbered node. */
+.fork__paths {
+  margin-left: calc(var(--trunk) - 1px);
+}
+
+.fork__path,
+.fork__outcome {
+  position: relative;
+  padding: 0.55rem 0 0 calc(var(--reach) + 0.75rem);
+}
+
+/* trunk */
+.fork__path::before,
+.fork__outcome::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--line);
+}
+/* branch */
+.fork__path::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--reach);
+  height: 1.35rem;
+  border-bottom: 2px dotted var(--line);
+}
+
+.fork__path {
+  color: var(--ink-soft);
+}
+.fork__path--taken {
+  color: var(--ink);
+  font-weight: 600;
+}
+.fork__path--taken::after {
+  border-bottom: 2px solid var(--tone);
+}
+
+/* The path that was taken: the trunk bends into it and stops. */
+.fork__outcome {
+  padding-top: 0.85rem;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.fork__outcome::before {
+  bottom: auto;
+  width: var(--reach);
+  height: 1.75rem;
+  border-left: 2px solid var(--tone);
+  border-bottom: 2px solid var(--tone);
+  border-bottom-left-radius: 10px;
+}
+.fork--assumed_by_dev .fork__outcome::before {
+  border-left-style: dashed;
+  border-bottom-style: dashed;
+}
+.fork__outcome p {
+  font-size: var(--step-1);
+}
+
+/* ---- Tags and shared parts ------------------------------------------------ */
+
+.tag {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 3px;
+  font-size: var(--step--1);
+  font-weight: 700;
+  line-height: 1.5;
+}
+.tag--answered_by_po {
+  background: var(--po);
+  color: #fff;
+}
+/* Dashed outline: not confirmed by anyone yet. */
+.tag--assumed_by_dev {
+  background: var(--dev-wash);
+  color: var(--dev);
+  outline: 1.5px dashed var(--dev);
+  outline-offset: -1.5px;
+}
+
+.origin {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+.origin--ai {
+  color: var(--link);
+}
+.origin--dev {
+  color: var(--ink);
+}
+.origin--dev_changed_ai {
+  color: var(--dev);
+}
+
+.pointer code {
+  background: none;
+  padding: 0;
+}
+.pointer--broken {
+  color: var(--ink-soft);
+}
+.pointer__note {
+  margin-left: 0.5rem;
+  font-size: var(--step--1);
+  color: var(--dev);
+}
+
+/* ---- Ticket list ----------------------------------------------------------- */
+
+.ticket-list {
+  margin-top: 1.5rem;
+  max-width: 48rem;
+  border-top: 1px solid var(--line);
+}
+.ticket-list a {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  gap: 1rem;
+  padding: 0.9rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+.ticket-list a:hover .ticket-list__title {
+  text-decoration: underline;
+}
+.ticket-list__id {
+  font-weight: 700;
+}
+.ticket-list__runs {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+/* ---- States ---------------------------------------------------------------- */
+
+.state {
+  margin-top: 1.25rem;
+  max-width: 40rem;
+  color: var(--ink-soft);
+}
+.state h2 {
+  font-size: var(--step-1);
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 0.4rem;
+}
+.state p + p {
+  margin-top: 0.5rem;
+}
+.state--empty,
+.state--error {
+  padding: 1.1rem 1.25rem;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+}
+.state--error {
+  border: 1px solid var(--dev);
+  background: var(--dev-wash);
+  color: var(--ink);
+}
+.state__meta {
+  font-size: var(--step--1);
+}
+.state--loading::after {
+  content: "…";
+}
+
+/* ---- Small screens --------------------------------------------------------- */
+
+@media (max-width: 60rem) {
+  .fork-page__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ticket {
+    position: static;
+  }
+}
+
+@media (max-width: 44rem) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rail {
+    position: static;
+    height: auto;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .rail nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+  .rail nav a {
+    margin-left: 0;
+  }
+  .rail nav a.active {
+    box-shadow: inset 0 -3px 0 var(--ink);
+    border-radius: 4px 4px 0 0;
+  }
+  .rail__foot {
+    margin-top: 0;
+  }
+  .main {
+    padding-top: 1.5rem;
+  }
+  .page-title {
+    font-size: 1.6rem;
+  }
+  .fork__question {
+    font-size: var(--step-1);
+  }
+  .ticket-list a {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+}

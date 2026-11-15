@@ -1,0 +1,14 @@
+{
+  "name": "md-labs",
+  "description": "MD Labs plugins for Claude Code",
+  "owner": {
+    "name": "MD Labs"
+  },
+  "plugins": [
+    {
+      "name": "ftc",
+      "source": "./packages/plugin",
+      "description": "Fork, Paper Trail, Coach: ask the questions that change the code, keep a trail of decisions, and coach from evidence. Profiles stay on your machine."
+    }
+  ]
+}

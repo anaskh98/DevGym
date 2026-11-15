@@ -1,0 +1,8 @@
+packages:
+  - "packages/*"
+
+# demo-repo/ is deliberately NOT a workspace package. It is published as its
+# own GitHub repo (scripts/publish-demo-repo.sh) and must stand alone.
+
+onlyBuiltDependencies:
+  - esbuild

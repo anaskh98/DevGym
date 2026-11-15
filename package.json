@@ -1,0 +1,26 @@
+{
+  "name": "ftc-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Fork, Paper Trail, Coach: a Claude Code plugin with a local service and web app.",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "pnpm plugin:bundle && pnpm --filter @ftc/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "plugin:bundle": "pnpm --filter @ftc/server bundle",
+    "plugin:check": "pnpm --filter @ftc/server bundle:check",
+    "plugin:validate": "claude plugin validate . && claude plugin validate ./packages/plugin",
+    "db:migrate": "pnpm --filter @ftc/server db:migrate",
+    "db:seed": "pnpm --filter @ftc/server db:seed",
+    "db:export-mock": "pnpm --filter @ftc/server db:export-mock",
+    "dev:web": "pnpm --filter @ftc/web dev",
+    "check": "pnpm typecheck && pnpm test && pnpm plugin:check && pnpm smoke",
+    "smoke": "pnpm --filter @ftc/server smoke",
+    "mock:refresh": "pnpm --filter @ftc/server smoke --export-mock"
+  }
+}

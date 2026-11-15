@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "service": {
+      "command": "node",
+      "args": [
+        "--disable-warning=ExperimentalWarning",
+        "${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"
+      ],
+      "env": {
+        "FTC_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}"
+      }
+    }
+  }
+}

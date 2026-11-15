@@ -1,0 +1,50 @@
+{
+  "ticket_id": "SAMPLE-7",
+  "assumptions": [
+    {
+      "text": "Should the file contain every invoice, or only the ones matching the filters on screen?",
+      "readings": [
+        "Export every invoice in the workspace.",
+        "Export only the invoices that match the filters currently applied to the list."
+      ],
+      "status": "answered_by_po",
+      "answer": "Only what matches the current filters."
+    },
+    {
+      "text": "Should voided invoices be in the file?",
+      "readings": [
+        "Include voided invoices, with a status column.",
+        "Leave voided invoices out."
+      ],
+      "status": "answered_by_po",
+      "answer": "Include them, with their status, so finance can reconcile."
+    },
+    {
+      "text": "Who may export: everyone who can open the invoice list, or only admins and finance?",
+      "readings": [
+        "Anyone who can see the invoice list can export it.",
+        "Only the admin and finance roles can export."
+      ],
+      "status": "assumed_by_dev",
+      "answer": "Anyone who can see the list can export it, since the file shows nothing the list does not."
+    },
+    {
+      "text": "Should amounts be written the way customers see them (12.50) or in minor units as stored (1250)?",
+      "readings": [
+        "Decimal amounts with a separate currency column.",
+        "Minor units, exactly as stored."
+      ],
+      "status": "assumed_by_dev",
+      "answer": "Decimal amounts with a currency column, because the file is meant to be opened in Excel by finance."
+    },
+    {
+      "text": "For very large lists, must the file download straight away, or can it be emailed when ready?",
+      "readings": [
+        "Download in the same request, whatever the size.",
+        "Generate large exports in the background and email a link."
+      ],
+      "status": "assumed_by_dev",
+      "answer": "Download in the same request; nothing in the ticket suggests lists large enough to need a background job."
+    }
+  ]
+}

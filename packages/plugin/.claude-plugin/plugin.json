@@ -1,0 +1,10 @@
+{
+  "name": "ftc",
+  "displayName": "Fork, Paper Trail, Coach",
+  "version": "0.1.0",
+  "description": "Fork finds the ticket questions that change the code. Paper Trail records each decision. Coach builds a growth plan from evidence. Everything is stored in a local SQLite file.",
+  "author": {
+    "name": "MD Labs"
+  },
+  "keywords": ["tickets", "decisions", "coaching", "local-first"]
+}
