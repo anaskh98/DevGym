@@ -1,7 +1,10 @@
 {
   "ticket_id": "DEMO-1",
-  "version": 1,
+  "version": 2,
   "note": "Answer key for the synthetic ticket. Keep it out of the demo repo and out of the plugin: if Fork can read it, the score means nothing.",
+  "changes": [
+    "v2 (16 Nov 2026): A2 was \"delete the booking or keep it as cancelled\". The ticket's own acceptance line (\"Cancelling returns the updated booking\") and the README settle that, so it was not a real fork. A2 is now the part that is open: whether a cancelled booking still counts in the usage report. The delete-or-keep question moved to the decoys as D5. Found in the stand-in Fork run of 15 Nov."
+  ],
   "planted": [
     {
       "id": "A1",
@@ -14,24 +17,46 @@
         "Inside the last 24 hours the member can cancel and gets part of the credits back."
       ],
       "code_impact": "Decides whether the cancel path throws a 409 or branches into a no-refund or partial-refund path, and which tests exist for the cutoff.",
-      "grounding": ["src/bookings.ts", "src/wallets.ts"],
-      "match_hints": ["24 hours", "late", "last minute", "cutoff", "inside", "within", "too late"],
+      "grounding": [
+        "src/bookings.ts",
+        "src/wallets.ts"
+      ],
+      "match_hints": [
+        "24 hours",
+        "late",
+        "last minute",
+        "cutoff",
+        "inside",
+        "within",
+        "too late"
+      ],
       "po_answer": "They can still cancel inside 24 hours, but they get no credits back."
     },
     {
       "id": "A2",
-      "name": "delete-or-keep",
+      "name": "cancelled-in-usage-report",
       "ticket_phrase": "removed from the room's schedule",
-      "ambiguity": "\"Removed from the schedule\" can mean the booking is deleted, or that it is kept as cancelled and only hidden from the schedule. The usage report that finance invoices from reads the same bookings.",
+      "ambiguity": "The ticket only says what happens to the schedule. The usage report that finance invoices from reads the same bookings, and the ticket does not say whether a cancelled booking still counts there.",
       "readings": [
-        "Delete the booking record; it disappears from the schedule and from the usage report.",
-        "Keep the booking and mark it cancelled; it frees the slot and no longer counts in the usage report.",
-        "Keep the booking and mark it cancelled; it frees the slot but still appears in the usage report, shown as cancelled."
+        "A cancelled booking drops out of the usage report completely.",
+        "A cancelled booking stays in the usage report exactly as before.",
+        "A cancelled booking no longer counts as a booking or as hours, but credits that were not refunded still count."
       ],
-      "code_impact": "Decides whether Booking gets a status field, whether the overlap check and schedule filter on it, and what monthlyUsage counts.",
-      "grounding": ["src/types.ts", "src/bookings.ts", "src/reports.ts"],
-      "match_hints": ["delete", "removed", "keep", "history", "status", "usage report", "report", "finance", "soft"],
-      "po_answer": "Keep it and mark it cancelled. It must free the slot, and it must not count in the usage report."
+      "code_impact": "Decides what monthlyUsage counts for cancelled bookings, which changes the invoiced totals and the report tests.",
+      "grounding": [
+        "src/reports.ts",
+        "src/bookings.ts"
+      ],
+      "match_hints": [
+        "usage report",
+        "report",
+        "finance",
+        "invoice",
+        "invoicing",
+        "still count",
+        "monthly"
+      ],
+      "po_answer": "It should not count as a booking or as hours. Credits the member did not get back still count."
     },
     {
       "id": "A3",
@@ -43,8 +68,19 @@
         "Always refund the personal wallet of the member who booked."
       ],
       "code_impact": "Decides which wallet the refund credits, using paidFromWalletId or the booker's own wallet.",
-      "grounding": ["src/wallets.ts", "src/bookings.ts", "src/types.ts"],
-      "match_hints": ["team wallet", "team", "which wallet", "paid from", "personal wallet", "refund go"],
+      "grounding": [
+        "src/wallets.ts",
+        "src/bookings.ts",
+        "src/types.ts"
+      ],
+      "match_hints": [
+        "team wallet",
+        "team",
+        "which wallet",
+        "paid from",
+        "personal wallet",
+        "refund go"
+      ],
       "po_answer": "Refund whichever wallet paid."
     },
     {
@@ -58,8 +94,18 @@
         "Admins follow exactly the member rules: only their own bookings, with the 24-hour rule."
       ],
       "code_impact": "Decides the permission check (owner or admin) and whether the cutoff branch is skipped for admins.",
-      "grounding": ["src/app.ts", "src/types.ts"],
-      "match_hints": ["admin", "any booking", "anyone", "override", "bypass", "24-hour rule apply"],
+      "grounding": [
+        "src/app.ts",
+        "src/types.ts"
+      ],
+      "match_hints": [
+        "admin",
+        "any booking",
+        "anyone",
+        "override",
+        "bypass",
+        "24-hour rule apply"
+      ],
       "po_answer": "Admins can cancel any booking at any time before it starts, and the refund is always full."
     },
     {
@@ -73,8 +119,18 @@
         "Notify the member who booked and all attendees, except whoever did the cancelling."
       ],
       "code_impact": "Decides the recipient list and whether a new notification template is sent to attendees.",
-      "grounding": ["src/notifier.ts", "src/bookings.ts"],
-      "match_hints": ["notify", "notification", "attendees", "who should", "people affected", "let know"],
+      "grounding": [
+        "src/notifier.ts",
+        "src/bookings.ts"
+      ],
+      "match_hints": [
+        "notify",
+        "notification",
+        "attendees",
+        "who should",
+        "people affected",
+        "let know"
+      ],
       "po_answer": "Tell the member who booked and every attendee, except the person who cancelled."
     }
   ],
@@ -98,6 +154,11 @@
       "id": "D4",
       "question": "Can a member cancel another member's booking?",
       "settled_by": "The ticket: a member can cancel their own booking."
+    },
+    {
+      "id": "D5",
+      "question": "Should a cancelled booking be deleted, or kept and marked as cancelled?",
+      "settled_by": "The ticket: \"Cancelling returns the updated booking\", and the README: a state change returns the updated resource. The booking is kept."
     }
   ],
   "acceptable_extras": [

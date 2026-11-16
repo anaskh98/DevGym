@@ -21,6 +21,6 @@
     "dev:web": "pnpm --filter @ftc/web dev",
     "check": "pnpm typecheck && pnpm test && pnpm plugin:check && pnpm smoke",
     "smoke": "pnpm --filter @ftc/server smoke",
-    "mock:refresh": "pnpm --filter @ftc/server smoke --export-mock"
+    "mock:refresh": "pnpm --filter @ftc/server sample-data"
   }
 }

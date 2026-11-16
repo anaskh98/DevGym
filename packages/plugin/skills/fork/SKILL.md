@@ -66,15 +66,17 @@ Tell the developer once, before the questions:
 Then ask one question per fork with AskUserQuestion, at most four questions per call, with as many calls as needed:
 
 - Write the question for a product owner: plain words, no file names, no code.
-- Offer the readings as the options, the most likely one first. Each option says what the system would do.
+- Offer the readings as the options, the most likely one first. Each option is a full sentence saying what the system would do, and makes sense read on its own, without the question or the other options.
 - Do not add a "not sure" option. Skipping is how a question is left open.
 
 If AskUserQuestion is not available, ask the same questions as a numbered list in plain text and wait for the reply.
 
 ## 6. Tag each fork
 
-- **`answered_by_po`**: the developer gave an answer. Record the answer in their words, or the option they picked.
+- **`answered_by_po`**: the developer gave an answer. Record the answer in their words. If they picked an option, record that option's text, not its letter or number.
 - **`assumed_by_dev`**: the question was skipped, or the answer was "assume", "not sure" or similar. Choose the reading that best fits the ticket's intent and the existing code, and record it with a short reason.
+
+The tag already says how each fork was settled. Do not repeat it in the answer: no "Assumed:", no "the question was skipped", no "the product owner said assume".
 
 Never tag a fork `answered_by_po` unless a person actually answered it. An assumption that looks like an answer is the failure this skill exists to prevent.
 

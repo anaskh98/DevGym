@@ -1,0 +1,133 @@
+{
+  "note": "Sample coding session on SAMPLE-7, for the web app's mocks. Times are minutes after the session starts. The repository and commit are made up, so the links do not resolve.",
+  "ticket_id": "SAMPLE-7",
+  "session_id": "sess_sample_morning",
+  "repo": "example-org/invoicing",
+  "commit": "4f2a9c1",
+  "decisions": [
+    {
+      "key": "stream",
+      "at": 21,
+      "summary": "Stream the file row by row instead of building it in memory first.",
+      "alternatives": ["Build the whole file in memory, then send it."],
+      "origin": "ai",
+      "pointer": { "file_path": "src/invoices/export.ts", "line_hint": 42, "symbol": "streamInvoicesCsv" }
+    },
+    {
+      "key": "filters",
+      "at": 34,
+      "summary": "Reuse the invoice list's filter reader, so the file always matches what is on screen.",
+      "alternatives": ["Give the export its own set of filters."],
+      "origin": "dev",
+      "pointer": { "file_path": "src/invoices/filters.ts", "line_hint": 18, "symbol": "parseInvoiceFilters" }
+    },
+    {
+      "key": "amounts",
+      "at": 52,
+      "summary": "Write amounts as decimals with a currency column. Claude proposed minor units as stored; the developer changed it because finance opens the file in Excel.",
+      "alternatives": ["Minor units, exactly as stored."],
+      "origin": "dev_changed_ai",
+      "pointer": { "file_path": "src/invoices/csvRow.ts", "line_hint": 27, "symbol": "toCsvRow" }
+    },
+    {
+      "key": "formulas",
+      "at": 63,
+      "summary": "Put a single quote in front of any cell that starts with =, +, - or @, so a spreadsheet shows it as text instead of running it as a formula.",
+      "alternatives": ["Write every cell unchanged.", "Drop those characters from the start of the cell."],
+      "origin": "ai",
+      "pointer": { "file_path": "src/invoices/csvRow.ts", "line_hint": 61, "symbol": "escapeCell" }
+    },
+    {
+      "key": "voided",
+      "at": 78,
+      "summary": "Include voided invoices and add a status column, as the PO answered.",
+      "alternatives": ["Leave voided invoices out."],
+      "origin": "ai",
+      "pointer": { "file_path": "src/invoices/export.ts", "line_hint": 70 }
+    },
+    {
+      "key": "permission",
+      "at": 95,
+      "summary": "Check the same permission as the invoice list page before exporting.",
+      "alternatives": ["Add a separate export permission."],
+      "origin": "dev",
+      "pointer": { "file_path": "src/routes/invoices.ts", "line_hint": 33, "unlinked": true }
+    }
+  ],
+  "explain_backs": [
+    {
+      "decision": "stream",
+      "at": 121,
+      "question": "Why stream the file instead of building it first?",
+      "answer": "Memory stays flat however many invoices match the filters, and the download starts straight away instead of after the last row is ready.",
+      "rating": "clear"
+    },
+    {
+      "decision": "amounts",
+      "at": 124,
+      "question": "Why did you change the amounts from minor units to decimals?",
+      "answer": "Finance opens the file in Excel and reads the numbers directly. I did not check how the other exports in this codebase write amounts.",
+      "rating": "partial"
+    },
+    {
+      "decision": "formulas",
+      "at": 128,
+      "question": "What could go wrong if a cell starting with = were written unchanged?",
+      "answer": "I'm not sure. Claude added it and the tests passed, so I left it in.",
+      "rating": "not_yet"
+    }
+  ],
+  "observations": [
+    {
+      "key": "resource-use",
+      "at": 131,
+      "skill_tag": "resource-use",
+      "summary": "Explains clearly why streaming keeps memory flat when the size of a result is not bounded.",
+      "evidence": ["decision:stream", "explain:stream"]
+    },
+    {
+      "key": "output-safety",
+      "at": 132,
+      "skill_tag": "output-safety",
+      "summary": "Accepted a guard against spreadsheet formulas without being able to say what it protects against.",
+      "evidence": ["decision:formulas", "explain:formulas"]
+    },
+    {
+      "key": "consistency",
+      "at": 133,
+      "skill_tag": "codebase-consistency",
+      "summary": "Chose a file format for the reader's benefit, without checking how neighbouring code does the same thing.",
+      "evidence": ["decision:amounts", "explain:amounts"]
+    },
+    {
+      "key": "unread-ai-code",
+      "at": 134,
+      "skill_tag": "reviewing-ai-code",
+      "summary": "Kept Claude's status column for voided invoices without reading how it decides an invoice is voided.",
+      "evidence": ["decision:voided"]
+    }
+  ],
+  "growth_plan": {
+    "at": 140,
+    "focus_areas": [
+      {
+        "claim": "Accepts code from Claude without being able to say what it is for.",
+        "evidence": ["output-safety", "unread-ai-code"],
+        "exercise": "Before accepting the next change from Claude, write one sentence on what would break without it. If you cannot, ask Claude to explain it, then say it back in your own words."
+      },
+      {
+        "claim": "Chooses an output format for the reader's benefit without checking how the rest of the codebase writes the same kind of value.",
+        "evidence": ["consistency"],
+        "exercise": "Before the next change to an output format, find two other places in the codebase that write the same kind of value, and note what they do."
+      }
+    ]
+  },
+  "annotations": [
+    {
+      "at": 152,
+      "focus": 2,
+      "note": "I did look at the payments export afterwards. It writes decimals too, so the choice matches.",
+      "disagrees": true
+    }
+  ]
+}

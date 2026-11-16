@@ -1,0 +1,332 @@
+{
+  "exported_at": "2026-11-12T11:37:00.000Z",
+  "stored_in": "~/.ftc/ftc.sqlite",
+  "developer_id": "sample-dev",
+  "data": {
+    "tickets": [
+      {
+        "id": "SAMPLE-7",
+        "title": "Export invoices as CSV",
+        "body": "## Why\n\nFinance copies invoices into a spreadsheet by hand at the end of every month.\n\n## What\n\n- Add an \"Export\" button to the invoice list.\n- The file should contain the invoices with their amounts.\n- People should be able to open it in Excel.\n\n## Notes\n\nThis ticket is sample data for the web app's mocks and the server's smoke test. It has nothing to do with the demo repo.",
+        "source": "markdown",
+        "created_at": "2026-11-12T09:02:00.000Z",
+        "updated_at": "2026-11-12T09:02:00.000Z"
+      }
+    ],
+    "assumptions": [
+      {
+        "id": "asm_04ebdc76504d",
+        "ticket_id": "SAMPLE-7",
+        "run_id": "run_56378147dae9",
+        "position": 0,
+        "text": "Should the file contain every invoice, or only the ones matching the filters on screen?",
+        "readings": [
+          "Export every invoice in the workspace.",
+          "Export only the invoices that match the filters currently applied to the list."
+        ],
+        "status": "answered_by_po",
+        "answer": "Only what matches the current filters.",
+        "created_at": "2026-11-12T09:09:00.000Z"
+      },
+      {
+        "id": "asm_ab0cbb41773a",
+        "ticket_id": "SAMPLE-7",
+        "run_id": "run_56378147dae9",
+        "position": 1,
+        "text": "Should voided invoices be in the file?",
+        "readings": [
+          "Include voided invoices, with a status column.",
+          "Leave voided invoices out."
+        ],
+        "status": "answered_by_po",
+        "answer": "Include them, with their status, so finance can reconcile.",
+        "created_at": "2026-11-12T09:09:00.000Z"
+      },
+      {
+        "id": "asm_8efc78d80f64",
+        "ticket_id": "SAMPLE-7",
+        "run_id": "run_56378147dae9",
+        "position": 2,
+        "text": "Who may export: everyone who can open the invoice list, or only admins and finance?",
+        "readings": [
+          "Anyone who can see the invoice list can export it.",
+          "Only the admin and finance roles can export."
+        ],
+        "status": "assumed_by_dev",
+        "answer": "Anyone who can see the list can export it, since the file shows nothing the list does not.",
+        "created_at": "2026-11-12T09:09:00.000Z"
+      },
+      {
+        "id": "asm_02e20b6dfc07",
+        "ticket_id": "SAMPLE-7",
+        "run_id": "run_56378147dae9",
+        "position": 3,
+        "text": "Should amounts be written the way customers see them (12.50) or in minor units as stored (1250)?",
+        "readings": [
+          "Decimal amounts with a separate currency column.",
+          "Minor units, exactly as stored."
+        ],
+        "status": "assumed_by_dev",
+        "answer": "Decimal amounts with a currency column, because the file is meant to be opened in Excel by finance.",
+        "created_at": "2026-11-12T09:09:00.000Z"
+      },
+      {
+        "id": "asm_e573d98e90f7",
+        "ticket_id": "SAMPLE-7",
+        "run_id": "run_56378147dae9",
+        "position": 4,
+        "text": "For very large lists, must the file download straight away, or can it be emailed when ready?",
+        "readings": [
+          "Download in the same request, whatever the size.",
+          "Generate large exports in the background and email a link."
+        ],
+        "status": "assumed_by_dev",
+        "answer": "Download in the same request; nothing in the ticket suggests lists large enough to need a background job.",
+        "created_at": "2026-11-12T09:09:00.000Z"
+      }
+    ],
+    "pointers": [
+      {
+        "id": "ptr_e1613cb729a0",
+        "repo": "example-org/invoicing",
+        "pr_number": null,
+        "file_path": "src/invoices/export.ts",
+        "symbol": "streamInvoicesCsv",
+        "commit": "4f2a9c1",
+        "line_hint": 42,
+        "created_at": "2026-11-12T09:21:00.000Z"
+      },
+      {
+        "id": "ptr_9eb20f04b12d",
+        "repo": "example-org/invoicing",
+        "pr_number": null,
+        "file_path": "src/invoices/filters.ts",
+        "symbol": "parseInvoiceFilters",
+        "commit": "4f2a9c1",
+        "line_hint": 18,
+        "created_at": "2026-11-12T09:34:00.000Z"
+      },
+      {
+        "id": "ptr_c9ab0746a364",
+        "repo": "example-org/invoicing",
+        "pr_number": null,
+        "file_path": "src/invoices/csvRow.ts",
+        "symbol": "toCsvRow",
+        "commit": "4f2a9c1",
+        "line_hint": 27,
+        "created_at": "2026-11-12T09:52:00.000Z"
+      },
+      {
+        "id": "ptr_da7b073b1237",
+        "repo": "example-org/invoicing",
+        "pr_number": null,
+        "file_path": "src/invoices/csvRow.ts",
+        "symbol": "escapeCell",
+        "commit": "4f2a9c1",
+        "line_hint": 61,
+        "created_at": "2026-11-12T10:03:00.000Z"
+      },
+      {
+        "id": "ptr_fabfc34b89aa",
+        "repo": "example-org/invoicing",
+        "pr_number": null,
+        "file_path": "src/invoices/export.ts",
+        "symbol": null,
+        "commit": "4f2a9c1",
+        "line_hint": 70,
+        "created_at": "2026-11-12T10:18:00.000Z"
+      },
+      {
+        "id": "ptr_3a68d2279cdb",
+        "repo": null,
+        "pr_number": null,
+        "file_path": "src/routes/invoices.ts",
+        "symbol": null,
+        "commit": null,
+        "line_hint": 33,
+        "created_at": "2026-11-12T10:35:00.000Z"
+      }
+    ],
+    "decisions": [
+      {
+        "id": "dec_4ccb9e3d098f",
+        "ticket_id": "SAMPLE-7",
+        "session_id": "sess_sample_morning",
+        "summary": "Stream the file row by row instead of building it in memory first.",
+        "alternatives": [
+          "Build the whole file in memory, then send it."
+        ],
+        "origin": "ai",
+        "pointer_id": "ptr_e1613cb729a0",
+        "created_at": "2026-11-12T09:21:00.000Z"
+      },
+      {
+        "id": "dec_4f3ee17be0e2",
+        "ticket_id": "SAMPLE-7",
+        "session_id": "sess_sample_morning",
+        "summary": "Reuse the invoice list's filter reader, so the file always matches what is on screen.",
+        "alternatives": [
+          "Give the export its own set of filters."
+        ],
+        "origin": "dev",
+        "pointer_id": "ptr_9eb20f04b12d",
+        "created_at": "2026-11-12T09:34:00.000Z"
+      },
+      {
+        "id": "dec_a7a906c229b6",
+        "ticket_id": "SAMPLE-7",
+        "session_id": "sess_sample_morning",
+        "summary": "Write amounts as decimals with a currency column. Claude proposed minor units as stored; the developer changed it because finance opens the file in Excel.",
+        "alternatives": [
+          "Minor units, exactly as stored."
+        ],
+        "origin": "dev_changed_ai",
+        "pointer_id": "ptr_c9ab0746a364",
+        "created_at": "2026-11-12T09:52:00.000Z"
+      },
+      {
+        "id": "dec_9ba77332fa54",
+        "ticket_id": "SAMPLE-7",
+        "session_id": "sess_sample_morning",
+        "summary": "Put a single quote in front of any cell that starts with =, +, - or @, so a spreadsheet shows it as text instead of running it as a formula.",
+        "alternatives": [
+          "Write every cell unchanged.",
+          "Drop those characters from the start of the cell."
+        ],
+        "origin": "ai",
+        "pointer_id": "ptr_da7b073b1237",
+        "created_at": "2026-11-12T10:03:00.000Z"
+      },
+      {
+        "id": "dec_724686bd1ec2",
+        "ticket_id": "SAMPLE-7",
+        "session_id": "sess_sample_morning",
+        "summary": "Include voided invoices and add a status column, as the PO answered.",
+        "alternatives": [
+          "Leave voided invoices out."
+        ],
+        "origin": "ai",
+        "pointer_id": "ptr_fabfc34b89aa",
+        "created_at": "2026-11-12T10:18:00.000Z"
+      },
+      {
+        "id": "dec_f4c240ab0670",
+        "ticket_id": "SAMPLE-7",
+        "session_id": "sess_sample_morning",
+        "summary": "Check the same permission as the invoice list page before exporting.",
+        "alternatives": [
+          "Add a separate export permission."
+        ],
+        "origin": "dev",
+        "pointer_id": "ptr_3a68d2279cdb",
+        "created_at": "2026-11-12T10:35:00.000Z"
+      }
+    ],
+    "explain_backs": [
+      {
+        "id": "exp_a6f634290bbb",
+        "decision_id": "dec_4ccb9e3d098f",
+        "question": "Why stream the file instead of building it first?",
+        "answer": "Memory stays flat however many invoices match the filters, and the download starts straight away instead of after the last row is ready.",
+        "rating": "clear",
+        "created_at": "2026-11-12T11:01:00.000Z"
+      },
+      {
+        "id": "exp_20bdcc6df664",
+        "decision_id": "dec_a7a906c229b6",
+        "question": "Why did you change the amounts from minor units to decimals?",
+        "answer": "Finance opens the file in Excel and reads the numbers directly. I did not check how the other exports in this codebase write amounts.",
+        "rating": "partial",
+        "created_at": "2026-11-12T11:04:00.000Z"
+      },
+      {
+        "id": "exp_9db8d4292754",
+        "decision_id": "dec_9ba77332fa54",
+        "question": "What could go wrong if a cell starting with = were written unchanged?",
+        "answer": "I'm not sure. Claude added it and the tests passed, so I left it in.",
+        "rating": "not_yet",
+        "created_at": "2026-11-12T11:08:00.000Z"
+      }
+    ],
+    "observations": [
+      {
+        "id": "obs_3819697bc73b",
+        "developer_id": "sample-dev",
+        "skill_tag": "resource-use",
+        "summary": "Explains clearly why streaming keeps memory flat when the size of a result is not bounded.",
+        "evidence_ids": [
+          "dec_4ccb9e3d098f",
+          "exp_a6f634290bbb"
+        ],
+        "created_at": "2026-11-12T11:11:00.000Z"
+      },
+      {
+        "id": "obs_5bb7a5d2c477",
+        "developer_id": "sample-dev",
+        "skill_tag": "output-safety",
+        "summary": "Accepted a guard against spreadsheet formulas without being able to say what it protects against.",
+        "evidence_ids": [
+          "dec_9ba77332fa54",
+          "exp_9db8d4292754"
+        ],
+        "created_at": "2026-11-12T11:12:00.000Z"
+      },
+      {
+        "id": "obs_5215ec85d485",
+        "developer_id": "sample-dev",
+        "skill_tag": "codebase-consistency",
+        "summary": "Chose a file format for the reader's benefit, without checking how neighbouring code does the same thing.",
+        "evidence_ids": [
+          "dec_a7a906c229b6",
+          "exp_20bdcc6df664"
+        ],
+        "created_at": "2026-11-12T11:13:00.000Z"
+      },
+      {
+        "id": "obs_58be4be3f4bf",
+        "developer_id": "sample-dev",
+        "skill_tag": "reviewing-ai-code",
+        "summary": "Kept Claude's status column for voided invoices without reading how it decides an invoice is voided.",
+        "evidence_ids": [
+          "dec_724686bd1ec2"
+        ],
+        "created_at": "2026-11-12T11:14:00.000Z"
+      }
+    ],
+    "growth_plans": [
+      {
+        "id": "plan_db0561036e90",
+        "developer_id": "sample-dev",
+        "focus_areas": [
+          {
+            "claim": "Accepts code from Claude without being able to say what it is for.",
+            "evidence_ids": [
+              "obs_5bb7a5d2c477",
+              "obs_58be4be3f4bf"
+            ],
+            "tentative": false,
+            "exercise": "Before accepting the next change from Claude, write one sentence on what would break without it. If you cannot, ask Claude to explain it, then say it back in your own words."
+          },
+          {
+            "claim": "Chooses an output format for the reader's benefit without checking how the rest of the codebase writes the same kind of value.",
+            "evidence_ids": [
+              "obs_5215ec85d485"
+            ],
+            "tentative": true,
+            "exercise": "Before the next change to an output format, find two other places in the codebase that write the same kind of value, and note what they do."
+          }
+        ],
+        "created_at": "2026-11-12T11:20:00.000Z"
+      }
+    ],
+    "annotations": [
+      {
+        "id": "ann_98b4e5101836",
+        "target_id": "plan_db0561036e90/focus/2",
+        "note": "I did look at the payments export afterwards. It writes decimals too, so the choice matches.",
+        "disagrees": true,
+        "created_at": "2026-11-12T11:32:00.000Z"
+      }
+    ]
+  }
+}

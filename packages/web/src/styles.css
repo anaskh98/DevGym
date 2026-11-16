@@ -22,6 +22,12 @@
   --dev: #9a5210;
   --dev-wash: #f7e8d3;
 
+  /* A person overriding Claude, and things that cannot be undone. */
+  --override: #7a2f6b;
+  --override-wash: #f3e6f0;
+  --danger: #a3261f;
+  --danger-wash: #fbeceb;
+
   --font: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 
@@ -187,15 +193,36 @@ code {
 
 /* ---- Fork page --------------------------------------------------------- */
 
-.fork-page__id {
+.ticket-head {
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.ticket-head__id {
   font-weight: 700;
   color: var(--ink-soft);
   margin-bottom: 0.25rem;
 }
 
-.fork-page__head {
-  padding-bottom: 1.75rem;
-  border-bottom: 1px solid var(--line);
+/* The two views of one ticket. */
+.ticket-head__views {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.9rem;
+}
+.ticket-head__views a {
+  padding-bottom: 0.2rem;
+  color: var(--ink-soft);
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+.ticket-head__views a:hover {
+  color: var(--ink);
+}
+.ticket-head__views a.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 
 .summary {
@@ -442,14 +469,19 @@ code {
   font-size: var(--step--1);
   font-weight: 700;
 }
+/* Outline: Claude chose. Solid: a person chose. Plum: a person overrode Claude. */
 .origin--ai {
   color: var(--link);
 }
 .origin--dev {
-  color: var(--ink);
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 .origin--dev_changed_ai {
-  color: var(--dev);
+  color: #fff;
+  background: var(--override);
+  border-color: var(--override);
 }
 
 .pointer code {
@@ -463,6 +495,742 @@ code {
   margin-left: 0.5rem;
   font-size: var(--step--1);
   color: var(--dev);
+}
+
+.pointer--none {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+.rating {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 3px;
+  font-size: var(--step--1);
+  font-weight: 700;
+  line-height: 1.5;
+}
+.rating--clear {
+  background: var(--po);
+  color: #fff;
+}
+.rating--partial {
+  background: var(--dev-wash);
+  color: var(--dev);
+}
+.rating--not_yet {
+  color: var(--ink-soft);
+  outline: 1.5px dashed var(--ink-soft);
+  outline-offset: -1.5px;
+}
+
+.button {
+  font: inherit;
+  font-weight: 700;
+  padding: 0.5rem 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.button:hover:not(:disabled) {
+  background: var(--line-soft);
+}
+.button:disabled {
+  color: var(--ink-soft);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+.button--danger:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.button--danger:hover:not(:disabled) {
+  background: var(--danger-wash);
+}
+.button--danger-solid:not(:disabled) {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.button--danger-solid:hover:not(:disabled) {
+  background: #861d17;
+}
+
+.link-button {
+  font: inherit;
+  padding: 0;
+  color: var(--link);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+/* ---- Paper Trail ----------------------------------------------------------- */
+
+.trail {
+  padding-top: 2rem;
+  max-width: 52rem;
+}
+
+.trail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+.trail__head h2 {
+  font-size: var(--step-0);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.filter button {
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 700;
+  padding: 0.25rem 0.7rem;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.filter button:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.filter button[aria-pressed="true"] {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.trail__day {
+  margin: 1.5rem 0 1rem;
+  font-weight: 700;
+}
+
+.trail__session {
+  margin: 0 0 1rem 4.75rem;
+  padding-left: 1.6rem;
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.trail__filtered {
+  margin-top: 0.5rem;
+  color: var(--ink-soft);
+}
+
+/* One decision: the time, then a node on the trail, then what was decided. */
+.decision {
+  --node: var(--link);
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+}
+.decision--dev {
+  --node: var(--ink);
+}
+.decision--dev_changed_ai {
+  --node: var(--override);
+}
+
+.decision__time {
+  padding-top: 0.15rem;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.decision__body {
+  position: relative;
+  padding: 0 0 2.25rem 1.6rem;
+  border-left: 2px solid var(--line);
+}
+.decision:last-child .decision__body {
+  padding-bottom: 0.5rem;
+}
+.decision__body::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 0.3rem;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--node);
+  box-shadow: 0 0 0 3px var(--paper);
+}
+/* Claude's decisions are an open ring; a person's are filled. */
+.decision--ai .decision__body::before {
+  background: var(--paper);
+  border: 3px solid var(--node);
+}
+
+.decision__summary {
+  margin-top: 0.45rem;
+  font-size: var(--step-1);
+  line-height: 1.35;
+  font-weight: 650;
+  max-width: 40rem;
+  text-wrap: pretty;
+}
+
+/* Dotted branches: the options that were not taken, as on the Fork page. */
+.decision__alternatives {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.25rem;
+  max-width: 40rem;
+}
+.decision__alternatives li {
+  position: relative;
+  padding-left: 2.1rem;
+  color: var(--ink-soft);
+}
+.decision__alternatives li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.78em;
+  width: 1.5rem;
+  border-top: 2px dotted var(--line);
+}
+.decision__not {
+  margin-right: 0.4rem;
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+
+.decision__where {
+  margin-top: 0.6rem;
+}
+
+.explain {
+  --tone: var(--ink-soft);
+  margin-top: 1rem;
+  max-width: 40rem;
+  padding: 0.8rem 1rem 0.95rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--tone);
+  border-radius: 0 6px 6px 0;
+}
+.explain--clear {
+  --tone: var(--po);
+}
+.explain--partial {
+  --tone: var(--dev);
+}
+.explain__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.explain__question {
+  margin-top: 0.5rem;
+  font-weight: 650;
+}
+.explain__answer {
+  margin: 0.3rem 0 0;
+}
+
+/* ---- My data ---------------------------------------------------------------- */
+
+.data__intro {
+  margin-top: 0.75rem;
+  max-width: 44rem;
+  font-size: var(--step-1);
+  color: var(--ink-soft);
+}
+
+.data__where {
+  margin-top: 1.5rem;
+}
+
+.data__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.data__notice:empty {
+  display: none;
+}
+.data__notice {
+  margin-top: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.data__deleted {
+  margin-top: 1.25rem;
+  max-width: 44rem;
+  padding: 0.7rem 1rem;
+  background: var(--po-wash);
+  border-left: 4px solid var(--po);
+  font-weight: 700;
+}
+
+.confirm {
+  margin-top: 1.25rem;
+  max-width: 44rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+  background: var(--danger-wash);
+  border: 2px solid var(--danger);
+  border-radius: 6px;
+}
+.confirm h2 {
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+.confirm p {
+  margin-top: 0.4rem;
+}
+.confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.data__heading {
+  margin-top: 2.25rem;
+  font-size: var(--step-0);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.data__kinds {
+  margin-top: 0.75rem;
+  max-width: 58rem;
+  border-top: 1px solid var(--line);
+}
+
+.kind {
+  border-bottom: 1px solid var(--line);
+}
+.kind summary {
+  display: grid;
+  grid-template-columns: 1rem 14rem minmax(0, 1fr) 3rem;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.8rem 0.25rem;
+  cursor: pointer;
+  list-style: none;
+}
+.kind summary::-webkit-details-marker {
+  display: none;
+}
+.kind summary::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  transform: translateY(-0.1rem) rotate(-45deg);
+}
+.kind[open] summary::before {
+  transform: translateY(-0.2rem) rotate(45deg);
+}
+.kind summary:hover .kind__label {
+  text-decoration: underline;
+}
+.kind__label {
+  font-weight: 700;
+}
+.kind__what {
+  color: var(--ink-soft);
+}
+.kind__count {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kind[data-empty] .kind__label,
+.kind[data-empty] .kind__count {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+.kind__none {
+  padding: 0 0.25rem 0.9rem 2rem;
+  color: var(--ink-soft);
+}
+.kind__records {
+  margin: 0 0 1rem 2rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Linked to from the Coach page. */
+.decision__linked {
+  margin-left: 0.6rem;
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--override);
+}
+.decision--highlighted .decision__summary {
+  box-shadow: inset 0 -0.6em 0 var(--override-wash);
+}
+
+/* ---- Coach ------------------------------------------------------------------ */
+
+.tag--tentative {
+  background: var(--dev-wash);
+  color: var(--dev);
+  outline: 1.5px dashed var(--dev);
+  outline-offset: -1.5px;
+}
+.tag--disagreed {
+  background: var(--override);
+  color: #fff;
+}
+
+.focus-list {
+  margin-top: 2.25rem;
+  display: grid;
+  gap: 3.5rem;
+  max-width: 46rem;
+}
+
+.focus__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+.focus__claim {
+  font-size: var(--step-2);
+  line-height: 1.3;
+  font-weight: 650;
+  text-wrap: pretty;
+}
+.focus__caveat {
+  margin-top: 0.4rem;
+  color: var(--dev);
+}
+.focus h3 {
+  font-size: var(--step-0);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.focus__evidence {
+  margin-top: 1.4rem;
+}
+
+/* The claim rests on these. A solid line is support from more than one
+   observation; a dashed line is a tentative claim, as dashed means
+   "not confirmed" everywhere else in the app. */
+.evidence {
+  --rest: var(--po);
+  margin: 0.4rem 0 0 0.35rem;
+}
+.focus--tentative .evidence {
+  --rest: var(--dev);
+}
+.evidence__observation {
+  position: relative;
+  padding: 0.55rem 0 0.35rem 1.9rem;
+}
+.evidence__observation::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--rest);
+}
+.evidence__observation::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.2rem;
+  height: 1.3rem;
+  border-bottom: 2px solid var(--rest);
+}
+.evidence__observation:last-child::before {
+  bottom: auto;
+  height: 1.3rem;
+}
+.focus--tentative .evidence__observation::before {
+  border-left-style: dashed;
+}
+.focus--tentative .evidence__observation::after {
+  border-bottom-style: dashed;
+}
+
+.evidence__refs {
+  margin-top: 0.4rem;
+  display: grid;
+  gap: 0.25rem;
+}
+.evidence__refs li {
+  display: grid;
+  grid-template-columns: 6.25rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.evidence__kind {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+.evidence__refs .evidence__missing {
+  display: block;
+  color: var(--ink-soft);
+}
+
+.focus__exercise {
+  margin-top: 1.4rem;
+  padding: 0.9rem 1.1rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.focus__exercise p {
+  margin-top: 0.3rem;
+  font-size: var(--step-1);
+}
+
+.focus__notes {
+  margin-top: 1.4rem;
+}
+.notes {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.1rem;
+}
+.note {
+  padding: 0.65rem 1rem 0.75rem;
+  background: var(--line-soft);
+  border-left: 4px solid var(--ink-soft);
+  border-radius: 0 6px 6px 0;
+}
+.note--disagrees {
+  background: var(--override-wash);
+  border-left-color: var(--override);
+}
+.note__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.note__meta time {
+  font-weight: 400;
+}
+.note__flag {
+  color: var(--override);
+}
+.note__text {
+  margin-top: 0.2rem;
+}
+
+.note-form > label {
+  display: block;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.note-form textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  resize: vertical;
+}
+.note-form textarea::placeholder {
+  color: var(--ink-soft);
+}
+.note-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+.note-form__disagree {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.note-form__disagree input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--override);
+}
+.note-form__message:empty {
+  display: none;
+}
+.note-form__message {
+  margin-top: 0.5rem;
+  font-weight: 700;
+}
+.note-form__message--saved {
+  color: var(--po);
+}
+.note-form__message--error {
+  color: var(--danger);
+}
+
+/* ---- Eval ------------------------------------------------------------------- */
+
+.sample-banner {
+  margin-top: 1rem;
+  max-width: 44rem;
+  padding: 0.7rem 1rem;
+  background: var(--dev-wash);
+  border-left: 4px solid var(--dev);
+  font-weight: 700;
+}
+
+.eval__heading {
+  margin-top: 2.25rem;
+  font-size: var(--step-0);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.eval__none {
+  margin-top: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.scores {
+  margin-top: 0.75rem;
+  max-width: 58rem;
+  border-top: 1px solid var(--line);
+}
+.score {
+  display: grid;
+  grid-template-columns: 9.5rem 7.5rem minmax(0, 1fr);
+  gap: 0.25rem 1.5rem;
+  align-items: baseline;
+  padding: 1.05rem 0.25rem 1.15rem;
+  border-bottom: 1px solid var(--line);
+}
+.score__label {
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+.score__value {
+  font-size: var(--step-2);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.score--not-run .score__label {
+  color: var(--ink-soft);
+}
+.score--not-run .score__value {
+  font-size: var(--step-0);
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.score__measures {
+  color: var(--ink-soft);
+}
+
+/* One cell per item counted. Filled: passed. Dashed: failed. */
+.score__cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 0.55rem;
+}
+.score__cell {
+  width: 1.15rem;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--danger-wash);
+  outline: 1.5px dashed var(--danger);
+  outline-offset: -1.5px;
+}
+.score__cell--pass {
+  background: var(--po);
+  outline: 0;
+}
+.score__meter {
+  margin-top: 0.55rem;
+  height: 10px;
+  max-width: 24rem;
+  border-radius: 2px;
+  background: var(--danger-wash);
+  outline: 1.5px dashed var(--danger);
+  outline-offset: -1.5px;
+  overflow: hidden;
+}
+.score__meter span {
+  display: block;
+  height: 100%;
+  background: var(--po);
+}
+.score__also {
+  margin-top: 0.45rem;
+}
+
+.failures {
+  margin-top: 0.75rem;
+  max-width: 70rem;
+  overflow-x: auto;
+}
+.failures table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.failures th,
+.failures td {
+  padding: 0.7rem 1.25rem 0.75rem 0.25rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+.failures thead th {
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--ink);
+  white-space: nowrap;
+}
+.failures tbody th {
+  width: 8.5rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.failures__run {
+  display: block;
+  font-size: var(--step--1);
+  font-weight: 400;
+  color: var(--ink-soft);
 }
 
 /* ---- Ticket list ----------------------------------------------------------- */
@@ -576,5 +1344,73 @@ code {
   .ticket-list a {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.15rem;
+  }
+  .decision {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .decision__time {
+    padding: 0 0 0.3rem 1.6rem;
+    border-left: 2px solid var(--line);
+  }
+  .trail__session {
+    margin-left: 0;
+  }
+  .kind summary {
+    grid-template-columns: 1rem minmax(0, 1fr) 3rem;
+  }
+  .kind__what {
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+  .kind__records,
+  .kind__none {
+    margin-left: 0;
+    padding-left: 0.9rem;
+  }
+  .evidence__refs li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .score {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .score__detail {
+    grid-column: 1 / -1;
+  }
+
+  /* The failure table becomes one block per failure. */
+  .failures table,
+  .failures tbody,
+  .failures tr,
+  .failures th,
+  .failures td {
+    display: block;
+  }
+  .failures thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .failures tr {
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .failures tbody th,
+  .failures td {
+    width: auto;
+    padding: 0.15rem 0;
+    border: 0;
+  }
+  .failures__run {
+    display: inline;
+    margin-left: 0.5rem;
+  }
+  .failures td::before {
+    content: attr(data-label) ": ";
+    font-size: var(--step--1);
+    font-weight: 700;
+    color: var(--ink-soft);
   }
 }

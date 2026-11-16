@@ -5,9 +5,7 @@
  * It calls all six tools, checks that bad input is rejected, and exits
  * non-zero if anything is off.
  *
- *   --db <path>      Keep the database at this path (default: a temp file)
- *   --export-mock    Afterwards, write the result as the web app's mock JSON
- *   --out <dir>      Where --export-mock writes (default: packages/web/public/mock)
+ *   --db <path>   Keep the database at this path (default: a temp file)
  */
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile } from "node:fs/promises";
@@ -16,11 +14,7 @@ import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { TOOL_NAMES } from "@ftc/shared";
-import { openDb } from "../db/connection";
-import { Store } from "../db/store";
-import { PendingGuard } from "../privacy/guard";
-import { exportMock } from "./export-mock";
-import { flag, hasFlag, PLUGIN_BUNDLE, REPO_ROOT, WEB_MOCK_DIR } from "./shared";
+import { flag, PLUGIN_BUNDLE, REPO_ROOT } from "./shared";
 
 const FIXTURES = resolve(REPO_ROOT, "packages/server/fixtures");
 
@@ -197,15 +191,6 @@ const empty = await call(client, "save_growth_plan", {
 check("save_growth_plan rejects a claim without evidence", empty.isError);
 
 await client.close();
-
-if (hasFlag("export-mock") && failures === 0) {
-  const db = openDb(dbPath);
-  const store = new Store(db, { guard: new PendingGuard() });
-  const files = await exportMock(store, flag("out") ?? WEB_MOCK_DIR);
-  db.close();
-  console.log("");
-  for (const file of files) console.log(`wrote ${file}`);
-}
 
 console.log(failures === 0 ? "\nsmoke test passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

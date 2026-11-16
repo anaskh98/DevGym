@@ -28960,6 +28960,7 @@ var TicketSummary = external_exports.object({
   title: external_exports.string(),
   source: external_exports.string(),
   fork_runs: external_exports.number().int(),
+  decisions: external_exports.number().int(),
   updated_at: external_exports.string()
 });
 var TicketListResponse = external_exports.object({
@@ -28973,6 +28974,98 @@ var ForkRun = external_exports.object({
 var ForkResultResponse = external_exports.object({
   ticket: Ticket,
   runs: external_exports.array(ForkRun)
+});
+var DecisionView = Decision.extend({
+  pointer: Pointer.nullable(),
+  explain_backs: external_exports.array(ExplainBack)
+});
+var PaperTrailResponse = external_exports.object({
+  ticket: Ticket,
+  decisions: external_exports.array(DecisionView)
+});
+var StoredData = external_exports.object({
+  tickets: external_exports.array(Ticket),
+  assumptions: external_exports.array(Assumption),
+  pointers: external_exports.array(Pointer),
+  decisions: external_exports.array(Decision),
+  explain_backs: external_exports.array(ExplainBack),
+  observations: external_exports.array(Observation),
+  growth_plans: external_exports.array(GrowthPlan),
+  annotations: external_exports.array(Annotation)
+});
+var MyDataResponse = external_exports.object({
+  exported_at: external_exports.string(),
+  /** Where the SQLite file is, for display. */
+  stored_in: external_exports.string(),
+  developer_id: external_exports.string(),
+  data: StoredData
+});
+var DeleteAllResponse = external_exports.object({
+  deleted: external_exports.record(external_exports.string(), external_exports.number().int())
+});
+var EvidenceRef = external_exports.object({
+  id: external_exports.string(),
+  kind: external_exports.enum(["decision", "explain_back"]),
+  ticket_id: external_exports.string(),
+  /** The decision itself, or the decision the explain-back is about. */
+  decision_id: external_exports.string(),
+  /** The decision's summary, or the explain-back's question. */
+  label: external_exports.string()
+});
+var ObservationView = Observation.extend({
+  evidence: external_exports.array(EvidenceRef)
+});
+var FocusAreaView = FocusArea.extend({
+  /** What an annotation on this claim points at. See focusTargetId(). */
+  target_id: external_exports.string(),
+  observations: external_exports.array(ObservationView),
+  annotations: external_exports.array(Annotation)
+});
+var CoachReportResponse = external_exports.object({
+  developer_id: external_exports.string(),
+  plan: external_exports.object({
+    id: external_exports.string(),
+    created_at: external_exports.string(),
+    focus_areas: external_exports.array(FocusAreaView)
+  }).nullable()
+});
+function focusTargetId(planId, index) {
+  return `${planId}/focus/${index + 1}`;
+}
+var AnnotationInput = external_exports.object({
+  target_id: external_exports.string().trim().min(1).max(200),
+  note: external_exports.string().trim().min(1, "Write a note first.").max(1e3),
+  disagrees: external_exports.boolean()
+});
+var EvalScoreId = external_exports.enum(["fork", "paper_trail", "pointers", "coach", "privacy"]);
+var EvalScore = external_exports.object({
+  id: EvalScoreId,
+  label: external_exports.string(),
+  /** What was counted, e.g. "planted ambiguities caught across 3 runs". */
+  measures: external_exports.string(),
+  /** "not_run" when this part of the evaluation has not happened yet. */
+  status: external_exports.enum(["measured", "not_run"]),
+  passed: external_exports.number().int().nonnegative(),
+  total: external_exports.number().int().nonnegative(),
+  /** Other numbers that matter for this score, e.g. false alarms. */
+  also: external_exports.array(external_exports.object({ label: external_exports.string(), value: external_exports.number().int().nonnegative() })),
+  note: external_exports.string().optional()
+});
+var EvalFailure = external_exports.object({
+  id: external_exports.string(),
+  area: EvalScoreId,
+  /** Which Fork run, when the failure belongs to one. */
+  run: external_exports.number().int().positive().nullable(),
+  what: external_exports.string(),
+  expected: external_exports.string(),
+  got: external_exports.string()
+});
+var EvalResults = external_exports.object({
+  run_at: external_exports.string(),
+  ticket_id: external_exports.string(),
+  fork_runs: external_exports.number().int().positive(),
+  scores: external_exports.array(EvalScore),
+  failures: external_exports.array(EvalFailure)
 });
 
 // src/errors.ts
@@ -29076,6 +29169,43 @@ function toDecision(row) {
     created_at: str(row.created_at)
   };
 }
+function toExplainBack(row) {
+  return {
+    id: str(row.id),
+    decision_id: str(row.decision_id),
+    question: str(row.question),
+    answer: str(row.answer),
+    rating: str(row.rating),
+    created_at: str(row.created_at)
+  };
+}
+function toObservation(row) {
+  return {
+    id: str(row.id),
+    developer_id: str(row.developer_id),
+    skill_tag: str(row.skill_tag),
+    summary: str(row.summary),
+    evidence_ids: list(row.evidence_ids),
+    created_at: str(row.created_at)
+  };
+}
+function toGrowthPlan(row) {
+  return {
+    id: str(row.id),
+    developer_id: str(row.developer_id),
+    focus_areas: JSON.parse(str(row.focus_areas)),
+    created_at: str(row.created_at)
+  };
+}
+function toAnnotation(row) {
+  return {
+    id: str(row.id),
+    target_id: str(row.target_id),
+    note: str(row.note),
+    disagrees: Number(row.disagrees) === 1,
+    created_at: str(row.created_at)
+  };
+}
 var Store = class {
   constructor(db, options) {
     this.db = db;
@@ -29120,7 +29250,8 @@ var Store = class {
   listTickets() {
     return this.db.prepare(
       `SELECT t.id, t.title, t.source, t.updated_at,
-                (SELECT COUNT(DISTINCT a.run_id) FROM assumptions a WHERE a.ticket_id = t.id) AS fork_runs
+                (SELECT COUNT(DISTINCT a.run_id) FROM assumptions a WHERE a.ticket_id = t.id) AS fork_runs,
+                (SELECT COUNT(*) FROM decisions d WHERE d.ticket_id = t.id) AS decisions
          FROM tickets t
          ORDER BY t.id`
     ).all().map((row) => ({
@@ -29128,6 +29259,7 @@ var Store = class {
       title: str(row.title),
       source: str(row.source),
       fork_runs: Number(row.fork_runs),
+      decisions: Number(row.decisions),
       updated_at: str(row.updated_at)
     }));
   }
@@ -29357,6 +29489,129 @@ var Store = class {
       "INSERT INTO growth_plans (id, developer_id, focus_areas, created_at) VALUES (?, ?, ?, ?)"
     ).run(record2.id, record2.developer_id, JSON.stringify(record2.focus_areas), record2.created_at);
     return record2;
+  }
+  // -- Annotations: the developer's own notes on a growth plan ------------------
+  /** Saves a note on one focus area of a growth plan. */
+  addAnnotation(input2) {
+    const match = /^(.+)\/focus\/(\d+)$/.exec(input2.target_id);
+    const plan = match ? this.db.prepare("SELECT focus_areas FROM growth_plans WHERE id = ?").get(match[1]) : void 0;
+    const areas = plan ? JSON.parse(str(plan.focus_areas)) : [];
+    const position = match ? Number(match[2]) : 0;
+    if (!plan || position < 1 || position > areas.length) {
+      throw new InvalidReferenceError(
+        `"${input2.target_id}" is not a focus area of a saved growth plan.`
+      );
+    }
+    assertAllowed(this.guard, { kind: "annotation", fields: { note: input2.note } });
+    const record2 = {
+      id: newId(ID_PREFIX.annotation),
+      target_id: input2.target_id,
+      note: input2.note,
+      disagrees: input2.disagrees,
+      created_at: this.timestamp()
+    };
+    this.db.prepare(
+      "INSERT INTO annotations (id, target_id, note, disagrees, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(record2.id, record2.target_id, record2.note, record2.disagrees ? 1 : 0, record2.created_at);
+    return record2;
+  }
+  // -- Reading, for the web app ----------------------------------------------
+  /**
+   * The developer's latest growth plan, with each claim's observations, what
+   * those observations rest on, and the developer's notes.
+   */
+  getCoachReport(developerId) {
+    const row = this.db.prepare(
+      "SELECT * FROM growth_plans WHERE developer_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1"
+    ).get(developerId);
+    if (!row) return { developer_id: developerId, plan: null };
+    const plan = toGrowthPlan(row);
+    return {
+      developer_id: developerId,
+      plan: {
+        id: plan.id,
+        created_at: plan.created_at,
+        focus_areas: plan.focus_areas.map((area, index) => {
+          const targetId = focusTargetId(plan.id, index);
+          return {
+            ...area,
+            target_id: targetId,
+            observations: area.evidence_ids.flatMap((id) => {
+              const observation = this.db.prepare("SELECT * FROM observations WHERE id = ?").get(id);
+              if (!observation) return [];
+              const record2 = toObservation(observation);
+              return [{ ...record2, evidence: record2.evidence_ids.flatMap((e) => this.evidenceRef(e)) }];
+            }),
+            annotations: this.db.prepare("SELECT * FROM annotations WHERE target_id = ? ORDER BY created_at, rowid").all(targetId).map(toAnnotation)
+          };
+        })
+      }
+    };
+  }
+  evidenceRef(id) {
+    const decision = this.db.prepare("SELECT id, ticket_id, summary FROM decisions WHERE id = ?").get(id);
+    if (decision) {
+      return [
+        {
+          id,
+          kind: "decision",
+          ticket_id: str(decision.ticket_id),
+          decision_id: str(decision.id),
+          label: str(decision.summary)
+        }
+      ];
+    }
+    const explainBack = this.db.prepare(
+      `SELECT e.question, d.id AS decision_id, d.ticket_id
+         FROM explain_backs e JOIN decisions d ON d.id = e.decision_id
+         WHERE e.id = ?`
+    ).get(id);
+    if (explainBack) {
+      return [
+        {
+          id,
+          kind: "explain_back",
+          ticket_id: str(explainBack.ticket_id),
+          decision_id: str(explainBack.decision_id),
+          label: str(explainBack.question)
+        }
+      ];
+    }
+    return [];
+  }
+  /** A ticket's decisions in the order they were made, with pointer and explain-backs. */
+  listDecisionViews(ticketId) {
+    const explainBacks = /* @__PURE__ */ new Map();
+    for (const row of this.db.prepare(
+      `SELECT e.* FROM explain_backs e
+         JOIN decisions d ON d.id = e.decision_id
+         WHERE d.ticket_id = ?
+         ORDER BY e.created_at, e.rowid`
+    ).all(ticketId)) {
+      const record2 = toExplainBack(row);
+      const forDecision = explainBacks.get(record2.decision_id) ?? [];
+      forDecision.push(record2);
+      explainBacks.set(record2.decision_id, forDecision);
+    }
+    return this.db.prepare("SELECT * FROM decisions WHERE ticket_id = ? ORDER BY created_at, rowid").all(ticketId).map(toDecision).map((decision) => ({
+      ...decision,
+      pointer: decision.pointer_id ? this.getPointer(decision.pointer_id) : null,
+      explain_backs: explainBacks.get(decision.id) ?? []
+    }));
+  }
+  /** Every record in the store, oldest first within each kind. */
+  readAll() {
+    const rows = (table) => this.db.prepare(`SELECT * FROM ${table} ORDER BY created_at, rowid`).all();
+    return {
+      tickets: rows("tickets").map(toTicket),
+      assumptions: rows("assumptions").map(toAssumption),
+      pointers: rows("pointers").map(toPointer),
+      decisions: rows("decisions").map(toDecision),
+      explain_backs: rows("explain_backs").map(toExplainBack),
+      observations: rows("observations").map(toObservation),
+      growth_plans: rows("growth_plans").map(toGrowthPlan),
+      annotations: rows("annotations").map(toAnnotation)
+    };
   }
 };
 

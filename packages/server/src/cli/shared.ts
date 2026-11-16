@@ -11,6 +11,8 @@ export const WEB_MOCK_DIR = resolve(REPO_ROOT, "packages/web/public/mock");
 /** An export of your own database. Ignored by git. */
 export const WEB_MOCK_LOCAL_DIR = resolve(REPO_ROOT, "packages/web/public/mock-local");
 export const PLUGIN_BUNDLE = resolve(REPO_ROOT, "packages/plugin/dist/server.mjs");
+/** Where the eval harness (EV-3) writes its results. Ignored by git. */
+export const EVAL_RESULTS_FILE = resolve(REPO_ROOT, "packages/eval/results/latest.json");
 
 /** Reads `--name value` from argv. */
 export function flag(name: string, argv: string[] = process.argv.slice(2)): string | undefined {

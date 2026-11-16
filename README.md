@@ -8,7 +8,7 @@ One Claude Code plugin with a small local service and web app.
 
 Developer profiles live in a SQLite file on the developer's machine and never leave it. Only the PR's "Decisions" section is shared with the team.
 
-**Status: week 1 of 3.** Fork works end to end through the local service; Paper Trail and Coach have their data model and tools but no skills yet. See [docs/week-1-status.md](docs/week-1-status.md).
+**Status: week 2 of 3, in progress.** Fork works end to end through the local service. Every page of the web app is built: Fork, Paper Trail, Coach, Eval and My data. All but Fork run on sample data until the backend behind them exists. Paper Trail and Coach have their data model and tools but no skills yet. See [docs/week-1-status.md](docs/week-1-status.md) and [docs/frontend-status.md](docs/frontend-status.md).
 
 ## Install the plugin
 
@@ -40,7 +40,7 @@ pnpm dev:web        # web app on http://127.0.0.1:4318, with sample data
 | `pnpm db:migrate` | Create or update your local database (`~/.ftc/ftc.sqlite`) |
 | `pnpm db:seed` | Load the demo ticket into it |
 | `pnpm db:export-mock` | Write your local database as JSON the web app can show: `VITE_MOCK_DIR=mock-local pnpm dev:web` |
-| `pnpm mock:refresh` | Regenerate the committed sample mocks in `packages/web/public/mock` |
+| `pnpm mock:refresh` | Regenerate the committed sample data in `packages/web/public/mock` by playing a made-up session through the real store |
 
 To try the plugin from a working copy without installing it:
 

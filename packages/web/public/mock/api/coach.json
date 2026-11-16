@@ -1,0 +1,115 @@
+{
+  "developer_id": "sample-dev",
+  "plan": {
+    "id": "plan_db0561036e90",
+    "created_at": "2026-11-12T11:20:00.000Z",
+    "focus_areas": [
+      {
+        "claim": "Accepts code from Claude without being able to say what it is for.",
+        "evidence_ids": [
+          "obs_5bb7a5d2c477",
+          "obs_58be4be3f4bf"
+        ],
+        "tentative": false,
+        "exercise": "Before accepting the next change from Claude, write one sentence on what would break without it. If you cannot, ask Claude to explain it, then say it back in your own words.",
+        "target_id": "plan_db0561036e90/focus/1",
+        "observations": [
+          {
+            "id": "obs_5bb7a5d2c477",
+            "developer_id": "sample-dev",
+            "skill_tag": "output-safety",
+            "summary": "Accepted a guard against spreadsheet formulas without being able to say what it protects against.",
+            "evidence_ids": [
+              "dec_9ba77332fa54",
+              "exp_9db8d4292754"
+            ],
+            "created_at": "2026-11-12T11:12:00.000Z",
+            "evidence": [
+              {
+                "id": "dec_9ba77332fa54",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-7",
+                "decision_id": "dec_9ba77332fa54",
+                "label": "Put a single quote in front of any cell that starts with =, +, - or @, so a spreadsheet shows it as text instead of running it as a formula."
+              },
+              {
+                "id": "exp_9db8d4292754",
+                "kind": "explain_back",
+                "ticket_id": "SAMPLE-7",
+                "decision_id": "dec_9ba77332fa54",
+                "label": "What could go wrong if a cell starting with = were written unchanged?"
+              }
+            ]
+          },
+          {
+            "id": "obs_58be4be3f4bf",
+            "developer_id": "sample-dev",
+            "skill_tag": "reviewing-ai-code",
+            "summary": "Kept Claude's status column for voided invoices without reading how it decides an invoice is voided.",
+            "evidence_ids": [
+              "dec_724686bd1ec2"
+            ],
+            "created_at": "2026-11-12T11:14:00.000Z",
+            "evidence": [
+              {
+                "id": "dec_724686bd1ec2",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-7",
+                "decision_id": "dec_724686bd1ec2",
+                "label": "Include voided invoices and add a status column, as the PO answered."
+              }
+            ]
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "claim": "Chooses an output format for the reader's benefit without checking how the rest of the codebase writes the same kind of value.",
+        "evidence_ids": [
+          "obs_5215ec85d485"
+        ],
+        "tentative": true,
+        "exercise": "Before the next change to an output format, find two other places in the codebase that write the same kind of value, and note what they do.",
+        "target_id": "plan_db0561036e90/focus/2",
+        "observations": [
+          {
+            "id": "obs_5215ec85d485",
+            "developer_id": "sample-dev",
+            "skill_tag": "codebase-consistency",
+            "summary": "Chose a file format for the reader's benefit, without checking how neighbouring code does the same thing.",
+            "evidence_ids": [
+              "dec_a7a906c229b6",
+              "exp_20bdcc6df664"
+            ],
+            "created_at": "2026-11-12T11:13:00.000Z",
+            "evidence": [
+              {
+                "id": "dec_a7a906c229b6",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-7",
+                "decision_id": "dec_a7a906c229b6",
+                "label": "Write amounts as decimals with a currency column. Claude proposed minor units as stored; the developer changed it because finance opens the file in Excel."
+              },
+              {
+                "id": "exp_20bdcc6df664",
+                "kind": "explain_back",
+                "ticket_id": "SAMPLE-7",
+                "decision_id": "dec_a7a906c229b6",
+                "label": "Why did you change the amounts from minor units to decimals?"
+              }
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "id": "ann_98b4e5101836",
+            "target_id": "plan_db0561036e90/focus/2",
+            "note": "I did look at the payments export afterwards. It writes decimals too, so the choice matches.",
+            "disagrees": true,
+            "created_at": "2026-11-12T11:32:00.000Z"
+          }
+        ]
+      }
+    ]
+  }
+}

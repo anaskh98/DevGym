@@ -12,7 +12,8 @@
     "db:migrate": "tsx --disable-warning=ExperimentalWarning src/cli/migrate.ts",
     "db:seed": "tsx --disable-warning=ExperimentalWarning src/cli/seed.ts",
     "db:export-mock": "tsx --disable-warning=ExperimentalWarning src/cli/export-mock.ts",
-    "smoke": "tsx --disable-warning=ExperimentalWarning src/cli/smoke.ts"
+    "smoke": "tsx --disable-warning=ExperimentalWarning src/cli/smoke.ts",
+    "sample-data": "tsx --disable-warning=ExperimentalWarning src/cli/sample-data.ts"
   },
   "dependencies": {
     "@ftc/shared": "workspace:*",

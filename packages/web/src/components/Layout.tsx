@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, ScrollRestoration } from "react-router";
 import { apiConfig } from "../api/config";
 
 const SECTIONS = [
@@ -51,6 +51,7 @@ export function Layout() {
       <main id="main" className="main">
         <Outlet />
       </main>
+      <ScrollRestoration />
     </div>
   );
 }

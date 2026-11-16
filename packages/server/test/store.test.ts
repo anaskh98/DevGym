@@ -1,3 +1,4 @@
+import { focusTargetId } from "@ftc/shared";
 import { describe, expect, it } from "vitest";
 import { DATA_TABLES } from "../src/db/migrations";
 import { InvalidReferenceError, NotFoundError, PrivacyRejection } from "../src/errors";
@@ -156,10 +157,11 @@ describe("privacy guard seam (ready for BE-9)", () => {
       summary: "Observed.",
       evidence_ids: [explain.id],
     });
-    store.saveGrowthPlan({
+    const plan = store.saveGrowthPlan({
       developer_id: "dev",
       focus_areas: [{ claim: "Claim.", evidence_ids: [observation.id], exercise: "Practise." }],
     });
+    store.addAnnotation({ target_id: focusTargetId(plan.id, 0), note: "My note.", disagrees: true });
 
     expect(guard.seen.map((input) => input.kind)).toEqual([
       "ticket",
@@ -169,6 +171,7 @@ describe("privacy guard seam (ready for BE-9)", () => {
       "explain_back",
       "observation",
       "growth_plan",
+      "annotation",
     ]);
     expect(guard.seen[1]?.fields).toEqual({
       text: ASSUMPTION.text,
@@ -194,6 +197,10 @@ describe("privacy guard seam (ready for BE-9)", () => {
       summary: "s",
       evidence_ids: [decision.id],
     });
+    const plan = store.saveGrowthPlan({
+      developer_id: "dev",
+      focus_areas: [{ claim: "c", evidence_ids: [observation.id], exercise: "e" }],
+    });
     const before = Object.fromEntries(DATA_TABLES.map((table) => [table, count(db, table)]));
 
     guard.reject = true;
@@ -216,6 +223,7 @@ describe("privacy guard seam (ready for BE-9)", () => {
           developer_id: "dev",
           focus_areas: [{ claim: "c", evidence_ids: [observation.id], exercise: "e" }],
         }),
+      () => store.addAnnotation({ target_id: focusTargetId(plan.id, 0), note: "n", disagrees: false }),
     ];
     for (const write of writes) expect(write).toThrow(PrivacyRejection);
 

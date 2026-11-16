@@ -4,6 +4,31 @@
 
 **The week 1 gate, "Fork runs end to end on the demo ticket", is not passed yet.** Everything Fork needs is built and tested up to the model: the plugin installs, the skill loads, and the MCP tools take the calls the skill makes. Nobody has yet run `/ftc:fork DEMO-1` in Claude Code on a clone of the demo repo. That run is the gate.
 
+## Stand-in run, 15 Nov
+
+Fork was run once without Claude Code: a fresh Claude agent that had not seen the answer key was given the skill file and a copy of the demo repo, and it called the plugin's bundled service over stdio. The answer key was moved out of the repo for the run.
+
+| Check | Outcome |
+| --- | --- |
+| Questions asked | 5 |
+| Planted ambiguities caught | 5 of 5 |
+| Decoy questions asked (false alarms) | 0 of 4 |
+| Tags | 2 answered by PO, 3 assumed by dev, matching the replies given |
+| Saved | Accepted by `save_assumptions` on the first call |
+| Demo repo | Unchanged; Fork did not start coding |
+
+Read this as "the skill and the service work together", not as a score:
+
+- The ticket, the answer key and the skill have the same author, so the result is optimistic. It is also one run; EV-3 calls for three.
+- Claude Code loading the skill and tools natively, and the question dialog, were not exercised. The questions went through the skill's plain-text fallback.
+- Installing from `anaskh98/ftc` could not be tried: the repo is private. Teammates need access to it.
+
+Three things changed because of the run:
+
+1. **Answer key, version 2.** Fork treated "delete the booking or keep it as cancelled" as settled, because the ticket says cancelling "returns the updated booking". That is a fair reading, so the plant was weak. A2 is now the part that is open (does a cancelled booking still count in the usage report?), and delete-or-keep is a fifth decoy. The eval owner should review this change.
+2. **Skill: answers.** Saved answers no longer repeat how the fork was settled ("the product owner said assume"), and a picked option is saved as its text, not its letter.
+3. **Skill: options.** Each option must make sense read on its own.
+
 ## What is built
 
 | Task | State | Checked by |

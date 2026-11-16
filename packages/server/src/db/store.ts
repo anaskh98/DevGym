@@ -4,11 +4,17 @@
  */
 import { randomBytes } from "node:crypto";
 import {
+  focusTargetId,
   ID_PREFIX,
+  type Annotation,
+  type AnnotationInput,
   type Assumption,
   type AssumptionInput,
+  type CoachReportResponse,
   type Decision,
   type DecisionOrigin,
+  type DecisionView,
+  type EvidenceRef,
   type ExplainBack,
   type ExplainBackRating,
   type FocusArea,
@@ -18,6 +24,7 @@ import {
   type Observation,
   type Pointer,
   type PointerInput,
+  type StoredData,
   type Ticket,
   type TicketSummary,
 } from "@ftc/shared";
@@ -87,6 +94,47 @@ function toDecision(row: Row): Decision {
   };
 }
 
+function toExplainBack(row: Row): ExplainBack {
+  return {
+    id: str(row.id),
+    decision_id: str(row.decision_id),
+    question: str(row.question),
+    answer: str(row.answer),
+    rating: str(row.rating) as ExplainBackRating,
+    created_at: str(row.created_at),
+  };
+}
+
+function toObservation(row: Row): Observation {
+  return {
+    id: str(row.id),
+    developer_id: str(row.developer_id),
+    skill_tag: str(row.skill_tag),
+    summary: str(row.summary),
+    evidence_ids: list(row.evidence_ids),
+    created_at: str(row.created_at),
+  };
+}
+
+function toGrowthPlan(row: Row): GrowthPlan {
+  return {
+    id: str(row.id),
+    developer_id: str(row.developer_id),
+    focus_areas: JSON.parse(str(row.focus_areas)) as FocusArea[],
+    created_at: str(row.created_at),
+  };
+}
+
+function toAnnotation(row: Row): Annotation {
+  return {
+    id: str(row.id),
+    target_id: str(row.target_id),
+    note: str(row.note),
+    disagrees: Number(row.disagrees) === 1,
+    created_at: str(row.created_at),
+  };
+}
+
 export interface StoreOptions {
   guard: PrivacyGuard;
   /** Injectable clock, for tests. */
@@ -148,7 +196,8 @@ export class Store {
     return this.db
       .prepare(
         `SELECT t.id, t.title, t.source, t.updated_at,
-                (SELECT COUNT(DISTINCT a.run_id) FROM assumptions a WHERE a.ticket_id = t.id) AS fork_runs
+                (SELECT COUNT(DISTINCT a.run_id) FROM assumptions a WHERE a.ticket_id = t.id) AS fork_runs,
+                (SELECT COUNT(*) FROM decisions d WHERE d.ticket_id = t.id) AS decisions
          FROM tickets t
          ORDER BY t.id`,
       )
@@ -158,6 +207,7 @@ export class Store {
         title: str(row.title),
         source: str(row.source),
         fork_runs: Number(row.fork_runs),
+        decisions: Number(row.decisions),
         updated_at: str(row.updated_at),
       }));
   }
@@ -447,5 +497,156 @@ export class Store {
       )
       .run(record.id, record.developer_id, JSON.stringify(record.focus_areas), record.created_at);
     return record;
+  }
+
+  // -- Annotations: the developer's own notes on a growth plan ------------------
+
+  /** Saves a note on one focus area of a growth plan. */
+  addAnnotation(input: AnnotationInput): Annotation {
+    const match = /^(.+)\/focus\/(\d+)$/.exec(input.target_id);
+    const plan = match
+      ? this.db.prepare("SELECT focus_areas FROM growth_plans WHERE id = ?").get(match[1] as string)
+      : undefined;
+    const areas = plan ? (JSON.parse(str(plan.focus_areas)) as FocusArea[]) : [];
+    const position = match ? Number(match[2]) : 0;
+    if (!plan || position < 1 || position > areas.length) {
+      throw new InvalidReferenceError(
+        `"${input.target_id}" is not a focus area of a saved growth plan.`,
+      );
+    }
+    assertAllowed(this.guard, { kind: "annotation", fields: { note: input.note } });
+
+    const record: Annotation = {
+      id: newId(ID_PREFIX.annotation),
+      target_id: input.target_id,
+      note: input.note,
+      disagrees: input.disagrees,
+      created_at: this.timestamp(),
+    };
+    this.db
+      .prepare(
+        "INSERT INTO annotations (id, target_id, note, disagrees, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(record.id, record.target_id, record.note, record.disagrees ? 1 : 0, record.created_at);
+    return record;
+  }
+
+  // -- Reading, for the web app ----------------------------------------------
+
+  /**
+   * The developer's latest growth plan, with each claim's observations, what
+   * those observations rest on, and the developer's notes.
+   */
+  getCoachReport(developerId: string): CoachReportResponse {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM growth_plans WHERE developer_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+      )
+      .get(developerId);
+    if (!row) return { developer_id: developerId, plan: null };
+
+    const plan = toGrowthPlan(row);
+    return {
+      developer_id: developerId,
+      plan: {
+        id: plan.id,
+        created_at: plan.created_at,
+        focus_areas: plan.focus_areas.map((area, index) => {
+          const targetId = focusTargetId(plan.id, index);
+          return {
+            ...area,
+            target_id: targetId,
+            observations: area.evidence_ids.flatMap((id) => {
+              const observation = this.db.prepare("SELECT * FROM observations WHERE id = ?").get(id);
+              if (!observation) return [];
+              const record = toObservation(observation);
+              return [{ ...record, evidence: record.evidence_ids.flatMap((e) => this.evidenceRef(e)) }];
+            }),
+            annotations: this.db
+              .prepare("SELECT * FROM annotations WHERE target_id = ? ORDER BY created_at, rowid")
+              .all(targetId)
+              .map(toAnnotation),
+          };
+        }),
+      },
+    };
+  }
+
+  private evidenceRef(id: string): EvidenceRef[] {
+    const decision = this.db.prepare("SELECT id, ticket_id, summary FROM decisions WHERE id = ?").get(id);
+    if (decision) {
+      return [
+        {
+          id,
+          kind: "decision",
+          ticket_id: str(decision.ticket_id),
+          decision_id: str(decision.id),
+          label: str(decision.summary),
+        },
+      ];
+    }
+    const explainBack = this.db
+      .prepare(
+        `SELECT e.question, d.id AS decision_id, d.ticket_id
+         FROM explain_backs e JOIN decisions d ON d.id = e.decision_id
+         WHERE e.id = ?`,
+      )
+      .get(id);
+    if (explainBack) {
+      return [
+        {
+          id,
+          kind: "explain_back",
+          ticket_id: str(explainBack.ticket_id),
+          decision_id: str(explainBack.decision_id),
+          label: str(explainBack.question),
+        },
+      ];
+    }
+    return [];
+  }
+
+  /** A ticket's decisions in the order they were made, with pointer and explain-backs. */
+  listDecisionViews(ticketId: string): DecisionView[] {
+    const explainBacks = new Map<string, ExplainBack[]>();
+    for (const row of this.db
+      .prepare(
+        `SELECT e.* FROM explain_backs e
+         JOIN decisions d ON d.id = e.decision_id
+         WHERE d.ticket_id = ?
+         ORDER BY e.created_at, e.rowid`,
+      )
+      .all(ticketId)) {
+      const record = toExplainBack(row);
+      const forDecision = explainBacks.get(record.decision_id) ?? [];
+      forDecision.push(record);
+      explainBacks.set(record.decision_id, forDecision);
+    }
+
+    return this.db
+      .prepare("SELECT * FROM decisions WHERE ticket_id = ? ORDER BY created_at, rowid")
+      .all(ticketId)
+      .map(toDecision)
+      .map((decision) => ({
+        ...decision,
+        pointer: decision.pointer_id ? this.getPointer(decision.pointer_id) : null,
+        explain_backs: explainBacks.get(decision.id) ?? [],
+      }));
+  }
+
+  /** Every record in the store, oldest first within each kind. */
+  readAll(): StoredData {
+    const rows = (table: string) =>
+      this.db.prepare(`SELECT * FROM ${table} ORDER BY created_at, rowid`).all();
+    return {
+      tickets: rows("tickets").map(toTicket),
+      assumptions: rows("assumptions").map(toAssumption),
+      pointers: rows("pointers").map(toPointer),
+      decisions: rows("decisions").map(toDecision),
+      explain_backs: rows("explain_backs").map(toExplainBack),
+      observations: rows("observations").map(toObservation),
+      growth_plans: rows("growth_plans").map(toGrowthPlan),
+      annotations: rows("annotations").map(toAnnotation),
+    };
   }
 }

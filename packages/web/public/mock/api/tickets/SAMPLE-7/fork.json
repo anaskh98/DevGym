@@ -4,18 +4,18 @@
     "title": "Export invoices as CSV",
     "body": "## Why\n\nFinance copies invoices into a spreadsheet by hand at the end of every month.\n\n## What\n\n- Add an \"Export\" button to the invoice list.\n- The file should contain the invoices with their amounts.\n- People should be able to open it in Excel.\n\n## Notes\n\nThis ticket is sample data for the web app's mocks and the server's smoke test. It has nothing to do with the demo repo.",
     "source": "markdown",
-    "created_at": "2026-11-15T19:01:54.052Z",
-    "updated_at": "2026-11-15T19:01:54.052Z"
+    "created_at": "2026-11-12T09:02:00.000Z",
+    "updated_at": "2026-11-12T09:02:00.000Z"
   },
   "runs": [
     {
-      "run_id": "run_4a87014d65ce",
-      "created_at": "2026-11-15T19:01:54.059Z",
+      "run_id": "run_56378147dae9",
+      "created_at": "2026-11-12T09:09:00.000Z",
       "assumptions": [
         {
-          "id": "asm_570706b49c66",
+          "id": "asm_04ebdc76504d",
           "ticket_id": "SAMPLE-7",
-          "run_id": "run_4a87014d65ce",
+          "run_id": "run_56378147dae9",
           "position": 0,
           "text": "Should the file contain every invoice, or only the ones matching the filters on screen?",
           "readings": [
@@ -24,12 +24,12 @@
           ],
           "status": "answered_by_po",
           "answer": "Only what matches the current filters.",
-          "created_at": "2026-11-15T19:01:54.059Z"
+          "created_at": "2026-11-12T09:09:00.000Z"
         },
         {
-          "id": "asm_383329f852ea",
+          "id": "asm_ab0cbb41773a",
           "ticket_id": "SAMPLE-7",
-          "run_id": "run_4a87014d65ce",
+          "run_id": "run_56378147dae9",
           "position": 1,
           "text": "Should voided invoices be in the file?",
           "readings": [
@@ -38,12 +38,12 @@
           ],
           "status": "answered_by_po",
           "answer": "Include them, with their status, so finance can reconcile.",
-          "created_at": "2026-11-15T19:01:54.059Z"
+          "created_at": "2026-11-12T09:09:00.000Z"
         },
         {
-          "id": "asm_ee16416bf188",
+          "id": "asm_8efc78d80f64",
           "ticket_id": "SAMPLE-7",
-          "run_id": "run_4a87014d65ce",
+          "run_id": "run_56378147dae9",
           "position": 2,
           "text": "Who may export: everyone who can open the invoice list, or only admins and finance?",
           "readings": [
@@ -52,12 +52,12 @@
           ],
           "status": "assumed_by_dev",
           "answer": "Anyone who can see the list can export it, since the file shows nothing the list does not.",
-          "created_at": "2026-11-15T19:01:54.059Z"
+          "created_at": "2026-11-12T09:09:00.000Z"
         },
         {
-          "id": "asm_b6ec99b0411d",
+          "id": "asm_02e20b6dfc07",
           "ticket_id": "SAMPLE-7",
-          "run_id": "run_4a87014d65ce",
+          "run_id": "run_56378147dae9",
           "position": 3,
           "text": "Should amounts be written the way customers see them (12.50) or in minor units as stored (1250)?",
           "readings": [
@@ -66,12 +66,12 @@
           ],
           "status": "assumed_by_dev",
           "answer": "Decimal amounts with a currency column, because the file is meant to be opened in Excel by finance.",
-          "created_at": "2026-11-15T19:01:54.059Z"
+          "created_at": "2026-11-12T09:09:00.000Z"
         },
         {
-          "id": "asm_8ec163684392",
+          "id": "asm_e573d98e90f7",
           "ticket_id": "SAMPLE-7",
-          "run_id": "run_4a87014d65ce",
+          "run_id": "run_56378147dae9",
           "position": 4,
           "text": "For very large lists, must the file download straight away, or can it be emailed when ready?",
           "readings": [
@@ -80,7 +80,7 @@
           ],
           "status": "assumed_by_dev",
           "answer": "Download in the same request; nothing in the ticket suggests lists large enough to need a background job.",
-          "created_at": "2026-11-15T19:01:54.059Z"
+          "created_at": "2026-11-12T09:09:00.000Z"
         }
       ]
     }

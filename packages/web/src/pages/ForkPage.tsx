@@ -6,7 +6,9 @@ import { useApi } from "../api/useApi";
 import { ForkQuestion } from "../components/ForkQuestion";
 import { EmptyState, ErrorState, Loading } from "../components/States";
 import { TicketBody } from "../components/TicketBody";
+import { TicketHead } from "../components/TicketHead";
 import { plural, summarize } from "../lib/fork";
+import { useTitle } from "../lib/useTitle";
 
 const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -38,16 +40,13 @@ function Summary({ run }: { run: ForkRun }) {
 
 function ForkResult({ result }: { result: ForkResultResponse }) {
   const { ticket, runs } = result;
+  useTitle(`Fork: ${ticket.id}`);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const run = runs.find((r) => r.run_id === selectedRunId) ?? runs[0];
 
   return (
     <article className="fork-page">
-      <header className="fork-page__head">
-        <p className="fork-page__id">{ticket.id}</p>
-        <h1 className="page-title">{ticket.title}</h1>
-        {run && <Summary run={run} />}
-      </header>
+      <TicketHead ticket={ticket}>{run && <Summary run={run} />}</TicketHead>
 
       <div className="fork-page__body">
         <section className="ticket" aria-labelledby="ticket-heading">

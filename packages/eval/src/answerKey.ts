@@ -45,6 +45,8 @@ export const AnswerKey = z.object({
   ticket_id: z.string(),
   version: z.number().int(),
   note: z.string().optional(),
+  /** What changed in each version, newest last. */
+  changes: z.array(z.string()).optional(),
   planted: z.array(PlantedAmbiguity),
   decoys: z.array(Decoy),
   acceptable_extras: z.array(AcceptableExtra),
