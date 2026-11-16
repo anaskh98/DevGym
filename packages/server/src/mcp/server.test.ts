@@ -82,6 +82,7 @@ describe("tool list", () => {
       "list_observations",
       "log_decision",
       "record_explain_back",
+      "resolve_pointers",
       "save_assumptions",
       "save_growth_plan",
       "save_observation",

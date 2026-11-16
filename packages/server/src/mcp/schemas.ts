@@ -67,7 +67,17 @@ export const listDecisionsInput = z.strictObject({
   ticket_id: id,
 });
 
-export const listObservationsInput = z.strictObject({
+export const resolvePointersInput = z.strictObject({
+  ticket_id: id,
+  pr_number: z.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),
+  commit: z
+    .string()
+    .regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA")
+    .optional()
+    .describe("Check against this commit and skip the pull request lookup"),
+});
+
+export const listObservationsInput =z.strictObject({
   developer_id: id.optional().describe("Leave out to use the local developer"),
 });
 

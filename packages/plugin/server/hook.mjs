@@ -143,6 +143,17 @@ var migrations = [
       -- Other files a decision covers, besides the one its pointer names. A JSON list of paths.
       ALTER TABLE decisions ADD COLUMN related_files TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(related_files));
     `
+  },
+  {
+    id: 3,
+    name: "pointer_resolve_check",
+    sql: `
+      -- Result of the last resolve check: 1 = the pointer finds its code at commit_sha,
+      -- 0 = broken (resolve_note says why), NULL = never checked.
+      ALTER TABLE pointers ADD COLUMN resolved INTEGER CHECK (resolved IN (0, 1));
+      ALTER TABLE pointers ADD COLUMN resolved_at TEXT;
+      ALTER TABLE pointers ADD COLUMN resolve_note TEXT;
+    `
   }
 ];
 function migrate(db, list = migrations) {

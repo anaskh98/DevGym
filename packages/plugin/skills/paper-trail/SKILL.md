@@ -48,10 +48,10 @@ Do not log these. Padding the trail makes it useless.
   - `dev`: the developer told you which way to go.
   - `dev_changed_ai`: you proposed or wrote one way, and the developer changed it to another.
 - `pointer`: where the choice lives.
-  - `repo`: `owner/name` from the git remote. If there is no remote, the project folder name.
+  - `repo`: `owner/name` from the git remote. If there is no remote, the project folder name. The server corrects it from the git remote when there is one.
   - `file_path`: relative to the project root.
-  - `symbol`: the function, class or method name, when there is one.
-  - `line_hint`: the line number, when you know it.
+  - `line_hint`: a line inside the function where the choice was made. **Always send it when you can.** The server reads the file and works out the function name from this line.
+  - `symbol`: the function, class or method name. Send it when you cannot give a line, or for a language the server does not parse (it parses TypeScript and JavaScript).
 - `related_files`: other files the same choice covers, for example its test.
 
 When the developer overrides something you already logged, log a new decision with `dev_changed_ai`.

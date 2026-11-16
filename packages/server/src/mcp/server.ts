@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
+import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
@@ -12,6 +13,7 @@ import {
   listObservationsInput,
   logDecisionInput,
   recordExplainBackInput,
+  resolvePointersInput,
   saveAssumptionsInput,
   saveGrowthPlanInput,
   saveObservationInput,
@@ -89,10 +91,26 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: logDecisionInput,
     },
     (input) =>
-      write(input, async (i) => {
-        await ticket(i.ticket_id);
-        return store.logDecision(db, i, root);
+      reply(async () => {
+        // The server fills in the repo and the function name itself, then guards the result,
+        // so a name it worked out is checked like one the caller sent.
+        const decision = input.pointer ? { ...input, pointer: await enrichPointer(input.pointer, root) } : input;
+        guard.check(decision);
+        await ticket(decision.ticket_id);
+        return store.logDecision(db, decision, root);
       }),
+  );
+
+  server.registerTool(
+    "resolve_pointers",
+    {
+      title: "Resolve pointers",
+      description:
+        "Move a ticket's pointers to one commit and check that each still finds its code. Run it after the pull request is opened, and again after it is merged: after a squash merge the pointers move to the merge commit. Returns the pointers that no longer resolve, with the reason.",
+      inputSchema: resolvePointersInput,
+    },
+    (input) =>
+      write(input, (i) => resolvePointers(db, { ticketId: i.ticket_id, root, prNumber: i.pr_number, commit: i.commit })),
   );
 
   server.registerTool(

@@ -145,6 +145,17 @@ var migrations = [
       -- Other files a decision covers, besides the one its pointer names. A JSON list of paths.
       ALTER TABLE decisions ADD COLUMN related_files TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(related_files));
     `
+  },
+  {
+    id: 3,
+    name: "pointer_resolve_check",
+    sql: `
+      -- Result of the last resolve check: 1 = the pointer finds its code at commit_sha,
+      -- 0 = broken (resolve_note says why), NULL = never checked.
+      ALTER TABLE pointers ADD COLUMN resolved INTEGER CHECK (resolved IN (0, 1));
+      ALTER TABLE pointers ADD COLUMN resolved_at TEXT;
+      ALTER TABLE pointers ADD COLUMN resolve_note TEXT;
+    `
   }
 ];
 function migrate(db2, list = migrations) {
@@ -20320,7 +20331,7 @@ function ticketDecisions(db2, ticketId) {
   return rows(
     db2,
     `SELECT d.id, d.ticket_id, d.session_id, d.summary, d.alternatives, d.origin, d.related_files, d.created_at,
-            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint
+            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved, p.resolve_note
      FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
      WHERE d.ticket_id = ? ORDER BY d.rowid`,
     ticketId
@@ -20341,7 +20352,9 @@ function ticketDecisions(db2, ticketId) {
       symbol: d.symbol,
       commit: d.commit_sha,
       line_hint: d.line_hint,
-      url: pointerUrl(d)
+      url: pointerUrl(d),
+      resolved: d.resolved === null ? null : d.resolved === 1,
+      resolve_note: d.resolve_note
     } : null,
     explain_backs: rows(
       db2,

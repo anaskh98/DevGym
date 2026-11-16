@@ -26,6 +26,10 @@ export interface PointerView {
   line_hint: number | null;
   /** Link to the file on GitHub, pinned to the commit. Null until the pointer has a commit. */
   url: string | null;
+  /** Last resolve check: true = finds its code at `commit`, false = broken, null = never checked. */
+  resolved: boolean | null;
+  /** Why the pointer is broken, when `resolved` is false. */
+  resolve_note: string | null;
 }
 
 export interface DecisionView {
@@ -69,7 +73,7 @@ export function ticketDecisions(db: Db, ticketId: string): DecisionView[] {
   return rows(
     db,
     `SELECT d.id, d.ticket_id, d.session_id, d.summary, d.alternatives, d.origin, d.related_files, d.created_at,
-            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint
+            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved, p.resolve_note
      FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
      WHERE d.ticket_id = ? ORDER BY d.rowid`,
     ticketId,
@@ -92,6 +96,8 @@ export function ticketDecisions(db: Db, ticketId: string): DecisionView[] {
           commit: d.commit_sha as string | null,
           line_hint: d.line_hint as number | null,
           url: pointerUrl(d),
+          resolved: d.resolved === null ? null : d.resolved === 1,
+          resolve_note: d.resolve_note as string | null,
         }
       : null,
     explain_backs: rows(

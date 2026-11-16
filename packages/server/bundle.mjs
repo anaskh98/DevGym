@@ -1,6 +1,7 @@
 // Bundles the MCP server and the edit hook into single files inside the plugin folder.
 // An installed plugin only gets packages/plugin, so this code must live there with no node_modules.
 import { build } from "esbuild";
+import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,4 +25,16 @@ await build({ ...shared, entryPoints: [join(here, "src", "mcp", "stdio.ts")], ou
 await build({ ...shared, entryPoints: [join(here, "src", "hook", "post-tool-use.ts")], outfile: join(out, "hook.mjs") });
 // The REST API for the local web app. Uses only Node's own http module.
 await build({ ...shared, entryPoints: [join(here, "src", "api", "main.ts")], outfile: join(out, "api.mjs") });
-console.log("Bundled -> packages/plugin/server/index.mjs, hook.mjs, api.mjs");
+
+// tree-sitter runs as WebAssembly, so it needs no native build. The .wasm files cannot be
+// inlined into the bundle, so they are copied next to it (see wasmPath in src/pointers/symbols.ts).
+const wasm = [
+  ["web-tree-sitter", "web-tree-sitter.wasm"],
+  ["tree-sitter-typescript", "tree-sitter-typescript.wasm"],
+  ["tree-sitter-typescript", "tree-sitter-tsx.wasm"],
+  ["tree-sitter-javascript", "tree-sitter-javascript.wasm"],
+];
+mkdirSync(join(out, "wasm"), { recursive: true });
+for (const [pkg, file] of wasm) copyFileSync(join(here, "node_modules", pkg, file), join(out, "wasm", file));
+
+console.log("Bundled -> packages/plugin/server/index.mjs, hook.mjs, api.mjs, wasm/");

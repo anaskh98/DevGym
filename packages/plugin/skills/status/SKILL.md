@@ -8,6 +8,7 @@ Tell the user the plugin is installed, then list what is ready:
 - `/fork-trail-coach:fork <ticket-id>` — ready. Finds the questions in a ticket that change the code and saves the assumption list.
 - `/fork-trail-coach:paper-trail <ticket-id>` — ready. Logs each real choice made while coding the ticket, and flags edited files with no decision.
 - `/fork-trail-coach:explain-back <ticket-id>` — ready. Asks the developer why 2 or 3 logged decisions were made, and saves the answers with a rating.
+- `/fork-trail-coach:pointers <ticket-id> [pr-number]` — ready. Moves the decision pointers to the pull request commit and checks each one still finds its code.
 - `/fork-trail-coach:coach` — ready. Builds a private growth plan from the saved observations, with evidence for every claim.
 
 Then check the local service: call `get_ticket` on the `fork-trail-coach` MCP server with ticket id `SAMPLE-1`.

@@ -66,7 +66,8 @@ Everything for the Fork view and the Paper Trail view.
       "related_files": ["src/export.test.ts"],
       "pointer": {
         "id": "...", "repo": "owner/name", "pr_number": null, "file_path": "src/export.ts",
-        "symbol": "exportOrders", "commit": null, "line_hint": 14, "url": null
+        "symbol": "exportOrders", "commit": null, "line_hint": 14, "url": null,
+        "resolved": null, "resolve_note": null
       },
       "explain_backs": [ { "id": "...", "question": "...", "answer": "...", "rating": "clear", "created_at": "..." } ],
       "annotations": []
@@ -86,8 +87,11 @@ Field values:
 - `decisions[].origin`: `ai`, `dev` or `dev_changed_ai`
 - `explain_backs[].rating`: `clear`, `partial` or `not_yet`
 - `pointer` is `null` when a decision has no code location.
-- `pointer.url` is a GitHub link pinned to a commit. It is `null` until the pointer has a commit: show the
-  "broken pointer" state then.
+- `pointer.url` is a GitHub link pinned to a commit. It is `null` until the pointer has a commit: show
+  "not linked yet" then.
+- `pointer.resolved` is the last resolve check: `true` means the pointer finds its code at `commit`,
+  `false` means it is broken and `resolve_note` says why (show the "broken pointer" state), `null` means never checked.
+- `pointer.symbol` is the function the server found around the line, for example `Exporter.run` for a method.
 - `sessions[].unexplained_files`: files the session edited that no decision points at.
 
 ### `GET /tickets/:id/decisions`

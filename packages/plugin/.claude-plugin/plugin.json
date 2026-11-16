@@ -1,6 +1,6 @@
 {
   "name": "fork-trail-coach",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Fork (ticket questions), Paper Trail (decision log) and Coach (growth report). Profiles stay on your machine.",
   "author": { "name": "Plugin team" }
 }

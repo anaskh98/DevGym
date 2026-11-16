@@ -123,6 +123,17 @@ export const migrations: Migration[] = [
       ALTER TABLE decisions ADD COLUMN related_files TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(related_files));
     `,
   },
+  {
+    id: 3,
+    name: "pointer_resolve_check",
+    sql: `
+      -- Result of the last resolve check: 1 = the pointer finds its code at commit_sha,
+      -- 0 = broken (resolve_note says why), NULL = never checked.
+      ALTER TABLE pointers ADD COLUMN resolved INTEGER CHECK (resolved IN (0, 1));
+      ALTER TABLE pointers ADD COLUMN resolved_at TEXT;
+      ALTER TABLE pointers ADD COLUMN resolve_note TEXT;
+    `,
+  },
 ];
 
 /** Applies every migration not yet applied. Safe to run many times. Returns the names applied. */
