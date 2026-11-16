@@ -1,0 +1,114 @@
+import { z } from "zod";
+
+// Short limits on purpose: these fields hold summaries, never pasted code or long text.
+const id = z.string().trim().min(1).max(200);
+const shortText = z.string().trim().min(1).max(500);
+const longText = z.string().trim().min(1).max(2000);
+
+export const ASSUMPTION_STATUSES = ["answered_by_po", "assumed_by_dev"] as const;
+export const DECISION_ORIGINS = ["ai", "dev", "dev_changed_ai"] as const;
+export const RATINGS = ["clear", "partial", "not_yet"] as const;
+
+export const getTicketInput = z.strictObject({
+  ticket_id: id.describe("Ticket id, for example SAMPLE-1"),
+});
+
+export const saveAssumptionsInput = z.strictObject({
+  ticket_id: id,
+  assumptions: z
+    .array(
+      z
+        .strictObject({
+          text: shortText.describe("The open question or reading of the ticket"),
+          status: z.enum(ASSUMPTION_STATUSES),
+          answer: longText.optional().describe("The PO's answer, or what the developer assumed"),
+        })
+        .refine((a) => a.status !== "answered_by_po" || a.answer !== undefined, {
+          message: "An assumption with status 'answered_by_po' needs an answer",
+          path: ["answer"],
+        }),
+    )
+    .min(1)
+    .max(30),
+});
+
+export const pointerInput = z.strictObject({
+  repo: z.string().trim().min(1).max(200).describe("owner/name"),
+  file_path: z.string().trim().min(1).max(500),
+  symbol: z.string().trim().min(1).max(200).optional().describe("Function or class name"),
+  line_hint: z.number().int().positive().optional(),
+  pr_number: z.number().int().positive().optional(),
+  commit: z
+    .string()
+    .regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA")
+    .optional(),
+});
+
+export const logDecisionInput = z.strictObject({
+  ticket_id: id,
+  session_id: id,
+  summary: shortText.describe("The choice that was made, in one or two sentences. No code."),
+  alternatives: z.array(shortText).max(10).default([]).describe("Other options that were considered"),
+  origin: z.enum(DECISION_ORIGINS).describe("ai = Claude chose, dev = developer chose, dev_changed_ai = developer overrode Claude"),
+  pointer: pointerInput.optional().describe("Where the decision lives in the code. A reference only, never the code."),
+  related_files: z
+    .array(z.string().trim().min(1).max(500))
+    .max(20)
+    .default([])
+    .describe("Other files this same decision covers, for example its test file. Paths only."),
+});
+
+export const startTrailInput = z.strictObject({
+  ticket_id: id,
+  session_id: id.describe("The Claude Code session id"),
+});
+
+export const listDecisionsInput = z.strictObject({
+  ticket_id: id,
+});
+
+export const listObservationsInput = z.strictObject({
+  developer_id: id.optional().describe("Leave out to use the local developer"),
+});
+
+export const getTrailInput = z.strictObject({
+  session_id: id.describe("The Claude Code session id"),
+});
+
+export const recordExplainBackInput = z.strictObject({
+  decision_id: id,
+  question: shortText,
+  answer: longText.describe("The developer's own explanation"),
+  rating: z.enum(RATINGS),
+});
+
+export const saveObservationInput = z.strictObject({
+  developer_id: id.optional().describe("Leave out to use the local developer"),
+  skill_tag: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9][a-z0-9-]{0,49}$/, "skill_tag must be lowercase letters, digits and dashes"),
+  summary: shortText,
+  evidence_ids: z.array(id).min(1).max(20).describe("Ids of the decisions or explain-backs that support this"),
+});
+
+export const saveGrowthPlanInput = z.strictObject({
+  developer_id: id.optional().describe("Leave out to use the local developer"),
+  focus_areas: z
+    .array(
+      z.strictObject({
+        claim: shortText,
+        evidence_ids: z.array(id).min(1).max(20).describe("Observation ids that support the claim"),
+        exercise: longText.describe("One concrete thing to practise"),
+      }),
+    )
+    .min(1)
+    .max(3),
+});
+
+export type SaveAssumptionsInput = z.infer<typeof saveAssumptionsInput>;
+export type StartTrailInput = z.infer<typeof startTrailInput>;
+export type LogDecisionInput =z.infer<typeof logDecisionInput>;
+export type RecordExplainBackInput = z.infer<typeof recordExplainBackInput>;
+export type SaveObservationInput = z.infer<typeof saveObservationInput>;
+export type SaveGrowthPlanInput = z.infer<typeof saveGrowthPlanInput>;

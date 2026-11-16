@@ -1,0 +1,17 @@
+---
+name: status
+description: Show that the Fork / Paper Trail / Coach plugin is installed and which parts are ready. Use when the user asks if the plugin works or what it can do.
+---
+
+Tell the user the plugin is installed, then list what is ready:
+
+- `/fork-trail-coach:fork <ticket-id>` — ready. Finds the questions in a ticket that change the code and saves the assumption list.
+- `/fork-trail-coach:paper-trail <ticket-id>` — ready. Logs each real choice made while coding the ticket, and flags edited files with no decision.
+- `/fork-trail-coach:explain-back <ticket-id>` — ready. Asks the developer why 2 or 3 logged decisions were made, and saves the answers with a rating.
+- `/fork-trail-coach:coach` — ready. Builds a private growth plan from the saved observations, with evidence for every claim.
+
+Then check the local service: call `get_ticket` on the `fork-trail-coach` MCP server with ticket id `SAMPLE-1`.
+If it works, say the local service is running. If the tool is missing or fails, say the local service is not
+running and that it needs Node 22 or newer.
+
+Keep the answer to these lines. Do not invent features.

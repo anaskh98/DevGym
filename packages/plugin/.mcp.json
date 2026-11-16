@@ -1,14 +1,8 @@
 {
   "mcpServers": {
-    "service": {
+    "fork-trail-coach": {
       "command": "node",
-      "args": [
-        "--disable-warning=ExperimentalWarning",
-        "${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"
-      ],
-      "env": {
-        "FTC_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}"
-      }
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server/start.mjs"]
     }
   }
 }

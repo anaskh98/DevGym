@@ -1,35 +1,13 @@
-/** Errors the MCP tools report back to Claude as a readable message. */
-export class FtcError extends Error {
+/** An error the caller can fix. Its message is safe to show to the model. */
+export class StoreError extends Error {}
+
+/** A write the privacy guard refused. The message says which field and which rule, never the blocked text. */
+export class PrivacyError extends StoreError {
   constructor(
-    readonly code: "not_found" | "invalid_reference" | "privacy_rejected" | "invalid_ticket",
-    message: string,
-  ) {
-    super(message);
-    this.name = "FtcError";
-  }
-}
-
-export class NotFoundError extends FtcError {
-  constructor(message: string) {
-    super("not_found", message);
-    this.name = "NotFoundError";
-  }
-}
-
-export class InvalidReferenceError extends FtcError {
-  constructor(message: string) {
-    super("invalid_reference", message);
-    this.name = "InvalidReferenceError";
-  }
-}
-
-export class PrivacyRejection extends FtcError {
-  constructor(
-    readonly rule: string,
     readonly field: string,
-    reason: string,
+    readonly rule: string,
+    advice: string,
   ) {
-    super("privacy_rejected", `Rejected by the privacy guard (${rule}, field "${field}"): ${reason}`);
-    this.name = "PrivacyRejection";
+    super(`Rejected by the privacy guard: field '${field}' ${advice} (rule: ${rule}). Nothing was saved.`);
   }
 }

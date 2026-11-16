@@ -1,5 +1,7 @@
 # Frontend status
 
+> **Note, 16 Nov 2026:** the backend this file describes (`packages/server`, `packages/plugin`) was replaced by a different one. For the current backend, commands and API, see the [README](../README.md) and [api.md](api.md). The frontend, demo repo and eval parts still apply.
+
 16 Nov 2026. Every frontend task in the build plan (FE-1 to FE-8) is built. Only Fork has been run against real data; the other pages run on sample data, because the backend pieces they read from are not built yet.
 
 ## What is built

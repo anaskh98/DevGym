@@ -1,77 +1,54 @@
-/**
- * Reads tickets from Markdown files in one directory:
- *
- *   ---
- *   id: DEMO-1
- *   title: Let members cancel a booking
- *   ---
- *   The ticket body, in Markdown.
- *
- * Without front matter, the id is the file name and the title is the first
- * "# heading".
- */
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
-import { isValidTicketId, type SourceTicket, type TicketSource } from "./source";
+import { join } from "node:path";
+import type { TicketAdapter, TicketData } from "./adapter.js";
 
-interface Parsed {
-  meta: Record<string, string>;
-  body: string;
-}
-
-export function parseFrontMatter(raw: string): Parsed {
-  const text = raw.replace(/^﻿/, "").replace(/\r\n/g, "\n");
-  const match = /^---\n([\s\S]*?)\n---\n?/.exec(text);
-  if (!match) return { meta: {}, body: text.trim() };
-
+/**
+ * Reads a ticket from Markdown with a small front matter block:
+ *   ---
+ *   id: SAMPLE-1
+ *   title: Some title
+ *   ---
+ *   Body text...
+ */
+export function parseTicketMarkdown(text: string): TicketData {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text.replace(/^﻿/, ""));
+  if (!match) throw new Error("Ticket file has no front matter block");
   const meta: Record<string, string> = {};
-  for (const line of (match[1] ?? "").split("\n")) {
-    const pair = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line);
-    if (!pair) continue;
-    const key = pair[1] as string;
-    const value = (pair[2] ?? "").trim().replace(/^(["'])(.*)\1$/, "$2");
-    meta[key.toLowerCase()] = value;
+  for (const line of (match[1] ?? "").split(/\r?\n/)) {
+    const i = line.indexOf(":");
+    if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
-  return { meta, body: text.slice(match[0].length).trim() };
+  if (!meta.id || !meta.title) throw new Error("Ticket file needs 'id' and 'title'");
+  return { id: meta.id, title: meta.title, body: (match[2] ?? "").trim() };
 }
 
-export function parseTicketFile(fileName: string, raw: string): SourceTicket {
-  const { meta, body } = parseFrontMatter(raw);
-  const heading = /^#\s+(.+)$/m.exec(body);
-  const id = meta.id || basename(fileName, ".md");
-  return {
-    id,
-    title: meta.title || heading?.[1]?.trim() || id,
-    body,
-  };
-}
+/**
+ * Finds tickets in one or more folders of .md files. Earlier folders win.
+ * The id is matched against each file's front matter, never used to build a path,
+ * so an id like "../secret" cannot read files outside the folders.
+ */
+export class MarkdownTicketAdapter implements TicketAdapter {
+  readonly source = "markdown";
 
-export class MarkdownTicketSource implements TicketSource {
-  readonly name = "markdown";
+  constructor(private readonly dirs: string[]) {}
 
-  constructor(private readonly dir: string) {}
-
-  async list(): Promise<SourceTicket[]> {
-    let names: string[];
-    try {
-      names = await readdir(this.dir);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw error;
+  async getTicket(id: string): Promise<TicketData | null> {
+    for (const dir of this.dirs) {
+      let files: string[];
+      try {
+        files = (await readdir(dir)).filter((f) => f.endsWith(".md")).sort();
+      } catch {
+        continue; // A missing folder just has no tickets.
+      }
+      for (const file of files) {
+        try {
+          const ticket = parseTicketMarkdown(await readFile(join(dir, file), "utf8"));
+          if (ticket.id === id) return ticket;
+        } catch {
+          // Not a ticket file (a README, for example). Skip it.
+        }
+      }
     }
-    const tickets: SourceTicket[] = [];
-    for (const name of names.filter((n) => n.endsWith(".md")).sort()) {
-      const ticket = parseTicketFile(name, await readFile(join(this.dir, name), "utf8"));
-      if (isValidTicketId(ticket.id)) tickets.push(ticket);
-    }
-    return tickets;
-  }
-
-  async get(id: string): Promise<SourceTicket | null> {
-    if (!isValidTicketId(id)) return null;
-    const wanted = id.toLowerCase();
-    // Match on the id in the front matter (or file name), not on a path built
-    // from input, so an id can never reach outside the tickets directory.
-    return (await this.list()).find((ticket) => ticket.id.toLowerCase() === wanted) ?? null;
+    return null;
   }
 }

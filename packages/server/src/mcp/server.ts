@@ -1,89 +1,68 @@
-/**
- * The local MCP server: six tools Claude Code calls over stdio.
- *
- * Input is validated against the zod shapes in @ftc/shared before a handler
- * runs, so bad input is rejected with a message Claude can act on.
- */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { Db } from "../db/connection.js";
+import { StoreError } from "../errors.js";
+import { PrivacyGuard } from "../privacy/guard.js";
+import * as store from "../store.js";
+import type { TicketAdapter } from "../tickets/adapter.js";
 import {
-  GetTicketInput,
-  LogDecisionInput,
-  RecordExplainBackInput,
-  SaveAssumptionsInput,
-  SaveGrowthPlanInput,
-  SaveObservationInput,
-} from "@ftc/shared";
-import type { Config } from "../config";
-import type { Store } from "../db/store";
-import { FtcError, NotFoundError } from "../errors";
-import { isValidTicketId, type TicketSource } from "../tickets/source";
+  getTicketInput,
+  getTrailInput,
+  listDecisionsInput,
+  listObservationsInput,
+  logDecisionInput,
+  recordExplainBackInput,
+  saveAssumptionsInput,
+  saveGrowthPlanInput,
+  saveObservationInput,
+  startTrailInput,
+} from "./schemas.js";
 
-export const SERVER_NAME = "ftc-local-service";
+export const SERVER_NAME = "fork-trail-coach";
 export const SERVER_VERSION = "0.1.0";
 
-export interface ServerDeps {
-  store: Store;
-  tickets: TicketSource;
-  config: Pick<Config, "developerId" | "sessionId" | "ticketsDir">;
-}
-
-function ok(payload: unknown): CallToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
-}
-
-function fail(message: string): CallToolResult {
-  return { isError: true, content: [{ type: "text", text: message }] };
-}
-
-/** Expected failures become tool errors Claude can read; bugs still throw. */
-async function guarded(run: () => Promise<CallToolResult> | CallToolResult): Promise<CallToolResult> {
+/** Runs a store call and turns the outcome into a tool result. */
+async function reply(run: () => unknown): Promise<CallToolResult> {
   try {
-    return await run();
-  } catch (error) {
-    if (error instanceof FtcError) return fail(error.message);
-    throw error;
+    return { content: [{ type: "text", text: JSON.stringify(await run(), null, 2) }] };
+  } catch (err) {
+    // Only StoreError messages are written for the caller. Anything else is a bug: keep details out.
+    const message = err instanceof StoreError ? err.message : "Internal error while saving";
+    if (!(err instanceof StoreError)) console.error(err);
+    return { isError: true, content: [{ type: "text", text: message }] };
   }
 }
 
-export function createFtcServer({ store, tickets, config }: ServerDeps): McpServer {
+export interface ServerOptions {
+  /** The repo folder the session works in. File paths are stored relative to it. */
+  root?: string;
+  /** Checks every write. Defaults to a guard for `root` with the developer's local denylist. */
+  guard?: PrivacyGuard;
+}
+
+export function createServer(db: Db, tickets: TicketAdapter, options: ServerOptions = {}): McpServer {
+  const root = options.root ?? process.cwd();
+  const guard = options.guard ?? new PrivacyGuard({ root });
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+
+  /** Every tool that writes goes through here: the privacy guard runs before anything is saved. */
+  const write = <T>(input: T, save: (input: T) => unknown) =>
+    reply(() => {
+      guard.check(input);
+      return save(input);
+    });
+  const ticket = (ticketId: string) => store.ensureTicket(db, tickets, ticketId, guard);
 
   server.registerTool(
     "get_ticket",
     {
       title: "Get ticket",
-      description:
-        "Fetch a ticket by id from the ticket source and record it in the local store. " +
-        "Call this before any other tool that takes a ticket_id.",
-      inputSchema: GetTicketInput,
-      annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false },
+      description: "Read one ticket (id, title, body) by its id.",
+      inputSchema: getTicketInput,
+      annotations: { readOnlyHint: true },
     },
-    ({ ticket_id }) =>
-      guarded(async () => {
-        if (!isValidTicketId(ticket_id)) {
-          return fail(
-            `"${ticket_id}" is not a valid ticket id. Use letters, digits, ".", "_" or "-".`,
-          );
-        }
-        const found = await tickets.get(ticket_id);
-        if (!found) {
-          const available = (await tickets.list()).map((t) => t.id);
-          throw new NotFoundError(
-            `Ticket "${ticket_id}" was not found in ${config.ticketsDir}. ` +
-              (available.length > 0
-                ? `Available: ${available.join(", ")}.`
-                : "That folder has no tickets."),
-          );
-        }
-        const ticket = store.upsertTicket({ ...found, source: tickets.name });
-        return ok({
-          id: ticket.id,
-          title: ticket.title,
-          body: ticket.body,
-          source: ticket.source,
-        });
-      }),
+    // Reading a ticket also saves a local copy, so it is guarded like a write.
+    (input) => write(input, (i) => ticket(i.ticket_id)),
   );
 
   server.registerTool(
@@ -91,24 +70,13 @@ export function createFtcServer({ store, tickets, config }: ServerDeps): McpServ
     {
       title: "Save assumptions",
       description:
-        "Save the full assumption list from one /fork run on a ticket. Each item is a question " +
-        'whose readings lead to different code, tagged "answered_by_po" (the PO answered) or ' +
-        '"assumed_by_dev" (nobody answered; the developer proceeds on a stated reading). ' +
-        "Describe behaviour in words; never paste code.",
-      inputSchema: SaveAssumptionsInput,
-      annotations: { readOnlyHint: false, openWorldHint: false },
+        "Save the assumption list for a ticket after Fork. Each item is 'answered_by_po' (with the answer) or 'assumed_by_dev'. Replaces the ticket's previous list. Words only: text that looks like code, a secret, or a client name is rejected.",
+      inputSchema: saveAssumptionsInput,
     },
-    ({ ticket_id, assumptions }) =>
-      guarded(() => {
-        const run = store.saveAssumptions(ticket_id, assumptions);
-        return ok({
-          run_id: run.run_id,
-          ticket_id,
-          saved: run.assumptions.length,
-          answered_by_po: run.assumptions.filter((a) => a.status === "answered_by_po").length,
-          assumed_by_dev: run.assumptions.filter((a) => a.status === "assumed_by_dev").length,
-          assumption_ids: run.assumptions.map((a) => a.id),
-        });
+    (input) =>
+      write(input, async (i) => {
+        await ticket(i.ticket_id);
+        return store.saveAssumptions(db, i);
       }),
   );
 
@@ -117,28 +85,53 @@ export function createFtcServer({ store, tickets, config }: ServerDeps): McpServ
     {
       title: "Log decision",
       description:
-        "Record one decision made while coding a ticket: what was decided, the alternatives " +
-        "not taken, who decided (origin), and a pointer to where it lives in the code. " +
-        "The pointer is a file path and line, never the code itself.",
-      inputSchema: LogDecisionInput,
-      annotations: { readOnlyHint: false, openWorldHint: false },
+        "Log one design or implementation choice made while coding a ticket: what was chosen, the alternatives, who chose it, and a pointer to where it lives. Describe the choice in words; never paste code. Text that looks like code, a secret, or a client name is rejected.",
+      inputSchema: logDecisionInput,
     },
-    ({ ticket_id, summary, alternatives, origin, pointer, session_id }) =>
-      guarded(() => {
-        const { decision, pointer: saved } = store.logDecision({
-          ticket_id,
-          summary,
-          alternatives,
-          origin,
-          pointer,
-          session_id: session_id ?? config.sessionId,
-        });
-        return ok({
-          decision_id: decision.id,
-          pointer_id: saved?.id ?? null,
-          session_id: decision.session_id,
-        });
+    (input) =>
+      write(input, async (i) => {
+        await ticket(i.ticket_id);
+        return store.logDecision(db, i, root);
       }),
+  );
+
+  server.registerTool(
+    "start_trail",
+    {
+      title: "Start Paper Trail",
+      description:
+        "Start tracking a coding session for a ticket. From then on the plugin records which files the session edits (paths only). Returns the ticket and its saved assumptions.",
+      inputSchema: startTrailInput,
+    },
+    (input) =>
+      write(input, async (i) => {
+        await ticket(i.ticket_id);
+        return store.startTrail(db, i);
+      }),
+  );
+
+  server.registerTool(
+    "get_trail",
+    {
+      title: "Get Paper Trail",
+      description:
+        "List a session's logged decisions and edited files. 'unexplained_files' are edited files that no decision points at.",
+      inputSchema: getTrailInput,
+      annotations: { readOnlyHint: true },
+    },
+    (input) => reply(() => store.getTrail(db, input.session_id)),
+  );
+
+  server.registerTool(
+    "list_decisions",
+    {
+      title: "List decisions",
+      description:
+        "List every decision logged for a ticket, across sessions, with how many explain-backs each one already has.",
+      inputSchema: listDecisionsInput,
+      annotations: { readOnlyHint: true },
+    },
+    (input) => reply(() => store.listDecisions(db, input.ticket_id)),
   );
 
   server.registerTool(
@@ -146,16 +139,10 @@ export function createFtcServer({ store, tickets, config }: ServerDeps): McpServ
     {
       title: "Record explain-back",
       description:
-        "Store the developer's own explanation of a logged decision, with a rating: " +
-        '"clear", "partial" or "not_yet".',
-      inputSchema: RecordExplainBackInput,
-      annotations: { readOnlyHint: false, openWorldHint: false },
+        "Save the developer's own explanation of a logged decision, with a rating of how clear it was. Words only: code, secrets and client names are rejected.",
+      inputSchema: recordExplainBackInput,
     },
-    (input) =>
-      guarded(() => {
-        const record = store.recordExplainBack(input);
-        return ok({ explain_back_id: record.id, decision_id: record.decision_id });
-      }),
+    (input) => write(input, (i) => store.recordExplainBack(db, i)),
   );
 
   server.registerTool(
@@ -163,16 +150,22 @@ export function createFtcServer({ store, tickets, config }: ServerDeps): McpServ
     {
       title: "Save observation",
       description:
-        "Save one observation about the developer's skills. It must cite the decision or " +
-        "explain-back ids it rests on. Stored locally; never shared.",
-      inputSchema: SaveObservationInput,
-      annotations: { readOnlyHint: false, openWorldHint: false },
+        "Save one observation about a developer skill. It must cite the decisions or explain-backs it is based on. Words only: code, secrets and client names are rejected.",
+      inputSchema: saveObservationInput,
     },
-    (input) =>
-      guarded(() => {
-        const record = store.saveObservation({ ...input, developer_id: config.developerId });
-        return ok({ observation_id: record.id });
-      }),
+    (input) => write(input, (i) => store.saveObservation(db, i)),
+  );
+
+  server.registerTool(
+    "list_observations",
+    {
+      title: "List observations",
+      description:
+        "List the developer's saved observations, each with its evidence: the decisions (with origin) and explain-backs (with rating) it is based on.",
+      inputSchema: listObservationsInput,
+      annotations: { readOnlyHint: true },
+    },
+    (input) => reply(() => store.listObservations(db, input.developer_id)),
   );
 
   server.registerTool(
@@ -180,24 +173,10 @@ export function createFtcServer({ store, tickets, config }: ServerDeps): McpServ
     {
       title: "Save growth plan",
       description:
-        "Save a growth plan of 1 to 3 focus areas. Every claim must cite observation ids as " +
-        "evidence; a claim without evidence is rejected, and a claim resting on a single " +
-        "observation is marked tentative by the server.",
-      inputSchema: SaveGrowthPlanInput,
-      annotations: { readOnlyHint: false, openWorldHint: false },
+        "Save a growth plan with 1 to 3 focus areas. Each claim must cite observation ids. The server marks a claim 'tentative' when it rests on a single observation. Words only: code, secrets and client names are rejected.",
+      inputSchema: saveGrowthPlanInput,
     },
-    ({ focus_areas }) =>
-      guarded(() => {
-        const plan = store.saveGrowthPlan({ developer_id: config.developerId, focus_areas });
-        return ok({
-          growth_plan_id: plan.id,
-          focus_areas: plan.focus_areas.map((area) => ({
-            claim: area.claim,
-            evidence: area.evidence_ids.length,
-            tentative: area.tentative,
-          })),
-        });
-      }),
+    (input) => write(input, (i) => store.saveGrowthPlan(db, i)),
   );
 
   return server;

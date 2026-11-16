@@ -2,7 +2,8 @@ node_modules/
 .DS_Store
 *.log
 
-# build output (the plugin bundle in packages/plugin/dist is committed on purpose)
+# build output (the plugin bundles in packages/plugin/server are committed on purpose)
+packages/server/dist/
 packages/web/dist/
 packages/eval/results/
 packages/web/public/mock-local/

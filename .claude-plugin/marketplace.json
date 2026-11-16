@@ -1,14 +1,12 @@
 {
-  "name": "md-labs",
-  "description": "MD Labs plugins for Claude Code",
-  "owner": {
-    "name": "MD Labs"
-  },
+  "name": "fork-trail-coach",
+  "description": "Team marketplace for the Fork, Paper Trail and Coach plugin.",
+  "owner": { "name": "Plugin team" },
   "plugins": [
     {
-      "name": "ftc",
+      "name": "fork-trail-coach",
       "source": "./packages/plugin",
-      "description": "Fork, Paper Trail, Coach: ask the questions that change the code, keep a trail of decisions, and coach from evidence. Profiles stay on your machine."
+      "description": "Fork (ticket questions), Paper Trail (decision log) and Coach (growth report). Profiles stay on your machine."
     }
   ]
 }

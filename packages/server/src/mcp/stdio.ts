@@ -1,0 +1,28 @@
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { openDb } from "../db/connection.js";
+import { migrate } from "../db/migrations.js";
+import { MarkdownTicketAdapter } from "../tickets/markdown.js";
+import { createServer } from "./server.js";
+
+// stdout carries the MCP protocol. Log to stderr only.
+const db = openDb();
+migrate(db);
+
+// Tickets come from the project first ("tickets" folder where Claude Code runs, or FTC_TICKETS_DIR),
+// then from the demo tickets that ship next to this file inside the plugin.
+const projectTickets = process.env.FTC_TICKETS_DIR ?? join(process.cwd(), "tickets");
+const demoTickets = join(dirname(fileURLToPath(import.meta.url)), "..", "demo-tickets");
+const tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
+
+const server = createServer(db, tickets);
+await server.connect(new StdioServerTransport());
+console.error("fork-trail-coach MCP server running on stdio");
+
+const shutdown = () => {
+  db.close();
+  process.exit(0);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

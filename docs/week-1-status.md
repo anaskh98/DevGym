@@ -1,5 +1,7 @@
 # Week 1 status
 
+> **Note, 16 Nov 2026:** the backend this file describes (`packages/server`, `packages/plugin`) was replaced by a different one. For the current backend, commands and API, see the [README](../README.md) and [api.md](api.md). The frontend, demo repo and eval parts still apply.
+
 15 Nov 2026. Covers the week 1 column of the build plan: BE-1 to BE-5, FE-1, FE-2 and EV-1.
 
 **The week 1 gate, "Fork runs end to end on the demo ticket", is not passed yet.** Everything Fork needs is built and tested up to the model: the plugin installs, the skill loads, and the MCP tools take the calls the skill makes. Nobody has yet run `/ftc:fork DEMO-1` in Claude Code on a clone of the demo repo. That run is the gate.

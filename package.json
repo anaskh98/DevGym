@@ -9,18 +9,16 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "build": "pnpm plugin:bundle && pnpm --filter @ftc/web build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
-    "plugin:bundle": "pnpm --filter @ftc/server bundle",
-    "plugin:check": "pnpm --filter @ftc/server bundle:check",
+    "build": "corepack pnpm plugin:bundle && corepack pnpm --filter @ftc/web build",
+    "typecheck": "corepack pnpm -r typecheck",
+    "test": "corepack pnpm -r test",
+    "check": "corepack pnpm typecheck && corepack pnpm plugin:bundle && corepack pnpm test",
+    "plugin:bundle": "corepack pnpm --filter @ftc/server build",
     "plugin:validate": "claude plugin validate . && claude plugin validate ./packages/plugin",
-    "db:migrate": "pnpm --filter @ftc/server db:migrate",
-    "db:seed": "pnpm --filter @ftc/server db:seed",
-    "db:export-mock": "pnpm --filter @ftc/server db:export-mock",
-    "dev:web": "pnpm --filter @ftc/web dev",
-    "check": "pnpm typecheck && pnpm test && pnpm plugin:check && pnpm smoke",
-    "smoke": "pnpm --filter @ftc/server smoke",
-    "mock:refresh": "pnpm --filter @ftc/server sample-data"
+    "db:migrate": "corepack pnpm --filter @ftc/server db:migrate",
+    "db:seed": "corepack pnpm --filter @ftc/server db:seed",
+    "db:status": "corepack pnpm --filter @ftc/server db:status",
+    "api": "corepack pnpm --filter @ftc/server api",
+    "dev:web": "corepack pnpm --filter @ftc/web dev"
   }
 }
