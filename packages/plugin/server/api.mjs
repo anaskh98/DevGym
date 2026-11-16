@@ -6,6 +6,10 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src/api/main.ts
+import { dirname as dirname3, join as join5 } from "node:path";
+import { fileURLToPath } from "node:url";
+
 // src/db/connection.ts
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -5588,7 +5592,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve) {
+function isRecursive(inst, stack, resolve2) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5598,7 +5602,7 @@ function isRecursive(inst, stack, resolve) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve);
+      const answer = isRecursive(child, stack, resolve2);
       if (answer > result)
         result = answer;
     }
@@ -5609,7 +5613,7 @@ function isRecursive(inst, stack, resolve) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve2) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5673,7 +5677,7 @@ function isRecursive(inst, stack, resolve) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve2 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -20470,6 +20474,231 @@ function deleteAll(db2) {
   return deleted;
 }
 
+// src/api/static.ts
+import { existsSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
+import { extname as extname2, join as join4, normalize, resolve, sep } from "node:path";
+
+// src/api/report-page.ts
+var REPORT_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach report</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181c; --card:#1f2228; --text:#e6e8eb; --muted:#9aa3ad; --line:#353a42; --accent:#7fb0ff; --warn-bg:#4a3a10; --warn:#ffd97a; --bad:#ff9d94; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:0 0 8px; }
+  h3 { font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:16px 0 6px; }
+  p { margin:0 0 8px; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-top:16px; }
+  .badge { display:inline-block; font-size:.75rem; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--warn-bg); color:var(--warn); margin-left:8px; vertical-align:middle; }
+  ul { margin:0; padding-left:20px; }
+  li { margin-bottom:6px; }
+  .note { border-left:3px solid var(--line); padding:4px 0 4px 10px; margin-bottom:6px; }
+  .note.disagrees { border-left-color:var(--bad); }
+  .note b { color:var(--bad); }
+  textarea { width:100%; min-height:64px; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
+  label.check { display:inline-flex; align-items:center; gap:6px; margin:8px 12px 0 0; }
+  button { margin-top:8px; padding:6px 14px; border:1px solid var(--accent); border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  .error { color:var(--bad); margin-top:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Coach report</h1>
+  <p class="muted">Private to you. Stored on this machine only and never shared.</p>
+  <div id="report" aria-live="polite"><p class="muted">Loading\u2026</p></div>
+</main>
+<script src="/report.js"></script>
+</body>
+</html>
+`;
+var REPORT_JS = `"use strict";
+(function () {
+  var root = document.getElementById("report");
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+  function message(text, className) {
+    root.replaceChildren(el("p", className || "muted", text));
+  }
+  var RATING = { clear: "explained clearly", partial: "partly explained", not_yet: "not explained yet" };
+  var ORIGIN = { ai: "AI chose", dev: "developer chose", dev_changed_ai: "developer changed the AI's choice" };
+
+  function evidenceLine(observation) {
+    var item = el("li", "", observation.summary);
+    var parts = [];
+    (observation.evidence || []).forEach(function (e) {
+      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
+      if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
+    });
+    if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
+    return item;
+  }
+
+  function noteForm(area) {
+    var form = el("form");
+    var box = el("textarea");
+    box.setAttribute("aria-label", "Your note on this claim");
+    box.maxLength = 2000;
+    box.placeholder = "Add a note. Words only, no code.";
+    var check = el("label", "check");
+    var tick = el("input");
+    tick.type = "checkbox";
+    check.appendChild(tick);
+    check.appendChild(document.createTextNode("I disagree with this claim"));
+    var send = el("button", "", "Save note");
+    send.type = "submit";
+    var error = el("div", "error");
+    error.setAttribute("role", "alert");
+    form.append(box, check, send, error);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var note = box.value.trim();
+      if (!note) { error.textContent = "Write a note first."; return; }
+      send.disabled = true;
+      error.textContent = "";
+      fetch("/api/annotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: area.id, note: note, disagrees: tick.checked })
+      }).then(function (response) {
+        return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+      }).then(function (result) {
+        if (!result.ok) throw new Error((result.body.error && result.body.error.message) || "The note was not saved.");
+        load();
+      }).catch(function (problem) {
+        send.disabled = false;
+        error.textContent = problem.message;
+      });
+    });
+    return form;
+  }
+
+  function areaCard(area, index) {
+    var card = el("section", "card");
+    var title = el("h2", "", "Focus area " + (index + 1));
+    if (area.tentative) {
+      var badge = el("span", "badge", "Tentative");
+      badge.title = "This claim rests on a single observation, so it may be wrong.";
+      title.appendChild(badge);
+    }
+    card.appendChild(title);
+    card.appendChild(el("p", "", area.claim));
+    if (area.tentative) card.appendChild(el("p", "muted", "Based on one observation only. Treat it as a first sign."));
+
+    card.appendChild(el("h3", "", "Evidence"));
+    var list = el("ul");
+    (area.evidence || []).forEach(function (o) { list.appendChild(evidenceLine(o)); });
+    if (!list.children.length) list.appendChild(el("li", "muted", "The evidence for this claim was deleted."));
+    card.appendChild(list);
+
+    card.appendChild(el("h3", "", "Exercise"));
+    card.appendChild(el("p", "", area.exercise));
+
+    card.appendChild(el("h3", "", "Your notes"));
+    (area.annotations || []).forEach(function (a) {
+      var note = el("div", a.disagrees ? "note disagrees" : "note");
+      if (a.disagrees) { note.appendChild(el("b", "", "I disagree. ")); }
+      note.appendChild(document.createTextNode(a.note));
+      card.appendChild(note);
+    });
+    card.appendChild(noteForm(area));
+    return card;
+  }
+
+  function render(plan) {
+    if (!plan) {
+      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
+      return;
+    }
+    var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC \xB7 " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];
+    plan.focus_areas.forEach(function (area, index) { nodes.push(areaCard(area, index)); });
+    root.replaceChildren.apply(root, nodes);
+  }
+
+  function load() {
+    fetch("/api/growth-plan").then(function (response) {
+      if (!response.ok) throw new Error("The local service answered " + response.status + ".");
+      return response.json();
+    }).then(function (body) {
+      render(body.growth_plan);
+    }).catch(function (problem) {
+      message("Could not load the report. " + problem.message + " Is the local service still running?", "error");
+    });
+  }
+  load();
+})();
+`;
+
+// src/api/static.ts
+var TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".map": "application/json; charset=utf-8"
+};
+var STRICT_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+function send(res, status, type, body, extra = {}) {
+  res.writeHead(status, {
+    "Content-Type": type,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    ...extra
+  });
+  res.end(body);
+}
+function hasWebApp(webDir2) {
+  return webDir2 !== void 0 && existsSync(join4(webDir2, "index.html"));
+}
+function reportPath(webDir2) {
+  return hasWebApp(webDir2) ? "/#/coach" : "/";
+}
+async function servePage(res, pathname, webDir2) {
+  if (!hasWebApp(webDir2)) {
+    if (pathname === "/" || pathname === "/index.html") return send(res, 200, TYPES[".html"], REPORT_HTML, { "Content-Security-Policy": STRICT_CSP });
+    if (pathname === "/report.js") return send(res, 200, TYPES[".js"], REPORT_JS);
+    return send(res, 404, "text/plain; charset=utf-8", "Not found");
+  }
+  const root = resolve(webDir2);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return send(res, 400, "text/plain; charset=utf-8", "Bad request");
+  }
+  const file2 = resolve(root, `.${normalize(`/${decoded}`)}`);
+  if (file2 !== root && !file2.startsWith(root + sep)) return send(res, 404, "text/plain; charset=utf-8", "Not found");
+  const info = await stat(file2).catch(() => null);
+  if (info?.isFile()) {
+    return send(res, 200, TYPES[extname2(file2).toLowerCase()] ?? "application/octet-stream", await readFile(file2));
+  }
+  if (extname2(file2) === "") return send(res, 200, TYPES[".html"], await readFile(join4(root, "index.html")));
+  return send(res, 404, "text/plain; charset=utf-8", "Not found");
+}
+
 // src/api/server.ts
 var API_HOST = "127.0.0.1";
 var DEFAULT_API_PORT = 4317;
@@ -20491,7 +20720,7 @@ var HttpError = class extends Error {
   code;
   extra;
 };
-function send(res, status, body, headers = {}) {
+function send2(res, status, body, headers = {}) {
   const text = body === void 0 ? "" : JSON.stringify(body);
   res.writeHead(status, {
     ...body === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
@@ -20532,14 +20761,14 @@ function createApiServer(options) {
   const server2 = createServer((req, res) => {
     handle(req, res).catch((err) => {
       if (err instanceof HttpError) {
-        send(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } });
+        send2(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } });
       } else if (err instanceof PrivacyError) {
-        send(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } });
+        send2(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } });
       } else if (err instanceof StoreError) {
-        send(res, 404, { error: { code: "not_found", message: err.message } });
+        send2(res, 404, { error: { code: "not_found", message: err.message } });
       } else {
         console.error(err);
-        send(res, 500, { error: { code: "internal", message: "Internal error" } });
+        send2(res, 500, { error: { code: "internal", message: "Internal error" } });
       }
     });
   });
@@ -20560,7 +20789,7 @@ function createApiServer(options) {
     }
     const method = req.method ?? "GET";
     if (method === "OPTIONS") {
-      send(res, 204, void 0, {
+      send2(res, 204, void 0, {
         ...cors,
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
@@ -20569,11 +20798,16 @@ function createApiServer(options) {
       return;
     }
     const url2 = new URL(req.url ?? "/", own2[0]);
+    if (url2.pathname !== "/api" && !url2.pathname.startsWith("/api/")) {
+      if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method_not_allowed", "Only GET is allowed here");
+      await servePage(res, url2.pathname, options.webDir);
+      return;
+    }
     const parts = url2.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    if (parts.shift() !== "api") throw new HttpError(404, "not_found", "Not found");
+    parts.shift();
     const route = `${method} /${parts.map((p, i) => i % 2 === 1 ? ":id" : p).join("/")}`;
     const id = parts[1] ?? "";
-    const ok = (body, status = 200, headers = {}) => send(res, status, body, { ...cors, ...headers });
+    const ok = (body, status = 200, headers = {}) => send2(res, status, body, { ...cors, ...headers });
     const notFound = (what) => new HttpError(404, "not_found", `${what} '${id}' does not exist`);
     switch (route) {
       case "GET /health":
@@ -20614,9 +20848,9 @@ function createApiServer(options) {
   return server2;
 }
 function listen(server2, port2 = DEFAULT_API_PORT) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     server2.once("error", reject);
-    server2.listen(port2, API_HOST, () => resolve(server2.address().port));
+    server2.listen(port2, API_HOST, () => resolve2(server2.address().port));
   });
 }
 
@@ -20625,10 +20859,12 @@ var db = openDb();
 migrate(db);
 var port = Number(process.env.FTC_PORT ?? DEFAULT_API_PORT);
 var allowedOrigins = (process.env.FTC_WEB_ORIGIN ?? "http://127.0.0.1:4318,http://localhost:4318").split(",").map((o) => o.trim()).filter(Boolean);
-var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins });
+var webDir = join5(dirname3(fileURLToPath(import.meta.url)), "..", "web");
+var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir });
 try {
   const actual = await listen(server, port);
   console.log(`fork-trail-coach API listening on http://${API_HOST}:${actual}/api`);
+  console.log(`Coach report: http://${API_HOST}:${actual}${reportPath(webDir)}`);
 } catch (err) {
   const code = err.code;
   console.error(code === "EADDRINUSE" ? `Port ${port} is already in use. Set FTC_PORT to another port.` : err);

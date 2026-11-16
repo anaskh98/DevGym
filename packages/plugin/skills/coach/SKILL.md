@@ -1,6 +1,7 @@
 ---
 name: coach
-description: Build a private growth plan for the developer from their saved observations, with 1 to 3 focus areas that each cite evidence and give one exercise. Use when the user runs /coach, or asks for a growth plan, coaching, or what to work on next.
+description: Build a private growth plan for the developer from their saved observations, with 1 to 3 focus areas that each cite evidence and give one exercise. With the argument "open", open the saved report in the browser instead. Use when the user runs /coach, or asks for a growth plan, coaching, what to work on next, or to see or open their coach report.
+argument-hint: "[open]"
 ---
 
 # Coach
@@ -11,6 +12,20 @@ It is for the developer only. It is coaching, not a performance review, and it n
 Every claim must rest on saved observations. No evidence, no claim.
 
 All tools below are on the `fork-trail-coach` MCP server.
+
+Argument: `$ARGUMENTS`
+
+## If the argument is `open`
+
+Do only this, and do not build a new plan:
+
+1. Call `open_report`. It starts the local server if needed and opens the report in the browser.
+2. Tell the developer the address it returned, in one line, in case the browser did not come to the front.
+3. Add one line: the page is served from this machine only, and it stops when this Claude Code session ends.
+
+If the call fails, show the error and stop.
+
+Otherwise, with no argument, build a plan with the steps below.
 
 ## Step 1: Read the observations
 
@@ -74,3 +89,4 @@ Then, in one or two lines:
 - Name one thing the evidence shows the developer does well, if there is one. Skip this if there is not.
 - Say the plan is saved on this machine only and is not shared with anyone.
 - Say they can disagree with any claim: a tentative one especially may simply be wrong.
+- Say they can see the report in the browser, and add a note or "I disagree" to a claim, by running this command again with `open`.

@@ -1,7 +1,10 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { openDb } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import { API_HOST, createApiServer, DEFAULT_API_PORT, listen } from "./server.js";
+import { reportPath } from "./static.js";
 
 const db = openDb();
 migrate(db);
@@ -13,10 +16,14 @@ const allowedOrigins = (process.env.FTC_WEB_ORIGIN ?? "http://127.0.0.1:4318,htt
   .map((o) => o.trim())
   .filter(Boolean);
 
-const server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins });
+// The built web app ships in "web" next to this file's folder, when the plugin includes it.
+const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
+
+const server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir });
 try {
   const actual = await listen(server, port);
   console.log(`fork-trail-coach API listening on http://${API_HOST}:${actual}/api`);
+  console.log(`Coach report: http://${API_HOST}:${actual}${reportPath(webDir)}`);
 } catch (err) {
   const code = (err as NodeJS.ErrnoException).code;
   console.error(code === "EADDRINUSE" ? `Port ${port} is already in use. Set FTC_PORT to another port.` : err);

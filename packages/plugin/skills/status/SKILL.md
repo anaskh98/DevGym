@@ -11,6 +11,7 @@ Tell the user the plugin is installed, then list what is ready:
 - `/fork-trail-coach:pr-decisions <ticket-id> [pr-number]` — ready. Adds the "Decisions" section to the pull request. Needs the GitHub CLI to update the PR.
 - `/fork-trail-coach:pointers <ticket-id> [pr-number]` — ready. Moves the decision pointers to the pull request commit and checks each one still finds its code.
 - `/fork-trail-coach:coach` — ready. Builds a private growth plan from the saved observations, with evidence for every claim.
+- `/fork-trail-coach:coach open` — ready. Starts the local server and opens the Coach report in the browser.
 
 Then check the local service: call `get_ticket` on the `fork-trail-coach` MCP server with ticket id `SAMPLE-1`.
 If it works, say the local service is running. If the tool is missing or fails, say the local service is not

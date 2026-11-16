@@ -7,6 +7,7 @@ import type { Db } from "../db/connection.js";
 import { PrivacyError, StoreError } from "../errors.js";
 import type { PrivacyGuard } from "../privacy/guard.js";
 import * as data from "./data.js";
+import { servePage } from "./static.js";
 
 export const API_HOST = "127.0.0.1";
 export const DEFAULT_API_PORT = 4317;
@@ -17,6 +18,8 @@ export interface ApiOptions {
   guard: PrivacyGuard;
   /** Extra browser origins that may call the API, for example the Vite dev server. */
   allowedOrigins?: string[];
+  /** Folder with the built web app. When it is missing, the built-in Coach report page is served. */
+  webDir?: string | undefined;
 }
 
 const annotationInput = z.strictObject({
@@ -126,8 +129,14 @@ export function createApiServer(options: ApiOptions): Server {
     }
 
     const url = new URL(req.url ?? "/", own[0]);
+    // Anything outside /api is a page or a file of the web app.
+    if (url.pathname !== "/api" && !url.pathname.startsWith("/api/")) {
+      if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method_not_allowed", "Only GET is allowed here");
+      await servePage(res, url.pathname, options.webDir);
+      return;
+    }
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    if (parts.shift() !== "api") throw new HttpError(404, "not_found", "Not found");
+    parts.shift();
     const route = `${method} /${parts.map((p, i) => (i % 2 === 1 ? ":id" : p)).join("/")}`;
     const id = parts[1] ?? "";
     const ok = (body: unknown, status = 200, headers: Record<string, string> = {}) =>

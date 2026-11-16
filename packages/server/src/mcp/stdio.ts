@@ -16,7 +16,11 @@ const projectTickets = process.env.FTC_TICKETS_DIR ?? join(process.cwd(), "ticke
 const demoTickets = join(dirname(fileURLToPath(import.meta.url)), "..", "demo-tickets");
 const tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
 
-const server = createServer(db, tickets);
+// The built web app ships in "web" next to this file's folder, when the plugin includes it.
+const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
+const port = process.env.FTC_PORT ? Number(process.env.FTC_PORT) : undefined;
+
+const server = createServer(db, tickets, { report: { webDir, port } });
 await server.connect(new StdioServerTransport());
 console.error("fork-trail-coach MCP server running on stdio");
 

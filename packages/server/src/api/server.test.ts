@@ -67,6 +67,16 @@ interface Reply {
   body: any;
 }
 
+/** Pages outside /api answer with text, not JSON. */
+function parseBody(text: string): any {
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 /** Raw HTTP so tests can set Host and Origin, which fetch does not allow. */
 function call(method: string, path: string, opts: { body?: unknown; headers?: Record<string, string>; rawBody?: string } = {}): Promise<Reply> {
   return new Promise((resolve, reject) => {
@@ -86,7 +96,7 @@ function call(method: string, path: string, opts: { body?: unknown; headers?: Re
       (res) => {
         let text = "";
         res.on("data", (c) => (text += c));
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: text ? JSON.parse(text) : undefined }));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: parseBody(text) }));
       },
     );
     req.on("error", reject);

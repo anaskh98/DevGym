@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { ReportServer, type ReportOptions } from "../api/open.js";
 import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
@@ -13,6 +14,7 @@ import {
   listDecisionsInput,
   listObservationsInput,
   logDecisionInput,
+  openReportInput,
   recordExplainBackInput,
   resolvePointersInput,
   saveAssumptionsInput,
@@ -42,12 +44,17 @@ export interface ServerOptions {
   root?: string;
   /** Checks every write. Defaults to a guard for `root` with the developer's local denylist. */
   guard?: PrivacyGuard;
+  /** Settings for the local report server that open_report starts. */
+  report?: Pick<ReportOptions, "port" | "webDir" | "openUrl" | "allowedOrigins">;
 }
 
 export function createServer(db: Db, tickets: TicketAdapter, options: ServerOptions = {}): McpServer {
   const root = options.root ?? process.cwd();
   const guard = options.guard ?? new PrivacyGuard({ root });
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  // Started on the first open_report call. It lives as long as this MCP server, so as long as the session.
+  const report = new ReportServer({ db, guard, ...options.report });
+  server.server.onclose = () => report.close();
 
   /** Every tool that writes goes through here: the privacy guard runs before anything is saved. */
   const write = <T>(input: T, save: (input: T) => unknown) =>
@@ -125,6 +132,17 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     },
     (input) =>
       write(input, (i) => updatePrDecisions(db, { ticketId: i.ticket_id, root, prNumber: i.pr_number, dryRun: i.dry_run })),
+  );
+
+  server.registerTool(
+    "open_report",
+    {
+      title: "Open Coach report",
+      description:
+        "Start the local web server if it is not running, and open the Coach report in the developer's browser. The server listens on 127.0.0.1 only and stops when this Claude Code session ends. Returns the address.",
+      inputSchema: openReportInput,
+    },
+    (input) => reply(() => report.open(input.open_browser)),
   );
 
   server.registerTool(

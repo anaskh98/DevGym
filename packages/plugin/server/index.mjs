@@ -2236,8 +2236,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id2 = "", normalize) {
-      if (normalize !== false)
+    function getFullPath(resolver, id2 = "", normalize2) {
+      if (normalize2 !== false)
         id2 = normalizeId(id2);
       const p = resolver.parse(id2);
       return _getFullPath(resolver, p);
@@ -2985,7 +2985,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve3.call(this, root, ref);
+      let _sch = resolve4.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
@@ -3012,7 +3012,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve3(root, ref) {
+    function resolve4(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3607,12 +3607,12 @@ var require_utils = __commonJS({
         uriTokens.push(host);
       }
       if (typeof component.port === "number" || typeof component.port === "string") {
-        const port = String(component.port);
-        if (!isPort(port)) {
+        const port2 = String(component.port);
+        if (!isPort(port2)) {
           throw new TypeError("URI port is malformed.");
         }
         uriTokens.push(":");
-        uriTokens.push(port);
+        uriTokens.push(port2);
       }
       return uriTokens.length ? uriTokens.join("") : void 0;
     }
@@ -3866,17 +3866,17 @@ var require_fast_uri = __commonJS({
       }
       return stringScheme;
     }
-    function normalize(uri, options) {
+    function normalize2(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse3(serialize(uri, options), options);
+        parse4(serialize(uri, options), options);
       }
       return uri;
     }
-    function resolve3(baseURI, relativeURI, options) {
+    function resolve4(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -3915,8 +3915,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative2, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse3(serialize(base, options), options);
-        relative2 = parse3(serialize(relative2, options), options);
+        base = parse4(serialize(base, options), options);
+        relative2 = parse4(serialize(relative2, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative2.scheme) {
@@ -4234,7 +4234,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse3(uri, opts) {
+    function parse4(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -4266,12 +4266,12 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize,
-      resolve: resolve3,
+      normalize: normalize2,
+      resolve: resolve4,
       resolveComponent,
       equal,
       serialize,
-      parse: parse3
+      parse: parse4
     };
     module2.exports = fastUri;
     module2.exports.default = fastUri;
@@ -9117,18 +9117,18 @@ var validateAsync = async (schema, value, _ctx) => {
   return result.issues.length === 0;
 };
 var _encode = (_Err) => {
-  const parse3 = _parse(_Err);
+  const parse4 = _parse(_Err);
   const fn = (schema, value, _ctx, _params) => {
     const ctx = _ctx ? { ..._ctx, direction: "backward" } : { direction: "backward" };
-    return parse3(schema, value, ctx, finalizeParams(fn, _params));
+    return parse4(schema, value, ctx, finalizeParams(fn, _params));
   };
   return fn;
 };
 var encode = /* @__PURE__ */ _encode($ZodRealError);
 var _decode = (_Err) => {
-  const parse3 = _parse(_Err);
+  const parse4 = _parse(_Err);
   const fn = (schema, value, _ctx, _params) => {
-    return parse3(schema, value, _ctx, finalizeParams(fn, _params));
+    return parse4(schema, value, _ctx, finalizeParams(fn, _params));
   };
   return fn;
 };
@@ -10623,7 +10623,7 @@ function capSize(inst, size) {
   if (!caps.length)
     return;
   const cap = Math.min(...caps.map((c) => c[0]));
-  const parse3 = inst._zod.parse;
+  const parse4 = inst._zod.parse;
   inst._zod.parse = (payload, ctx) => {
     const n = size(payload.value);
     if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
@@ -10637,7 +10637,7 @@ function capSize(inst, size) {
         }
       }
     }
-    return parse3(payload, ctx);
+    return parse4(payload, ctx);
   };
 }
 var arraySize = (input2) => Array.isArray(input2) ? input2.length : -1;
@@ -12326,7 +12326,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve3) {
+function isRecursive(inst, stack, resolve4) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -12336,7 +12336,7 @@ function isRecursive(inst, stack, resolve3) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve3);
+      const answer = isRecursive(child, stack, resolve4);
       if (answer > result)
         result = answer;
     }
@@ -12347,7 +12347,7 @@ function isRecursive(inst, stack, resolve3) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve3) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve4) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -12411,7 +12411,7 @@ function isRecursive(inst, stack, resolve3) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve3 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve4 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -28600,19 +28600,19 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve3) => {
+    return new Promise((resolve4) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve3();
+        resolve4();
       } else {
-        this._stdout.once("drain", resolve3);
+        this._stdout.once("drain", resolve4);
       }
     });
   }
 };
 
 // src/mcp/stdio.ts
-import { dirname as dirname4, join as join7 } from "node:path";
+import { dirname as dirname4, join as join8 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/db/connection.ts
@@ -34804,7 +34804,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
+        await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error62) {
@@ -34821,7 +34821,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       const earlyReject = (error62) => {
         reject(error62);
       };
@@ -34899,7 +34899,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve3(parseResult.data);
+            resolve4(parseResult.data);
           }
         } catch (error62) {
           reject(error62);
@@ -35161,12 +35161,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve3, interval);
+      const timeoutId = setTimeout(resolve4, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -36306,7 +36306,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
+      await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -36874,6 +36874,9 @@ var EMPTY_COMPLETION_RESULT = {
   }
 };
 
+// src/api/open.ts
+import { spawn } from "node:child_process";
+
 // src/errors.ts
 var StoreError = class extends Error {
 };
@@ -36887,9 +36890,14 @@ var PrivacyError = class extends StoreError {
   rule;
 };
 
-// src/pointers/service.ts
-import { readFile as readFile2 } from "node:fs/promises";
-import { resolve as resolve2 } from "node:path";
+// src/api/server.ts
+import { createServer } from "node:http";
+
+// src/api/data.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// src/store.ts
+import { randomUUID } from "node:crypto";
 
 // src/paths.ts
 import { isAbsolute, relative, resolve, sep } from "node:path";
@@ -36906,13 +36914,832 @@ function pathKey(path) {
   return path.replaceAll("\\", "/").toLowerCase();
 }
 
+// src/store.ts
+function localDeveloperId() {
+  return process.env.FTC_DEVELOPER_ID ?? "local";
+}
+function exists(db2, table, id2) {
+  return db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id2) !== void 0;
+}
+function requireRow(db2, table, label, id2) {
+  if (!exists(db2, table, id2)) throw new StoreError(`${label} '${id2}' does not exist`);
+}
+function getTicket(db2, ticketId) {
+  const row = db2.prepare("SELECT id, title, body, source FROM tickets WHERE id = ?").get(ticketId);
+  if (!row) throw new StoreError(`Ticket '${ticketId}' does not exist`);
+  return { ...row };
+}
+function upsertTicket(db2, ticket) {
+  db2.prepare(`
+    INSERT INTO tickets (id, title, body, source) VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET title = excluded.title, body = excluded.body, source = excluded.source
+  `).run(ticket.id, ticket.title, ticket.body, ticket.source);
+}
+async function ensureTicket(db2, adapter, ticketId, guard) {
+  const fresh = await adapter.getTicket(ticketId);
+  if (fresh) guard?.checkTicket(fresh);
+  if (fresh) upsertTicket(db2, { ...fresh, source: adapter.source });
+  return getTicket(db2, ticketId);
+}
+function saveAssumptions(db2, input2) {
+  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
+  const insert = db2.prepare(
+    "INSERT INTO assumptions (id, ticket_id, text, status, answer) VALUES (?, ?, ?, ?, ?)"
+  );
+  const ids = [];
+  transaction(db2, () => {
+    db2.prepare("DELETE FROM assumptions WHERE ticket_id = ?").run(input2.ticket_id);
+    for (const a of input2.assumptions) {
+      const id2 = randomUUID();
+      insert.run(id2, input2.ticket_id, a.text, a.status, a.answer ?? null);
+      ids.push(id2);
+    }
+  });
+  return { assumption_ids: ids };
+}
+function logDecision(db2, input2, root = process.cwd()) {
+  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
+  const decisionId = randomUUID();
+  let pointerId = null;
+  const relatedFiles = input2.related_files.map((f) => tidyPath(f, root));
+  transaction(db2, () => {
+    const p = input2.pointer;
+    if (p) {
+      pointerId = randomUUID();
+      db2.prepare(
+        "INSERT INTO pointers (id, repo, pr_number, file_path, symbol, commit_sha, line_hint) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
+    }
+    db2.prepare(
+      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      decisionId,
+      input2.ticket_id,
+      input2.session_id,
+      input2.summary,
+      JSON.stringify(input2.alternatives),
+      input2.origin,
+      pointerId,
+      JSON.stringify(relatedFiles)
+    );
+  });
+  return { decision_id: decisionId, pointer_id: pointerId };
+}
+function startTrail(db2, input2) {
+  const ticket = getTicket(db2, input2.ticket_id);
+  db2.prepare(
+    "INSERT INTO trail_sessions (session_id, ticket_id) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET ticket_id = excluded.ticket_id"
+  ).run(input2.session_id, input2.ticket_id);
+  const assumptions = db2.prepare("SELECT id, text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(input2.ticket_id).map((r) => ({ ...r }));
+  return { session_id: input2.session_id, ticket, assumptions };
+}
+function getTrail(db2, sessionId) {
+  const session = db2.prepare("SELECT ticket_id FROM trail_sessions WHERE session_id = ?").get(sessionId);
+  const decisions = db2.prepare(
+    `SELECT d.id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol
+       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+       WHERE d.session_id = ? ORDER BY d.rowid`
+  ).all(sessionId).map((r) => {
+    const row = r;
+    return {
+      id: row.id,
+      summary: row.summary,
+      origin: row.origin,
+      alternatives: JSON.parse(row.alternatives),
+      file_path: row.file_path ?? null,
+      symbol: row.symbol ?? null,
+      related_files: JSON.parse(row.related_files)
+    };
+  });
+  const explained = /* @__PURE__ */ new Set();
+  for (const d of decisions) {
+    if (d.file_path) explained.add(pathKey(d.file_path));
+    for (const f of d.related_files) explained.add(pathKey(f));
+  }
+  const editedFiles = db2.prepare("SELECT file_path, edit_count FROM file_edits WHERE session_id = ? ORDER BY first_edited_at, rowid").all(sessionId).map((f) => ({ file_path: f.file_path, edit_count: f.edit_count, explained: explained.has(pathKey(f.file_path)) }));
+  return {
+    session_id: sessionId,
+    tracking: session !== void 0,
+    ticket_id: session?.ticket_id ?? null,
+    decisions,
+    edited_files: editedFiles,
+    unexplained_files: editedFiles.filter((f) => !f.explained).map((f) => f.file_path)
+  };
+}
+function listDecisions(db2, ticketId) {
+  requireRow(db2, "tickets", "Ticket", ticketId);
+  const decisions = db2.prepare(
+    `SELECT d.id, d.session_id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol,
+              (SELECT count(*) FROM explain_backs e WHERE e.decision_id = d.id) AS explain_back_count
+       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+       WHERE d.ticket_id = ? ORDER BY d.rowid`
+  ).all(ticketId).map((r) => {
+    const row = r;
+    return {
+      id: row.id,
+      session_id: row.session_id,
+      summary: row.summary,
+      origin: row.origin,
+      alternatives: JSON.parse(row.alternatives),
+      file_path: row.file_path ?? null,
+      symbol: row.symbol ?? null,
+      related_files: JSON.parse(row.related_files),
+      explain_back_count: Number(row.explain_back_count)
+    };
+  });
+  return { ticket_id: ticketId, decisions };
+}
+function recordExplainBack(db2, input2) {
+  requireRow(db2, "decisions", "Decision", input2.decision_id);
+  const id2 = randomUUID();
+  db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating) VALUES (?, ?, ?, ?, ?)").run(
+    id2,
+    input2.decision_id,
+    input2.question,
+    input2.answer,
+    input2.rating
+  );
+  return { explain_back_id: id2 };
+}
+function saveObservation(db2, input2) {
+  for (const evidenceId of input2.evidence_ids) {
+    if (!exists(db2, "decisions", evidenceId) && !exists(db2, "explain_backs", evidenceId)) {
+      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explain-back`);
+    }
+  }
+  const id2 = randomUUID();
+  db2.prepare("INSERT INTO observations (id, developer_id, skill_tag, summary, evidence_ids) VALUES (?, ?, ?, ?, ?)").run(
+    id2,
+    input2.developer_id ?? localDeveloperId(),
+    input2.skill_tag,
+    input2.summary,
+    JSON.stringify(input2.evidence_ids)
+  );
+  return { observation_id: id2 };
+}
+function listObservations(db2, developerId = localDeveloperId()) {
+  const decision = db2.prepare("SELECT ticket_id, origin FROM decisions WHERE id = ?");
+  const explainBack = db2.prepare(
+    "SELECT e.rating, d.ticket_id FROM explain_backs e JOIN decisions d ON d.id = e.decision_id WHERE e.id = ?"
+  );
+  const describe3 = (id2) => {
+    const d = decision.get(id2);
+    if (d) return { id: id2, kind: "decision", ticket_id: d.ticket_id, origin: d.origin };
+    const e = explainBack.get(id2);
+    if (e) return { id: id2, kind: "explain_back", ticket_id: e.ticket_id, rating: e.rating };
+    return { id: id2, kind: "missing" };
+  };
+  const observations = db2.prepare("SELECT id, skill_tag, summary, evidence_ids, created_at FROM observations WHERE developer_id = ? ORDER BY rowid").all(developerId).map((o) => ({
+    id: o.id,
+    skill_tag: o.skill_tag,
+    summary: o.summary,
+    created_at: o.created_at,
+    evidence: JSON.parse(o.evidence_ids).map(describe3)
+  }));
+  return { developer_id: developerId, observations };
+}
+function saveGrowthPlan(db2, input2) {
+  const developerId = input2.developer_id ?? localDeveloperId();
+  const ownsObservation = db2.prepare("SELECT 1 FROM observations WHERE id = ? AND developer_id = ?");
+  const focusAreas = input2.focus_areas.map((area) => {
+    const evidence = [...new Set(area.evidence_ids)];
+    for (const evidenceId of evidence) {
+      if (!ownsObservation.get(evidenceId, developerId)) {
+        throw new StoreError(`Evidence '${evidenceId}' is not an observation of developer '${developerId}'`);
+      }
+    }
+    return { id: randomUUID(), claim: area.claim, evidence_ids: evidence, tentative: evidence.length < 2, exercise: area.exercise };
+  });
+  const id2 = randomUUID();
+  db2.prepare("INSERT INTO growth_plans (id, developer_id, focus_areas) VALUES (?, ?, ?)").run(
+    id2,
+    developerId,
+    JSON.stringify(focusAreas)
+  );
+  return { growth_plan_id: id2, focus_areas: focusAreas };
+}
+
+// src/api/data.ts
+var rows = (db2, sql, ...params) => db2.prepare(sql).all(...params).map((r) => ({ ...r }));
+function annotationsFor(db2, targetId) {
+  return rows(db2, "SELECT id, target_id, note, disagrees, created_at FROM annotations WHERE target_id = ? ORDER BY rowid", targetId).map(
+    (a) => ({ ...a, disagrees: a.disagrees === 1 })
+  );
+}
+function pointerUrl(p) {
+  const repo = String(p.repo);
+  if (!p.commit_sha || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
+  const path = String(p.file_path).split("/").map(encodeURIComponent).join("/");
+  return `https://github.com/${repo}/blob/${p.commit_sha}/${path}${p.line_hint ? `#L${p.line_hint}` : ""}`;
+}
+function listTickets(db2) {
+  return rows(
+    db2,
+    `SELECT t.id, t.title, t.source, t.created_at,
+            (SELECT count(*) FROM assumptions a WHERE a.ticket_id = t.id) AS assumption_count,
+            (SELECT count(*) FROM decisions d WHERE d.ticket_id = t.id) AS decision_count
+     FROM tickets t ORDER BY t.rowid`
+  );
+}
+function ticketDecisions(db2, ticketId) {
+  return rows(
+    db2,
+    `SELECT d.id, d.ticket_id, d.session_id, d.summary, d.alternatives, d.origin, d.related_files, d.created_at,
+            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved, p.resolve_note
+     FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+     WHERE d.ticket_id = ? ORDER BY d.rowid`,
+    ticketId
+  ).map((d) => ({
+    id: d.id,
+    ticket_id: d.ticket_id,
+    session_id: d.session_id,
+    summary: d.summary,
+    alternatives: JSON.parse(d.alternatives),
+    origin: d.origin,
+    related_files: JSON.parse(d.related_files),
+    created_at: d.created_at,
+    pointer: d.p_id ? {
+      id: d.p_id,
+      repo: d.repo,
+      pr_number: d.pr_number,
+      file_path: d.file_path,
+      symbol: d.symbol,
+      commit: d.commit_sha,
+      line_hint: d.line_hint,
+      url: pointerUrl(d),
+      resolved: d.resolved === null ? null : d.resolved === 1,
+      resolve_note: d.resolve_note
+    } : null,
+    explain_backs: rows(
+      db2,
+      "SELECT id, question, answer, rating, created_at FROM explain_backs WHERE decision_id = ? ORDER BY rowid",
+      d.id
+    ),
+    annotations: annotationsFor(db2, d.id)
+  }));
+}
+function ticketDetail(db2, ticketId) {
+  const ticket = rows(db2, "SELECT id, title, body, source, created_at FROM tickets WHERE id = ?", ticketId)[0];
+  if (!ticket) return null;
+  const assumptions = rows(
+    db2,
+    "SELECT id, text, status, answer, created_at FROM assumptions WHERE ticket_id = ? ORDER BY rowid",
+    ticketId
+  );
+  const sessions = rows(db2, "SELECT session_id, started_at FROM trail_sessions WHERE ticket_id = ? ORDER BY rowid", ticketId).map(
+    (s) => {
+      const trail = getTrail(db2, s.session_id);
+      return { ...s, edited_files: trail.edited_files, unexplained_files: trail.unexplained_files };
+    }
+  );
+  return { ticket, assumptions, decisions: ticketDecisions(db2, ticketId), sessions };
+}
+function latestGrowthPlan(db2, developerId = localDeveloperId()) {
+  const plan = rows(
+    db2,
+    "SELECT id, developer_id, focus_areas, created_at FROM growth_plans WHERE developer_id = ? ORDER BY rowid DESC LIMIT 1",
+    developerId
+  )[0];
+  if (!plan) return null;
+  const observations = new Map(
+    listObservations(db2, developerId).observations.map((o) => [o.id, o])
+  );
+  const areas = JSON.parse(plan.focus_areas);
+  return {
+    id: plan.id,
+    developer_id: plan.developer_id,
+    created_at: plan.created_at,
+    focus_areas: areas.map((area, index) => {
+      const id2 = area.id ?? `${plan.id}:${index}`;
+      return {
+        id: id2,
+        claim: area.claim,
+        tentative: area.tentative,
+        exercise: area.exercise,
+        evidence: area.evidence_ids.map((e) => observations.get(e)).filter((o) => o !== void 0),
+        annotations: annotationsFor(db2, id2)
+      };
+    })
+  };
+}
+function targetExists(db2, targetId) {
+  for (const table of ["decisions", "assumptions", "explain_backs", "observations", "growth_plans", "tickets"]) {
+    if (db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(targetId)) return true;
+  }
+  return db2.prepare(
+    `SELECT 1 FROM growth_plans g, json_each(g.focus_areas) fa
+         WHERE json_extract(fa.value, '$.id') = ?
+            OR (json_extract(fa.value, '$.id') IS NULL AND g.id || ':' || fa.key = ?)`
+  ).get(targetId, targetId) !== void 0;
+}
+function addAnnotation(db2, input2) {
+  if (!targetExists(db2, input2.target_id)) throw new StoreError(`Nothing with id '${input2.target_id}' exists to add a note to`);
+  const id2 = randomUUID2();
+  db2.prepare("INSERT INTO annotations (id, target_id, note, disagrees) VALUES (?, ?, ?, ?)").run(
+    id2,
+    input2.target_id,
+    input2.note,
+    input2.disagrees ? 1 : 0
+  );
+  return annotationsFor(db2, input2.target_id).find((a) => a.id === id2);
+}
+function deleteAnnotation(db2, id2) {
+  return db2.prepare("DELETE FROM annotations WHERE id = ?").run(id2).changes > 0;
+}
+var DATA_TABLES = [
+  "annotations",
+  "growth_plans",
+  "observations",
+  "explain_backs",
+  "file_edits",
+  "trail_sessions",
+  "decisions",
+  "pointers",
+  "assumptions",
+  "tickets"
+];
+var JSON_COLUMNS = /* @__PURE__ */ new Set(["alternatives", "related_files", "evidence_ids", "focus_areas"]);
+function countAll(db2) {
+  const counts = {};
+  for (const table of DATA_TABLES) counts[table] = Number(rows(db2, `SELECT count(*) AS n FROM ${table}`)[0]?.n ?? 0);
+  return counts;
+}
+function exportAll(db2) {
+  const data = {};
+  for (const table of [...DATA_TABLES].reverse()) {
+    data[table] = rows(db2, `SELECT * FROM ${table} ORDER BY rowid`).map((row) => {
+      for (const column of Object.keys(row)) {
+        if (JSON_COLUMNS.has(column)) row[column] = JSON.parse(row[column]);
+      }
+      return row;
+    });
+  }
+  return { exported_at: (/* @__PURE__ */ new Date()).toISOString(), counts: countAll(db2), data };
+}
+function deleteAll(db2) {
+  const deleted = countAll(db2);
+  transaction(db2, () => {
+    for (const table of DATA_TABLES) db2.exec(`DELETE FROM ${table}`);
+  });
+  return deleted;
+}
+
+// src/api/static.ts
+import { existsSync } from "node:fs";
+import { readFile as readFile2, stat } from "node:fs/promises";
+import { extname, join as join3, normalize, resolve as resolve2, sep as sep2 } from "node:path";
+
+// src/api/report-page.ts
+var REPORT_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach report</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181c; --card:#1f2228; --text:#e6e8eb; --muted:#9aa3ad; --line:#353a42; --accent:#7fb0ff; --warn-bg:#4a3a10; --warn:#ffd97a; --bad:#ff9d94; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:0 0 8px; }
+  h3 { font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:16px 0 6px; }
+  p { margin:0 0 8px; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-top:16px; }
+  .badge { display:inline-block; font-size:.75rem; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--warn-bg); color:var(--warn); margin-left:8px; vertical-align:middle; }
+  ul { margin:0; padding-left:20px; }
+  li { margin-bottom:6px; }
+  .note { border-left:3px solid var(--line); padding:4px 0 4px 10px; margin-bottom:6px; }
+  .note.disagrees { border-left-color:var(--bad); }
+  .note b { color:var(--bad); }
+  textarea { width:100%; min-height:64px; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
+  label.check { display:inline-flex; align-items:center; gap:6px; margin:8px 12px 0 0; }
+  button { margin-top:8px; padding:6px 14px; border:1px solid var(--accent); border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  .error { color:var(--bad); margin-top:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Coach report</h1>
+  <p class="muted">Private to you. Stored on this machine only and never shared.</p>
+  <div id="report" aria-live="polite"><p class="muted">Loading\u2026</p></div>
+</main>
+<script src="/report.js"></script>
+</body>
+</html>
+`;
+var REPORT_JS = `"use strict";
+(function () {
+  var root = document.getElementById("report");
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+  function message(text, className) {
+    root.replaceChildren(el("p", className || "muted", text));
+  }
+  var RATING = { clear: "explained clearly", partial: "partly explained", not_yet: "not explained yet" };
+  var ORIGIN = { ai: "AI chose", dev: "developer chose", dev_changed_ai: "developer changed the AI's choice" };
+
+  function evidenceLine(observation) {
+    var item = el("li", "", observation.summary);
+    var parts = [];
+    (observation.evidence || []).forEach(function (e) {
+      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
+      if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
+    });
+    if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
+    return item;
+  }
+
+  function noteForm(area) {
+    var form = el("form");
+    var box = el("textarea");
+    box.setAttribute("aria-label", "Your note on this claim");
+    box.maxLength = 2000;
+    box.placeholder = "Add a note. Words only, no code.";
+    var check = el("label", "check");
+    var tick = el("input");
+    tick.type = "checkbox";
+    check.appendChild(tick);
+    check.appendChild(document.createTextNode("I disagree with this claim"));
+    var send = el("button", "", "Save note");
+    send.type = "submit";
+    var error = el("div", "error");
+    error.setAttribute("role", "alert");
+    form.append(box, check, send, error);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var note = box.value.trim();
+      if (!note) { error.textContent = "Write a note first."; return; }
+      send.disabled = true;
+      error.textContent = "";
+      fetch("/api/annotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: area.id, note: note, disagrees: tick.checked })
+      }).then(function (response) {
+        return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+      }).then(function (result) {
+        if (!result.ok) throw new Error((result.body.error && result.body.error.message) || "The note was not saved.");
+        load();
+      }).catch(function (problem) {
+        send.disabled = false;
+        error.textContent = problem.message;
+      });
+    });
+    return form;
+  }
+
+  function areaCard(area, index) {
+    var card = el("section", "card");
+    var title = el("h2", "", "Focus area " + (index + 1));
+    if (area.tentative) {
+      var badge = el("span", "badge", "Tentative");
+      badge.title = "This claim rests on a single observation, so it may be wrong.";
+      title.appendChild(badge);
+    }
+    card.appendChild(title);
+    card.appendChild(el("p", "", area.claim));
+    if (area.tentative) card.appendChild(el("p", "muted", "Based on one observation only. Treat it as a first sign."));
+
+    card.appendChild(el("h3", "", "Evidence"));
+    var list = el("ul");
+    (area.evidence || []).forEach(function (o) { list.appendChild(evidenceLine(o)); });
+    if (!list.children.length) list.appendChild(el("li", "muted", "The evidence for this claim was deleted."));
+    card.appendChild(list);
+
+    card.appendChild(el("h3", "", "Exercise"));
+    card.appendChild(el("p", "", area.exercise));
+
+    card.appendChild(el("h3", "", "Your notes"));
+    (area.annotations || []).forEach(function (a) {
+      var note = el("div", a.disagrees ? "note disagrees" : "note");
+      if (a.disagrees) { note.appendChild(el("b", "", "I disagree. ")); }
+      note.appendChild(document.createTextNode(a.note));
+      card.appendChild(note);
+    });
+    card.appendChild(noteForm(area));
+    return card;
+  }
+
+  function render(plan) {
+    if (!plan) {
+      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
+      return;
+    }
+    var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC \xB7 " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];
+    plan.focus_areas.forEach(function (area, index) { nodes.push(areaCard(area, index)); });
+    root.replaceChildren.apply(root, nodes);
+  }
+
+  function load() {
+    fetch("/api/growth-plan").then(function (response) {
+      if (!response.ok) throw new Error("The local service answered " + response.status + ".");
+      return response.json();
+    }).then(function (body) {
+      render(body.growth_plan);
+    }).catch(function (problem) {
+      message("Could not load the report. " + problem.message + " Is the local service still running?", "error");
+    });
+  }
+  load();
+})();
+`;
+
+// src/api/static.ts
+var TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".map": "application/json; charset=utf-8"
+};
+var STRICT_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+function send(res, status, type, body2, extra = {}) {
+  res.writeHead(status, {
+    "Content-Type": type,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    ...extra
+  });
+  res.end(body2);
+}
+function hasWebApp(webDir2) {
+  return webDir2 !== void 0 && existsSync(join3(webDir2, "index.html"));
+}
+function reportPath(webDir2) {
+  return hasWebApp(webDir2) ? "/#/coach" : "/";
+}
+async function servePage(res, pathname, webDir2) {
+  if (!hasWebApp(webDir2)) {
+    if (pathname === "/" || pathname === "/index.html") return send(res, 200, TYPES[".html"], REPORT_HTML, { "Content-Security-Policy": STRICT_CSP });
+    if (pathname === "/report.js") return send(res, 200, TYPES[".js"], REPORT_JS);
+    return send(res, 404, "text/plain; charset=utf-8", "Not found");
+  }
+  const root = resolve2(webDir2);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return send(res, 400, "text/plain; charset=utf-8", "Bad request");
+  }
+  const file2 = resolve2(root, `.${normalize(`/${decoded}`)}`);
+  if (file2 !== root && !file2.startsWith(root + sep2)) return send(res, 404, "text/plain; charset=utf-8", "Not found");
+  const info2 = await stat(file2).catch(() => null);
+  if (info2?.isFile()) {
+    return send(res, 200, TYPES[extname(file2).toLowerCase()] ?? "application/octet-stream", await readFile2(file2));
+  }
+  if (extname(file2) === "") return send(res, 200, TYPES[".html"], await readFile2(join3(root, "index.html")));
+  return send(res, 404, "text/plain; charset=utf-8", "Not found");
+}
+
+// src/api/server.ts
+var API_HOST = "127.0.0.1";
+var DEFAULT_API_PORT = 4317;
+var MAX_BODY_BYTES = 64 * 1024;
+var annotationInput = external_exports.strictObject({
+  target_id: external_exports.string().trim().min(1).max(200),
+  note: external_exports.string().trim().min(1).max(2e3),
+  disagrees: external_exports.boolean().default(false)
+});
+var deleteAllInput = external_exports.strictObject({ confirm: external_exports.literal("delete-all") });
+var HttpError = class extends Error {
+  constructor(status, code, message, extra = {}) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.extra = extra;
+  }
+  status;
+  code;
+  extra;
+};
+function send2(res, status, body2, headers = {}) {
+  const text = body2 === void 0 ? "" : JSON.stringify(body2);
+  res.writeHead(status, {
+    ...body2 === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    ...headers
+  });
+  res.end(text);
+}
+async function readJson(req) {
+  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+    throw new HttpError(415, "unsupported_media_type", "Send the body as application/json");
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) throw new HttpError(413, "too_large", "Request body is too large");
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new HttpError(400, "bad_json", "Request body is not valid JSON");
+  }
+}
+function parse3(schema, body2) {
+  const result = schema.safeParse(body2);
+  if (!result.success) {
+    const issue2 = result.error.issues[0];
+    throw new HttpError(400, "invalid_input", `${issue2?.path.join(".") || "body"}: ${issue2?.message ?? "invalid"}`);
+  }
+  return result.data;
+}
+function createApiServer(options) {
+  const { db: db2, guard } = options;
+  const extraOrigins = new Set(options.allowedOrigins ?? []);
+  const server2 = createServer((req, res) => {
+    handle2(req, res).catch((err2) => {
+      if (err2 instanceof HttpError) {
+        send2(res, err2.status, { error: { code: err2.code, message: err2.message, ...err2.extra } });
+      } else if (err2 instanceof PrivacyError) {
+        send2(res, 422, { error: { code: "privacy_guard", message: err2.message, field: err2.field, rule: err2.rule } });
+      } else if (err2 instanceof StoreError) {
+        send2(res, 404, { error: { code: "not_found", message: err2.message } });
+      } else {
+        console.error(err2);
+        send2(res, 500, { error: { code: "internal", message: "Internal error" } });
+      }
+    });
+  });
+  async function handle2(req, res) {
+    const port2 = server2.address().port;
+    const own2 = [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
+    if (!own2.includes(`http://${req.headers.host ?? ""}`)) {
+      throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
+    }
+    const origin = req.headers.origin;
+    const cors = {};
+    if (origin !== void 0) {
+      if (!own2.includes(origin) && !extraOrigins.has(origin)) {
+        throw new HttpError(403, "bad_origin", "This origin may not call the API");
+      }
+      cors["Access-Control-Allow-Origin"] = origin;
+      cors["Vary"] = "Origin";
+    }
+    const method = req.method ?? "GET";
+    if (method === "OPTIONS") {
+      send2(res, 204, void 0, {
+        ...cors,
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "600"
+      });
+      return;
+    }
+    const url2 = new URL(req.url ?? "/", own2[0]);
+    if (url2.pathname !== "/api" && !url2.pathname.startsWith("/api/")) {
+      if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method_not_allowed", "Only GET is allowed here");
+      await servePage(res, url2.pathname, options.webDir);
+      return;
+    }
+    const parts2 = url2.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    parts2.shift();
+    const route = `${method} /${parts2.map((p, i2) => i2 % 2 === 1 ? ":id" : p).join("/")}`;
+    const id2 = parts2[1] ?? "";
+    const ok = (body2, status = 200, headers = {}) => send2(res, status, body2, { ...cors, ...headers });
+    const notFound = (what) => new HttpError(404, "not_found", `${what} '${id2}' does not exist`);
+    switch (route) {
+      case "GET /health":
+        return ok({ status: "ok", counts: countAll(db2) });
+      case "GET /tickets":
+        return ok({ tickets: listTickets(db2) });
+      case "GET /tickets/:id": {
+        const detail = ticketDetail(db2, id2);
+        if (!detail) throw notFound("Ticket");
+        return ok(detail);
+      }
+      case "GET /tickets/:id/decisions": {
+        if (!ticketDetail(db2, id2)) throw notFound("Ticket");
+        return ok({ decisions: ticketDecisions(db2, id2) });
+      }
+      case "GET /growth-plan":
+        return ok({ growth_plan: latestGrowthPlan(db2) });
+      case "POST /annotations": {
+        const input2 = parse3(annotationInput, await readJson(req));
+        guard.check(input2);
+        return ok({ annotation: addAnnotation(db2, input2) }, 201);
+      }
+      case "DELETE /annotations/:id":
+        if (!deleteAnnotation(db2, id2)) throw notFound("Annotation");
+        return ok(void 0, 204);
+      case "GET /export":
+        return ok(exportAll(db2), 200, {
+          "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
+        });
+      case "DELETE /data": {
+        parse3(deleteAllInput, await readJson(req));
+        return ok({ deleted: deleteAll(db2) });
+      }
+      default:
+        throw new HttpError(404, "not_found", "Not found");
+    }
+  }
+  return server2;
+}
+function listen(server2, port2 = DEFAULT_API_PORT) {
+  return new Promise((resolve4, reject) => {
+    server2.once("error", reject);
+    server2.listen(port2, API_HOST, () => resolve4(server2.address().port));
+  });
+}
+
+// src/api/open.ts
+function openInBrowser(url2) {
+  const [command, args2] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url2]] : process.platform === "darwin" ? ["open", [url2]] : ["xdg-open", [url2]];
+  const child = spawn(command, args2, { detached: true, stdio: "ignore", windowsHide: true });
+  child.on("error", () => {
+  });
+  child.unref();
+}
+async function isOurApi(port2) {
+  try {
+    const response = await fetch(`http://${API_HOST}:${port2}/api/health`, { signal: AbortSignal.timeout(2e3) });
+    return response.ok && (await response.json()).status === "ok";
+  } catch {
+    return false;
+  }
+}
+var ReportServer = class {
+  constructor(options) {
+    this.options = options;
+  }
+  options;
+  server;
+  port;
+  /** Starts the local server if needed, and returns the address of the Coach report. */
+  async open(openBrowser = true) {
+    const { started, port: port2 } = await this.ensureRunning();
+    const url2 = `http://${API_HOST}:${port2}${reportPath(this.options.webDir)}`;
+    if (openBrowser) (this.options.openUrl ?? openInBrowser)(url2);
+    return { url: url2, started, opened: openBrowser };
+  }
+  async ensureRunning() {
+    if (this.port !== void 0) return { started: false, port: this.port };
+    const wanted = this.options.port ?? DEFAULT_API_PORT;
+    const create = () => createApiServer({
+      db: this.options.db,
+      guard: this.options.guard,
+      webDir: this.options.webDir,
+      allowedOrigins: this.options.allowedOrigins ?? []
+    });
+    let server2 = create();
+    try {
+      this.port = await listen(server2, wanted);
+    } catch (err2) {
+      if (err2.code !== "EADDRINUSE") throw err2;
+      if (await isOurApi(wanted)) {
+        this.port = wanted;
+        return { started: false, port: wanted };
+      }
+      server2 = create();
+      try {
+        this.port = await listen(server2, 0);
+      } catch {
+        throw new StoreError(`Could not start the local server: port ${wanted} is in use and no other port could be opened.`);
+      }
+    }
+    this.server = server2;
+    return { started: true, port: this.port };
+  }
+  close() {
+    this.server?.close();
+    this.server = void 0;
+    this.port = void 0;
+  }
+};
+
+// src/pointers/service.ts
+import { readFile as readFile3 } from "node:fs/promises";
+import { resolve as resolve3 } from "node:path";
+
 // src/pointers/git.ts
 import { execFile } from "node:child_process";
-var run2 = (command, args2, cwd) => new Promise((resolve3) => {
+var run2 = (command, args2, cwd) => new Promise((resolve4) => {
   execFile(command, args2, { cwd, timeout: 3e4, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error62, stdout, stderr) => {
     const missing = error62?.code === "ENOENT";
     const code = missing ? null : error62 ? typeof error62.code === "number" ? error62.code : 1 : 0;
-    resolve3({ code, stdout: String(stdout), stderr: String(stderr) });
+    resolve4({ code, stdout: String(stdout), stderr: String(stderr) });
   });
 });
 function parseRepoSlug(remoteUrl) {
@@ -36978,8 +37805,8 @@ async function lookupPr(repo, prNumber, root, deps = {}) {
 }
 
 // src/pointers/symbols.ts
-import { existsSync } from "node:fs";
-import { dirname as dirname2, extname, join as join3 } from "node:path";
+import { existsSync as existsSync2 } from "node:fs";
+import { dirname as dirname2, extname as extname2, join as join4 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ../../node_modules/.pnpm/web-tree-sitter@0.27.2/node_modules/web-tree-sitter/web-tree-sitter.js
@@ -38576,13 +39403,13 @@ async function Module2(moduleArg = {}) {
       }
       readAsync = /* @__PURE__ */ __name(async (url2) => {
         if (isFileURI(url2)) {
-          return new Promise((resolve3, reject) => {
+          return new Promise((resolve4, reject) => {
             var xhr = new XMLHttpRequest();
             xhr.open("GET", url2, true);
             xhr.responseType = "arraybuffer";
             xhr.onload = () => {
               if (xhr.status == 200 || xhr.status == 0 && xhr.response) {
-                resolve3(xhr.response);
+                resolve4(xhr.response);
                 return;
               }
               reject(xhr.status);
@@ -38778,9 +39605,9 @@ async function Module2(moduleArg = {}) {
     __name(receiveInstantiationResult, "receiveInstantiationResult");
     var info2 = getWasmImports();
     if (Module["instantiateWasm"]) {
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve4, reject) => {
         Module["instantiateWasm"](info2, (mod, inst) => {
-          resolve3(receiveInstance(mod, inst));
+          resolve4(receiveInstance(mod, inst));
         });
       });
     }
@@ -40113,8 +40940,8 @@ async function Module2(moduleArg = {}) {
   if (runtimeInitialized) {
     moduleRtn = Module;
   } else {
-    moduleRtn = new Promise((resolve3, reject) => {
-      readyPromiseResolve = resolve3;
+    moduleRtn = new Promise((resolve4, reject) => {
+      readyPromiseResolve = resolve4;
       readyPromiseReject = reject;
     });
   }
@@ -41013,13 +41840,13 @@ var GRAMMARS = {
 };
 function wasmPath(file2, pkg) {
   const here = dirname2(fileURLToPath(import.meta.url));
-  const bundled = join3(here, "wasm", file2);
-  return existsSync(bundled) ? bundled : join3(here, "..", "..", "node_modules", pkg, file2);
+  const bundled = join4(here, "wasm", file2);
+  return existsSync2(bundled) ? bundled : join4(here, "..", "..", "node_modules", pkg, file2);
 }
 var ready;
 var parsers = /* @__PURE__ */ new Map();
 function parserFor(filePath) {
-  const grammar = GRAMMARS[extname(filePath).toLowerCase()];
+  const grammar = GRAMMARS[extname2(filePath).toLowerCase()];
   if (!grammar) return null;
   let parser = parsers.get(grammar.file);
   if (!parser) {
@@ -41035,7 +41862,7 @@ function parserFor(filePath) {
   return parser;
 }
 function isSupported(filePath) {
-  return extname(filePath).toLowerCase() in GRAMMARS;
+  return extname2(filePath).toLowerCase() in GRAMMARS;
 }
 var NAMED = /* @__PURE__ */ new Set([
   "function_declaration",
@@ -41109,7 +41936,7 @@ async function enrichPointer(pointer, root, exec = run2) {
     out2.repo = await repoSlug(root, exec) ?? pointer.repo;
     const repoPath = toRepoPath(pointer.file_path, root);
     if (repoPath === null || !isSupported(repoPath)) return out2;
-    const source = await readFile2(resolve2(root, repoPath), "utf8");
+    const source = await readFile3(resolve3(root, repoPath), "utf8");
     if (pointer.line_hint) {
       const found = await symbolAtLine(repoPath, source, pointer.line_hint);
       if (found) out2.symbol = found.name;
@@ -41173,7 +42000,7 @@ async function resolvePointers(db2, options, deps = {}) {
 // src/pr/update.ts
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join as join4 } from "node:path";
+import { join as join5 } from "node:path";
 
 // src/pr/section.ts
 var SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
@@ -41300,9 +42127,9 @@ async function updatePrDecisions(db2, options, deps = {}) {
   }
   const body2 = JSON.parse(view.stdout).body ?? "";
   const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
-  const dir = await mkdtemp(join4(tmpdir(), "ftc-pr-"));
+  const dir = await mkdtemp(join5(tmpdir(), "ftc-pr-"));
   try {
-    const file2 = join4(dir, "body.md");
+    const file2 = join5(dir, "body.md");
     await writeFile(file2, next, "utf8");
     const edit = await exec("gh", ["pr", "edit", String(pr.number), "--repo", repo, "--body-file", file2], options.root);
     if (edit.code !== 0) {
@@ -41316,9 +42143,9 @@ async function updatePrDecisions(db2, options, deps = {}) {
 
 // src/privacy/denylist.ts
 import { readFileSync } from "node:fs";
-import { dirname as dirname3, join as join5 } from "node:path";
+import { dirname as dirname3, join as join6 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join5(dirname3(defaultDbPath()), "denylist.txt");
+  return process.env.FTC_DENYLIST_PATH ?? join6(dirname3(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -41392,7 +42219,7 @@ function containsBlockedName(text, names) {
 
 // src/privacy/overlap.ts
 import { readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
-import { extname as extname2, join as join6 } from "node:path";
+import { extname as extname3, join as join7 } from "node:path";
 
 // src/privacy/rules.ts
 function cleanText(text) {
@@ -41521,10 +42348,10 @@ function* codeFiles(root) {
     }
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue;
-      const full = join6(dir, entry.name);
+      const full = join7(dir, entry.name);
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) stack.push(full);
-      } else if (entry.isFile() && CODE_EXTENSIONS.has(extname2(entry.name).toLowerCase())) {
+      } else if (entry.isFile() && CODE_EXTENSIONS.has(extname3(entry.name).toLowerCase())) {
         yield full;
       }
     }
@@ -41638,212 +42465,6 @@ function blockedName(field) {
   return new PrivacyError(field, "client-name", "contains a name from the client denylist. Refer to the client without naming it");
 }
 
-// src/store.ts
-import { randomUUID } from "node:crypto";
-function localDeveloperId() {
-  return process.env.FTC_DEVELOPER_ID ?? "local";
-}
-function exists(db2, table, id2) {
-  return db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id2) !== void 0;
-}
-function requireRow(db2, table, label, id2) {
-  if (!exists(db2, table, id2)) throw new StoreError(`${label} '${id2}' does not exist`);
-}
-function getTicket(db2, ticketId) {
-  const row = db2.prepare("SELECT id, title, body, source FROM tickets WHERE id = ?").get(ticketId);
-  if (!row) throw new StoreError(`Ticket '${ticketId}' does not exist`);
-  return { ...row };
-}
-function upsertTicket(db2, ticket) {
-  db2.prepare(`
-    INSERT INTO tickets (id, title, body, source) VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET title = excluded.title, body = excluded.body, source = excluded.source
-  `).run(ticket.id, ticket.title, ticket.body, ticket.source);
-}
-async function ensureTicket(db2, adapter, ticketId, guard) {
-  const fresh = await adapter.getTicket(ticketId);
-  if (fresh) guard?.checkTicket(fresh);
-  if (fresh) upsertTicket(db2, { ...fresh, source: adapter.source });
-  return getTicket(db2, ticketId);
-}
-function saveAssumptions(db2, input2) {
-  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
-  const insert = db2.prepare(
-    "INSERT INTO assumptions (id, ticket_id, text, status, answer) VALUES (?, ?, ?, ?, ?)"
-  );
-  const ids = [];
-  transaction(db2, () => {
-    db2.prepare("DELETE FROM assumptions WHERE ticket_id = ?").run(input2.ticket_id);
-    for (const a of input2.assumptions) {
-      const id2 = randomUUID();
-      insert.run(id2, input2.ticket_id, a.text, a.status, a.answer ?? null);
-      ids.push(id2);
-    }
-  });
-  return { assumption_ids: ids };
-}
-function logDecision(db2, input2, root = process.cwd()) {
-  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
-  const decisionId = randomUUID();
-  let pointerId = null;
-  const relatedFiles = input2.related_files.map((f) => tidyPath(f, root));
-  transaction(db2, () => {
-    const p = input2.pointer;
-    if (p) {
-      pointerId = randomUUID();
-      db2.prepare(
-        "INSERT INTO pointers (id, repo, pr_number, file_path, symbol, commit_sha, line_hint) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
-    }
-    db2.prepare(
-      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(
-      decisionId,
-      input2.ticket_id,
-      input2.session_id,
-      input2.summary,
-      JSON.stringify(input2.alternatives),
-      input2.origin,
-      pointerId,
-      JSON.stringify(relatedFiles)
-    );
-  });
-  return { decision_id: decisionId, pointer_id: pointerId };
-}
-function startTrail(db2, input2) {
-  const ticket = getTicket(db2, input2.ticket_id);
-  db2.prepare(
-    "INSERT INTO trail_sessions (session_id, ticket_id) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET ticket_id = excluded.ticket_id"
-  ).run(input2.session_id, input2.ticket_id);
-  const assumptions = db2.prepare("SELECT id, text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(input2.ticket_id).map((r) => ({ ...r }));
-  return { session_id: input2.session_id, ticket, assumptions };
-}
-function getTrail(db2, sessionId) {
-  const session = db2.prepare("SELECT ticket_id FROM trail_sessions WHERE session_id = ?").get(sessionId);
-  const decisions = db2.prepare(
-    `SELECT d.id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol
-       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
-       WHERE d.session_id = ? ORDER BY d.rowid`
-  ).all(sessionId).map((r) => {
-    const row = r;
-    return {
-      id: row.id,
-      summary: row.summary,
-      origin: row.origin,
-      alternatives: JSON.parse(row.alternatives),
-      file_path: row.file_path ?? null,
-      symbol: row.symbol ?? null,
-      related_files: JSON.parse(row.related_files)
-    };
-  });
-  const explained = /* @__PURE__ */ new Set();
-  for (const d of decisions) {
-    if (d.file_path) explained.add(pathKey(d.file_path));
-    for (const f of d.related_files) explained.add(pathKey(f));
-  }
-  const editedFiles = db2.prepare("SELECT file_path, edit_count FROM file_edits WHERE session_id = ? ORDER BY first_edited_at, rowid").all(sessionId).map((f) => ({ file_path: f.file_path, edit_count: f.edit_count, explained: explained.has(pathKey(f.file_path)) }));
-  return {
-    session_id: sessionId,
-    tracking: session !== void 0,
-    ticket_id: session?.ticket_id ?? null,
-    decisions,
-    edited_files: editedFiles,
-    unexplained_files: editedFiles.filter((f) => !f.explained).map((f) => f.file_path)
-  };
-}
-function listDecisions(db2, ticketId) {
-  requireRow(db2, "tickets", "Ticket", ticketId);
-  const decisions = db2.prepare(
-    `SELECT d.id, d.session_id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol,
-              (SELECT count(*) FROM explain_backs e WHERE e.decision_id = d.id) AS explain_back_count
-       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
-       WHERE d.ticket_id = ? ORDER BY d.rowid`
-  ).all(ticketId).map((r) => {
-    const row = r;
-    return {
-      id: row.id,
-      session_id: row.session_id,
-      summary: row.summary,
-      origin: row.origin,
-      alternatives: JSON.parse(row.alternatives),
-      file_path: row.file_path ?? null,
-      symbol: row.symbol ?? null,
-      related_files: JSON.parse(row.related_files),
-      explain_back_count: Number(row.explain_back_count)
-    };
-  });
-  return { ticket_id: ticketId, decisions };
-}
-function recordExplainBack(db2, input2) {
-  requireRow(db2, "decisions", "Decision", input2.decision_id);
-  const id2 = randomUUID();
-  db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating) VALUES (?, ?, ?, ?, ?)").run(
-    id2,
-    input2.decision_id,
-    input2.question,
-    input2.answer,
-    input2.rating
-  );
-  return { explain_back_id: id2 };
-}
-function saveObservation(db2, input2) {
-  for (const evidenceId of input2.evidence_ids) {
-    if (!exists(db2, "decisions", evidenceId) && !exists(db2, "explain_backs", evidenceId)) {
-      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explain-back`);
-    }
-  }
-  const id2 = randomUUID();
-  db2.prepare("INSERT INTO observations (id, developer_id, skill_tag, summary, evidence_ids) VALUES (?, ?, ?, ?, ?)").run(
-    id2,
-    input2.developer_id ?? localDeveloperId(),
-    input2.skill_tag,
-    input2.summary,
-    JSON.stringify(input2.evidence_ids)
-  );
-  return { observation_id: id2 };
-}
-function listObservations(db2, developerId = localDeveloperId()) {
-  const decision = db2.prepare("SELECT ticket_id, origin FROM decisions WHERE id = ?");
-  const explainBack = db2.prepare(
-    "SELECT e.rating, d.ticket_id FROM explain_backs e JOIN decisions d ON d.id = e.decision_id WHERE e.id = ?"
-  );
-  const describe3 = (id2) => {
-    const d = decision.get(id2);
-    if (d) return { id: id2, kind: "decision", ticket_id: d.ticket_id, origin: d.origin };
-    const e = explainBack.get(id2);
-    if (e) return { id: id2, kind: "explain_back", ticket_id: e.ticket_id, rating: e.rating };
-    return { id: id2, kind: "missing" };
-  };
-  const observations = db2.prepare("SELECT id, skill_tag, summary, evidence_ids, created_at FROM observations WHERE developer_id = ? ORDER BY rowid").all(developerId).map((o) => ({
-    id: o.id,
-    skill_tag: o.skill_tag,
-    summary: o.summary,
-    created_at: o.created_at,
-    evidence: JSON.parse(o.evidence_ids).map(describe3)
-  }));
-  return { developer_id: developerId, observations };
-}
-function saveGrowthPlan(db2, input2) {
-  const developerId = input2.developer_id ?? localDeveloperId();
-  const ownsObservation = db2.prepare("SELECT 1 FROM observations WHERE id = ? AND developer_id = ?");
-  const focusAreas = input2.focus_areas.map((area) => {
-    const evidence = [...new Set(area.evidence_ids)];
-    for (const evidenceId of evidence) {
-      if (!ownsObservation.get(evidenceId, developerId)) {
-        throw new StoreError(`Evidence '${evidenceId}' is not an observation of developer '${developerId}'`);
-      }
-    }
-    return { id: randomUUID(), claim: area.claim, evidence_ids: evidence, tentative: evidence.length < 2, exercise: area.exercise };
-  });
-  const id2 = randomUUID();
-  db2.prepare("INSERT INTO growth_plans (id, developer_id, focus_areas) VALUES (?, ?, ?)").run(
-    id2,
-    developerId,
-    JSON.stringify(focusAreas)
-  );
-  return { growth_plan_id: id2, focus_areas: focusAreas };
-}
-
 // src/mcp/schemas.ts
 var id = external_exports.string().trim().min(1).max(200);
 var shortText = external_exports.string().trim().min(1).max(500);
@@ -41896,6 +42517,9 @@ var resolvePointersInput = external_exports.strictObject({
   pr_number: external_exports.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),
   commit: external_exports.string().regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA").optional().describe("Check against this commit and skip the pull request lookup")
 });
+var openReportInput = external_exports.strictObject({
+  open_browser: external_exports.boolean().default(true).describe("false = start the local server and return the address, but do not open the browser")
+});
 var updatePrDecisionsInput = external_exports.strictObject({
   ticket_id: id,
   pr_number: external_exports.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),
@@ -41942,10 +42566,12 @@ async function reply(run3) {
     return { isError: true, content: [{ type: "text", text: message }] };
   }
 }
-function createServer(db2, tickets2, options = {}) {
+function createServer2(db2, tickets2, options = {}) {
   const root = options.root ?? process.cwd();
   const guard = options.guard ?? new PrivacyGuard({ root });
   const server2 = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const report = new ReportServer({ db: db2, guard, ...options.report });
+  server2.server.onclose = () => report.close();
   const write = (input2, save) => reply(() => {
     guard.check(input2);
     return save(input2);
@@ -42005,6 +42631,15 @@ function createServer(db2, tickets2, options = {}) {
       inputSchema: updatePrDecisionsInput
     },
     (input2) => write(input2, (i2) => updatePrDecisions(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, dryRun: i2.dry_run }))
+  );
+  server2.registerTool(
+    "open_report",
+    {
+      title: "Open Coach report",
+      description: "Start the local web server if it is not running, and open the Coach report in the developer's browser. The server listens on 127.0.0.1 only and stops when this Claude Code session ends. Returns the address.",
+      inputSchema: openReportInput
+    },
+    (input2) => reply(() => report.open(input2.open_browser))
   );
   server2.registerTool(
     "start_trail",
@@ -42081,10 +42716,12 @@ function createServer(db2, tickets2, options = {}) {
 // src/mcp/stdio.ts
 var db = openDb();
 migrate(db);
-var projectTickets = process.env.FTC_TICKETS_DIR ?? join7(process.cwd(), "tickets");
-var demoTickets = join7(dirname4(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
+var projectTickets = process.env.FTC_TICKETS_DIR ?? join8(process.cwd(), "tickets");
+var demoTickets = join8(dirname4(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
 var tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
-var server = createServer(db, tickets);
+var webDir = join8(dirname4(fileURLToPath2(import.meta.url)), "..", "web");
+var port = process.env.FTC_PORT ? Number(process.env.FTC_PORT) : void 0;
+var server = createServer2(db, tickets, { report: { webDir, port } });
 await server.connect(new StdioServerTransport());
 console.error("fork-trail-coach MCP server running on stdio");
 var shutdown = () => {

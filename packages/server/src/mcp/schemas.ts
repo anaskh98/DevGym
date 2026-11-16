@@ -77,6 +77,10 @@ export const resolvePointersInput = z.strictObject({
     .describe("Check against this commit and skip the pull request lookup"),
 });
 
+export const openReportInput = z.strictObject({
+  open_browser: z.boolean().default(true).describe("false = start the local server and return the address, but do not open the browser"),
+});
+
 export const updatePrDecisionsInput = z.strictObject({
   ticket_id: id,
   pr_number: z.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),

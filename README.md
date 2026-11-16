@@ -13,12 +13,13 @@ Developer profiles live in a SQLite file on the developer's machine and never le
 
 | Part | State |
 | --- | --- |
-| Backend: BE-1 to BE-12 | Built and tested |
-| Backend: BE-13 (`coach open`) | Not started |
+| Backend: BE-1 to BE-13 | Built and tested |
 | Web app: all pages | Built on sample data. **Not yet connected to the REST API**, see below |
 | Eval: EV-1 (demo repo, ticket, answer key) | Built |
 
 **The web app and the REST API do not match yet.** The web app was built against the shapes in `packages/shared/src/api.ts` and its mock JSON. The REST API serves the shapes in [docs/api.md](docs/api.md). The web app is to be changed to match the API. Until then `pnpm dev:web` shows sample data only.
+
+`coach open` shows a small built-in report page served by the local server. Once the web app matches the API, copy its build to `packages/plugin/web/` and the server serves that instead, at `/#/coach`.
 
 `docs/week-1-status.md` and `docs/frontend-status.md` describe an earlier backend. Where they disagree with this file about the backend, this file is right.
 
@@ -42,6 +43,7 @@ Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets
 | `/fork-trail-coach:pr-decisions DEMO-1` | Add the "Decisions" section to the pull request. Needs the GitHub CLI (`gh`), signed in |
 | `/fork-trail-coach:pointers DEMO-1 12` | After the PR is opened or merged: move the pointers to its commit and check they resolve |
 | `/fork-trail-coach:coach` | Build a growth plan from the saved observations |
+| `/fork-trail-coach:coach open` | Start the local server and open the Coach report in the browser |
 | `/fork-trail-coach:status` | Check the plugin and the local service |
 
 Claude Code prefixes a plugin's skills with the plugin name, so the plan's `/fork` is `/fork-trail-coach:fork`.

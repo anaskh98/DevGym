@@ -15,6 +15,7 @@ import { createServer } from "./server.js";
 let db: Db;
 let client: Client;
 let repo: string;
+let opened: string[];
 
 // No seed here: tickets must reach the database through the adapter.
 beforeEach(async () => {
@@ -27,7 +28,8 @@ beforeEach(async () => {
   writeFileSync(join(repo, "GLOBEX-1.md"), "---\nid: GLOBEX-1\ntitle: Export for the Globex tenant\n---\nBody");
   const guard = new PrivacyGuard({ root: repo, denylist: () => ["Globex"] });
   const tickets = new MarkdownTicketAdapter([defaultTicketsDir(), repo]);
-  await createServer(db, tickets, { root: repo, guard }).connect(serverSide);
+  opened = [];
+  await createServer(db, tickets, { root: repo, guard, report: { port: 0, openUrl: (url) => opened.push(url) } }).connect(serverSide);
   client = new Client({ name: "test", version: "0.0.0" });
   await client.connect(clientSide);
 });
@@ -81,6 +83,7 @@ describe("tool list", () => {
       "list_decisions",
       "list_observations",
       "log_decision",
+      "open_report",
       "record_explain_back",
       "resolve_pointers",
       "save_assumptions",
@@ -127,6 +130,22 @@ describe("privacy guard on every write tool", () => {
     expect(await rejected("get_ticket", { ticket_id: "GLOBEX-1" })).toMatch(/client denylist/);
     expect(await rejected("log_decision", decision({ ticket_id: "GLOBEX-1" }))).toMatch(/client denylist/);
     expect(count("tickets")).toBe(0);
+  });
+});
+
+describe("open_report", () => {
+  it("starts the local server, opens the browser once per call, and the report page answers", async () => {
+    const first = await ok("open_report", {});
+    expect(first).toMatchObject({ started: true, opened: true });
+    expect(opened).toEqual([first.url]);
+    const page = await fetch(first.url);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("Coach report");
+
+    const second = await ok("open_report", { open_browser: false });
+    expect(second).toEqual({ url: first.url, started: false, opened: false });
+    expect(opened).toHaveLength(1);
+    await rejected("open_report", { open_browser: "yes" });
   });
 });
 
