@@ -13,8 +13,8 @@ Developer profiles live in a SQLite file on the developer's machine and never le
 
 | Part | State |
 | --- | --- |
-| Backend: BE-1 to BE-9, BE-11, BE-12 | Built and tested |
-| Backend: BE-10 (PR section), BE-13 (`coach open`) | Not started |
+| Backend: BE-1 to BE-12 | Built and tested |
+| Backend: BE-13 (`coach open`) | Not started |
 | Web app: all pages | Built on sample data. **Not yet connected to the REST API**, see below |
 | Eval: EV-1 (demo repo, ticket, answer key) | Built |
 
@@ -39,6 +39,7 @@ Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets
 | `/fork-trail-coach:fork DEMO-1` | Ask the questions that change the code, save the assumption list |
 | `/fork-trail-coach:paper-trail DEMO-1` | Start logging decisions for this coding session |
 | `/fork-trail-coach:explain-back DEMO-1` | Explain 2 or 3 logged decisions, save answers and ratings |
+| `/fork-trail-coach:pr-decisions DEMO-1` | Add the "Decisions" section to the pull request. Needs the GitHub CLI (`gh`), signed in |
 | `/fork-trail-coach:pointers DEMO-1 12` | After the PR is opened or merged: move the pointers to its commit and check they resolve |
 | `/fork-trail-coach:coach` | Build a growth plan from the saved observations |
 | `/fork-trail-coach:status` | Check the plugin and the local service |

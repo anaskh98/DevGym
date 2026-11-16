@@ -28612,7 +28612,7 @@ var StdioServerTransport = class {
 };
 
 // src/mcp/stdio.ts
-import { dirname as dirname4, join as join6 } from "node:path";
+import { dirname as dirname4, join as join7 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/db/connection.ts
@@ -41170,11 +41170,155 @@ async function resolvePointers(db2, options, deps = {}) {
   return { ticket_id: options.ticketId, repo, commit, pr, total: pointers.length, resolved: pointers.length - broken.length, broken };
 }
 
+// src/pr/update.ts
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as join4 } from "node:path";
+
+// src/pr/section.ts
+var SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
+var SECTION_END = "<!-- fork-trail-coach:decisions:end -->";
+var ORIGIN_LABEL = {
+  ai: "AI chose",
+  dev: "Developer chose",
+  dev_changed_ai: "Developer changed the AI's choice"
+};
+var STATUS_LABEL = {
+  answered_by_po: "Answered by PO",
+  assumed_by_dev: "Assumed by dev"
+};
+function inline(text) {
+  return text.replace(/\s*\r?\n\s*/g, " ").replace(/</g, "&lt;").replace(/\|/g, "\\|").replace(/@(?=\w)/g, "@\u200B").trim();
+}
+function pointerText(d) {
+  if (!d.file_path) return null;
+  const label = `\`${d.file_path}\`${d.symbol ? ` \xB7 \`${d.symbol}\`` : ""}`;
+  const linkable = d.commit_sha && d.repo && /^[\w.-]+\/[\w.-]+$/.test(d.repo) && d.resolved !== 0;
+  if (!linkable) return d.resolved === 0 ? `${label} (this pointer no longer finds its code)` : label;
+  const path = d.file_path.split("/").map(encodeURIComponent).join("/");
+  return `[${label}](https://github.com/${d.repo}/blob/${d.commit_sha}/${path}${d.line_hint ? `#L${d.line_hint}` : ""})`;
+}
+function buildDecisionsSection(db2, ticketId) {
+  const ticket = db2.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
+  if (!ticket) throw new StoreError(`Ticket '${ticketId}' does not exist`);
+  const assumptions = db2.prepare("SELECT text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(ticketId);
+  const decisions = db2.prepare(
+    `SELECT d.summary, d.alternatives, d.origin, p.repo, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved
+       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+       WHERE d.ticket_id = ? ORDER BY d.rowid`
+  ).all(ticketId);
+  if (assumptions.length === 0 && decisions.length === 0) {
+    throw new StoreError(`Ticket '${ticketId}' has no assumptions and no decisions to share yet`);
+  }
+  const lines = [SECTION_START, "## Decisions", "", `Ticket **${inline(ticket.id)}**: ${inline(ticket.title)}`, ""];
+  if (assumptions.length > 0) {
+    const assumed = assumptions.filter((a) => a.status === "assumed_by_dev").length;
+    lines.push("### Assumptions", "", "| Question | Status | Answer |", "| --- | --- | --- |");
+    for (const a of assumptions) {
+      lines.push(`| ${inline(a.text)} | ${STATUS_LABEL[a.status] ?? inline(a.status)} | ${a.answer ? inline(a.answer) : ""} |`);
+    }
+    lines.push("");
+    if (assumed > 0) {
+      lines.push(`${assumed} of ${assumptions.length} ${assumed === 1 ? "is an assumption" : "are assumptions"} the product owner has not confirmed.`, "");
+    }
+  }
+  if (decisions.length > 0) {
+    lines.push("### Decisions made while coding", "");
+    decisions.forEach((d, i2) => {
+      lines.push(`${i2 + 1}. **${inline(d.summary)}**`);
+      lines.push(`   - Who chose: ${ORIGIN_LABEL[d.origin] ?? inline(d.origin)}`);
+      const alternatives = JSON.parse(d.alternatives).map(inline).filter(Boolean);
+      if (alternatives.length > 0) lines.push(`   - Alternatives considered: ${alternatives.join("; ")}`);
+      const where = pointerText(d);
+      if (where) lines.push(`   - Where: ${where}`);
+    });
+    lines.push("");
+  }
+  lines.push("<sub>Written by the Fork, Paper Trail, Coach plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
+  return { markdown: lines.join("\n"), assumptions: assumptions.length, decisions: decisions.length };
+}
+function mergeSection(body2, section) {
+  const start2 = body2.indexOf(SECTION_START);
+  const end = body2.indexOf(SECTION_END);
+  if (start2 !== -1 && end > start2) {
+    return body2.slice(0, start2) + section + body2.slice(end + SECTION_END.length);
+  }
+  const trimmed = body2.replace(/\s+$/, "");
+  return trimmed ? `${trimmed}
+
+${section}
+` : `${section}
+`;
+}
+
+// src/pr/update.ts
+async function updatePrDecisions(db2, options, deps = {}) {
+  const exec = deps.exec ?? run2;
+  buildDecisionsSection(db2, options.ticketId);
+  const repo = await repoSlug(options.root, exec);
+  let pr = null;
+  let note = null;
+  if (!repo) {
+    note = "This folder has no GitHub remote, so no pull request was looked up.";
+  } else {
+    try {
+      pr = await lookupPr(repo, options.prNumber, options.root, deps);
+    } catch (err2) {
+      if (!options.dryRun || !(err2 instanceof StoreError)) throw err2;
+      note = err2.message;
+    }
+  }
+  let pointers = null;
+  if (pr) {
+    try {
+      const checked = await resolvePointers(db2, { ticketId: options.ticketId, root: options.root, prNumber: pr.number, commit: pr.commit });
+      pointers = { total: checked.total, resolved: checked.resolved, broken: checked.broken.length };
+    } catch (err2) {
+      if (!(err2 instanceof StoreError)) throw err2;
+      note = `Pointers were not checked: ${err2.message}`;
+    }
+  }
+  const section = buildDecisionsSection(db2, options.ticketId);
+  const result = {
+    ticket_id: options.ticketId,
+    pr,
+    updated: false,
+    note,
+    assumptions: section.assumptions,
+    decisions: section.decisions,
+    pointers,
+    markdown: section.markdown
+  };
+  if (options.dryRun) return { ...result, note: note ?? "Preview only. The pull request was not changed." };
+  if (!repo || !pr) throw new StoreError(note ?? "No pull request was found.");
+  const view = await exec("gh", ["pr", "view", String(pr.number), "--repo", repo, "--json", "body"], options.root);
+  if (view.code === null) {
+    throw new StoreError("The GitHub CLI (gh) is not installed, so the pull request cannot be updated. Install it and sign in, or paste the section by hand.");
+  }
+  if (view.code !== 0) {
+    throw new StoreError(`The GitHub CLI could not read the pull request: ${view.stderr.trim().split("\n")[0] ?? "unknown error"}`);
+  }
+  const body2 = JSON.parse(view.stdout).body ?? "";
+  const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
+  const dir = await mkdtemp(join4(tmpdir(), "ftc-pr-"));
+  try {
+    const file2 = join4(dir, "body.md");
+    await writeFile(file2, next, "utf8");
+    const edit = await exec("gh", ["pr", "edit", String(pr.number), "--repo", repo, "--body-file", file2], options.root);
+    if (edit.code !== 0) {
+      throw new StoreError(`The GitHub CLI could not update the pull request: ${edit.stderr.trim().split("\n")[0] ?? "unknown error"}`);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+  return { ...result, updated: true };
+}
+
 // src/privacy/denylist.ts
 import { readFileSync } from "node:fs";
-import { dirname as dirname3, join as join4 } from "node:path";
+import { dirname as dirname3, join as join5 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join4(dirname3(defaultDbPath()), "denylist.txt");
+  return process.env.FTC_DENYLIST_PATH ?? join5(dirname3(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -41248,7 +41392,7 @@ function containsBlockedName(text, names) {
 
 // src/privacy/overlap.ts
 import { readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
-import { extname as extname2, join as join5 } from "node:path";
+import { extname as extname2, join as join6 } from "node:path";
 
 // src/privacy/rules.ts
 function cleanText(text) {
@@ -41377,7 +41521,7 @@ function* codeFiles(root) {
     }
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue;
-      const full = join5(dir, entry.name);
+      const full = join6(dir, entry.name);
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) stack.push(full);
       } else if (entry.isFile() && CODE_EXTENSIONS.has(extname2(entry.name).toLowerCase())) {
@@ -41752,6 +41896,11 @@ var resolvePointersInput = external_exports.strictObject({
   pr_number: external_exports.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),
   commit: external_exports.string().regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA").optional().describe("Check against this commit and skip the pull request lookup")
 });
+var updatePrDecisionsInput = external_exports.strictObject({
+  ticket_id: id,
+  pr_number: external_exports.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),
+  dry_run: external_exports.boolean().default(false).describe("true = build and return the section, but do not change the pull request")
+});
 var listObservationsInput = external_exports.strictObject({
   developer_id: id.optional().describe("Leave out to use the local developer")
 });
@@ -41849,6 +41998,15 @@ function createServer(db2, tickets2, options = {}) {
     (input2) => write(input2, (i2) => resolvePointers(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, commit: i2.commit }))
   );
   server2.registerTool(
+    "update_pr_decisions",
+    {
+      title: "Update PR Decisions section",
+      description: "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explain-backs, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
+      inputSchema: updatePrDecisionsInput
+    },
+    (input2) => write(input2, (i2) => updatePrDecisions(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, dryRun: i2.dry_run }))
+  );
+  server2.registerTool(
     "start_trail",
     {
       title: "Start Paper Trail",
@@ -41923,8 +42081,8 @@ function createServer(db2, tickets2, options = {}) {
 // src/mcp/stdio.ts
 var db = openDb();
 migrate(db);
-var projectTickets = process.env.FTC_TICKETS_DIR ?? join6(process.cwd(), "tickets");
-var demoTickets = join6(dirname4(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
+var projectTickets = process.env.FTC_TICKETS_DIR ?? join7(process.cwd(), "tickets");
+var demoTickets = join7(dirname4(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
 var tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
 var server = createServer(db, tickets);
 await server.connect(new StdioServerTransport());

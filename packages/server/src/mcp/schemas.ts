@@ -77,7 +77,13 @@ export const resolvePointersInput = z.strictObject({
     .describe("Check against this commit and skip the pull request lookup"),
 });
 
-export const listObservationsInput =z.strictObject({
+export const updatePrDecisionsInput = z.strictObject({
+  ticket_id: id,
+  pr_number: z.number().int().positive().optional().describe("The pull request. Leave out to use the current branch's PR."),
+  dry_run: z.boolean().default(false).describe("true = build and return the section, but do not change the pull request"),
+});
+
+export const listObservationsInput = z.strictObject({
   developer_id: id.optional().describe("Leave out to use the local developer"),
 });
 

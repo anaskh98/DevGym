@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
+import { updatePrDecisions } from "../pr/update.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
@@ -18,6 +19,7 @@ import {
   saveGrowthPlanInput,
   saveObservationInput,
   startTrailInput,
+  updatePrDecisionsInput,
 } from "./schemas.js";
 
 export const SERVER_NAME = "fork-trail-coach";
@@ -111,6 +113,18 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     },
     (input) =>
       write(input, (i) => resolvePointers(db, { ticketId: i.ticket_id, root, prNumber: i.pr_number, commit: i.commit })),
+  );
+
+  server.registerTool(
+    "update_pr_decisions",
+    {
+      title: "Update PR Decisions section",
+      description:
+        "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explain-backs, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
+      inputSchema: updatePrDecisionsInput,
+    },
+    (input) =>
+      write(input, (i) => updatePrDecisions(db, { ticketId: i.ticket_id, root, prNumber: i.pr_number, dryRun: i.dry_run })),
   );
 
   server.registerTool(

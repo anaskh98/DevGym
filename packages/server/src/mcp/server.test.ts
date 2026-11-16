@@ -87,6 +87,7 @@ describe("tool list", () => {
       "save_growth_plan",
       "save_observation",
       "start_trail",
+      "update_pr_decisions",
     ]);
   });
 });
