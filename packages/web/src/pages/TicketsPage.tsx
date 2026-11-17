@@ -12,12 +12,12 @@ const SECTION: Record<Section, { empty: string; meta: (ticket: TicketSummary) =>
   fork: {
     empty: "The ticket and its questions will appear here.",
     meta: (ticket) =>
-      ticket.fork_runs === 0 ? "Fork not run yet" : plural(ticket.fork_runs, "Fork run"),
+      ticket.assumption_count === 0 ? "No questions saved yet" : plural(ticket.assumption_count, "question"),
   },
   "paper-trail": {
     empty: "The decisions made while coding it will appear here.",
     meta: (ticket) =>
-      ticket.decisions === 0 ? "No decisions yet" : plural(ticket.decisions, "decision"),
+      ticket.decision_count === 0 ? "No decisions yet" : plural(ticket.decision_count, "decision"),
   },
 };
 
@@ -38,7 +38,7 @@ export function TicketsPage({ section }: { section: Section }) {
     return (
       <EmptyState title="No tickets yet">
         <p>
-          Run <code>/ftc:fork DEMO-1</code> in Claude Code, inside the demo repository. {empty}
+          Run <code>/fork-trail-coach:fork DEMO-1</code> in Claude Code, inside the demo repository. {empty}
         </p>
       </EmptyState>
     );

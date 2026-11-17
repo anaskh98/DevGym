@@ -1,24 +1,23 @@
 import { useState } from "react";
-import { STORED_KINDS, type MyDataResponse } from "@ftc/shared";
+import type { ExportResponse } from "@ftc/shared";
 import { api, ApiError } from "../api/client";
 import { apiConfig } from "../api/config";
 import { useApi } from "../api/useApi";
 import { ErrorState, Loading } from "../components/States";
 import { plural } from "../lib/fork";
 import { useTitle } from "../lib/useTitle";
-import { buildExport, countRecords, downloadFile, KIND_INFO, totalRecords } from "../lib/myData";
+import { buildExport, downloadFile, TABLE_INFO, tablesOf, totalRecords } from "../lib/myData";
 
 type Notice =
   | { kind: "exported"; filename: string; records: number }
   | { kind: "deleted"; records: number }
   | { kind: "failed"; message: string };
 
-function Stored({ response, onDeleted }: { response: MyDataResponse; onDeleted: (records: number) => void }) {
+function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: (records: number) => void }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const counts = countRecords(response);
   const total = totalRecords(response);
   const sample = apiConfig.mode === "mock";
 
@@ -47,9 +46,9 @@ function Stored({ response, onDeleted }: { response: MyDataResponse; onDeleted: 
   return (
     <>
       <p className="data__where">
-        {total === 0 ? "Nothing is stored. The file is " : `${plural(total, "record")}, all in one file on this computer: `}
-        <code>{response.stored_in}</code>
-        {total === 0 ? "." : ""}
+        {total === 0
+          ? "Nothing is stored about you."
+          : `${plural(total, "record")}, all in one SQLite file on this computer, outside any repository.`}
       </p>
 
       <div className="data__actions">
@@ -96,16 +95,16 @@ function Stored({ response, onDeleted }: { response: MyDataResponse; onDeleted: 
 
       <h2 className="data__heading">What is stored</h2>
       <ul className="data__kinds">
-        {STORED_KINDS.map((kind) => {
-          const records = response.data[kind];
-          const info = KIND_INFO[kind];
+        {tablesOf(response).map((kind) => {
+          const records = response.data[kind] ?? [];
+          const info = TABLE_INFO[kind] ?? { label: kind, what: "" };
           return (
             <li key={kind}>
               <details className="kind" {...(records.length === 0 ? { "data-empty": "" } : {})}>
                 <summary>
                   <span className="kind__label">{info.label}</span>
                   <span className="kind__what">{info.what}</span>
-                  <span className="kind__count">{counts[kind]}</span>
+                  <span className="kind__count">{records.length}</span>
                 </summary>
                 {records.length === 0 ? (
                   <p className="kind__none">None stored.</p>
@@ -128,7 +127,7 @@ export function MyDataPage() {
   useTitle("My data");
   const [version, setVersion] = useState(0);
   const [deleted, setDeleted] = useState<number | null>(null);
-  const data = useApi(`data:${version}`, (signal) => api.getMyData(signal));
+  const data = useApi(`data:${version}`, (signal) => api.getExport(signal));
 
   return (
     <article className="data-page">

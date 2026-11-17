@@ -32,6 +32,8 @@ export const Decoy = z.object({
   question: z.string(),
   /** Where the repo or the ticket already answers it. */
   settled_by: z.string(),
+  /** Words a question matching this decoy is likely to use. */
+  match_hints: z.array(z.string()).default([]),
 });
 export type Decoy = z.infer<typeof Decoy>;
 
@@ -39,6 +41,7 @@ export const AcceptableExtra = z.object({
   id: z.string().regex(/^X\d+$/),
   question: z.string(),
   why_acceptable: z.string(),
+  match_hints: z.array(z.string()).default([]),
 });
 
 export const AnswerKey = z.object({

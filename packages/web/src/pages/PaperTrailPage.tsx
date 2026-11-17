@@ -4,7 +4,7 @@ import {
   DECISION_ORIGIN_LABEL,
   EXPLAIN_BACK_RATING_LABEL,
   type DecisionOrigin,
-  type PaperTrailResponse,
+  type TicketDetailResponse,
 } from "@ftc/shared";
 import { api } from "../api/client";
 import { useApi } from "../api/useApi";
@@ -12,12 +12,11 @@ import { DecisionItem } from "../components/DecisionItem";
 import { EmptyState, ErrorState, Loading } from "../components/States";
 import { TicketHead } from "../components/TicketHead";
 import { plural } from "../lib/fork";
+import { formatFullDay } from "../lib/dates";
 import { useTitle } from "../lib/useTitle";
 import { countByOrigin, countByRating, ORIGINS, originSentence, RATINGS, sessionNumbers } from "../lib/trail";
 
-const day = new Intl.DateTimeFormat(undefined, { dateStyle: "full" });
-
-function explainSentence(decisions: PaperTrailResponse["decisions"]): string | null {
+function explainSentence(decisions: TicketDetailResponse["decisions"]): string | null {
   const counts = countByRating(decisions);
   const total = RATINGS.reduce((sum, rating) => sum + counts[rating], 0);
   if (total === 0) return null;
@@ -27,15 +26,19 @@ function explainSentence(decisions: PaperTrailResponse["decisions"]): string | n
   return `The developer explained ${total} back: ${parts.join(", ")}.`;
 }
 
-function Trail({ result }: { result: PaperTrailResponse }) {
-  const { ticket, decisions } = result;
+function Trail({ result }: { result: TicketDetailResponse }) {
+  const { ticket, decisions, sessions: trailSessions } = result;
+  const unexplained = [...new Set(trailSessions.flatMap((session) => session.unexplained_files))];
   useTitle(`Paper Trail: ${ticket.id}`);
   const [origin, setOrigin] = useState<DecisionOrigin | "all">("all");
 
-  // The Coach page links to one decision: ?decision=<id>. Bring it into view.
+  // The Coach page links to one piece of evidence: ?item=<decision or explain-back id>. Bring it into view.
   const [params] = useSearchParams();
-  const wanted = params.get("decision");
-  const focusId = decisions.some((decision) => decision.id === wanted) ? wanted : null;
+  const wanted = params.get("item");
+  const focusDecision = decisions.find(
+    (decision) => decision.id === wanted || decision.explain_backs.some((e) => e.id === wanted),
+  );
+  const focusId = focusDecision ? wanted : null;
   useEffect(() => {
     if (!focusId) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -65,8 +68,8 @@ function Trail({ result }: { result: PaperTrailResponse }) {
       {decisions.length === 0 || !first ? (
         <EmptyState title="No decisions logged for this ticket">
           <p>
-            Paper Trail records a decision each time Claude Code or the developer makes a choice
-            while coding the ticket. Nothing has been recorded for <code>{ticket.id}</code> yet.
+            Run <code>/fork-trail-coach:paper-trail {ticket.id}</code> in Claude Code before coding the ticket. Each
+            real choice made while coding is then logged here, with who made it.
           </p>
         </EmptyState>
       ) : (
@@ -90,7 +93,7 @@ function Trail({ result }: { result: PaperTrailResponse }) {
             </div>
           </div>
 
-          <p className="trail__day">{day.format(new Date(first.created_at))}</p>
+          <p className="trail__day">{formatFullDay(first.created_at)}</p>
           <ol className="trail__list">
             {shown.map(({ decision, session }, index) => {
               const previous = shown[index - 1];
@@ -98,7 +101,7 @@ function Trail({ result }: { result: PaperTrailResponse }) {
               return (
                 <Fragment key={decision.id}>
                   {newSession && <li className="trail__session">Coding session {session}</li>}
-                  <DecisionItem decision={decision} highlighted={decision.id === focusId} />
+                  <DecisionItem decision={decision} highlighted={decision === focusDecision} />
                 </Fragment>
               );
             })}
@@ -113,13 +116,30 @@ function Trail({ result }: { result: PaperTrailResponse }) {
           )}
         </section>
       )}
+
+      {unexplained.length > 0 && (
+        <section className="unexplained" aria-labelledby="unexplained-heading">
+          <h2 id="unexplained-heading">Edited with no decision</h2>
+          <p>
+            These files were changed while coding the ticket, but no logged decision points at them. That is fine for
+            routine edits; a reviewer may still ask why they changed.
+          </p>
+          <ul>
+            {unexplained.map((file) => (
+              <li key={file}>
+                <code>{file}</code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </article>
   );
 }
 
 export function PaperTrailPage() {
   const { ticketId = "" } = useParams();
-  const result = useApi(`trail:${ticketId}`, (signal) => api.getTrail(ticketId, signal));
+  const result = useApi(`ticket:${ticketId}`, (signal) => api.getTicket(ticketId, signal));
 
   if (result.status === "loading") return <Loading what={`the trail for ${ticketId}`} />;
   if (result.status === "error") {

@@ -7,7 +7,7 @@ var __export = (target, all) => {
 };
 
 // src/api/main.ts
-import { dirname as dirname3, join as join5 } from "node:path";
+import { dirname as dirname4, join as join6 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/db/connection.ts
@@ -523,7 +523,9 @@ function blockedName(field) {
 }
 
 // src/api/server.ts
+import { readFile as readFile2 } from "node:fs/promises";
 import { createServer } from "node:http";
+import { dirname as dirname3, join as join5 } from "node:path";
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -20703,6 +20705,9 @@ async function servePage(res, pathname, webDir2) {
 var API_HOST = "127.0.0.1";
 var DEFAULT_API_PORT = 4317;
 var MAX_BODY_BYTES = 64 * 1024;
+function defaultEvalResultsPath() {
+  return process.env.FTC_EVAL_RESULTS ?? join5(dirname3(defaultDbPath()), "eval-results.json");
+}
 var annotationInput = external_exports.strictObject({
   target_id: external_exports.string().trim().min(1).max(200),
   note: external_exports.string().trim().min(1).max(2e3),
@@ -20758,34 +20763,38 @@ function parse3(schema, body) {
 function createApiServer(options) {
   const { db: db2, guard } = options;
   const extraOrigins = new Set(options.allowedOrigins ?? []);
+  const ownOrigins = () => {
+    const port2 = server2.address().port;
+    return [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
+  };
+  const corsFor = (req) => {
+    const origin = req.headers.origin;
+    if (origin === void 0 || !ownOrigins().includes(origin) && !extraOrigins.has(origin)) return {};
+    return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
+  };
   const server2 = createServer((req, res) => {
     handle(req, res).catch((err) => {
+      const cors = corsFor(req);
       if (err instanceof HttpError) {
-        send2(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } });
+        send2(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } }, cors);
       } else if (err instanceof PrivacyError) {
-        send2(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } });
+        send2(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } }, cors);
       } else if (err instanceof StoreError) {
-        send2(res, 404, { error: { code: "not_found", message: err.message } });
+        send2(res, 404, { error: { code: "not_found", message: err.message } }, cors);
       } else {
         console.error(err);
-        send2(res, 500, { error: { code: "internal", message: "Internal error" } });
+        send2(res, 500, { error: { code: "internal", message: "Internal error" } }, cors);
       }
     });
   });
   async function handle(req, res) {
-    const port2 = server2.address().port;
-    const own2 = [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
+    const own2 = ownOrigins();
     if (!own2.includes(`http://${req.headers.host ?? ""}`)) {
       throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
     }
-    const origin = req.headers.origin;
-    const cors = {};
-    if (origin !== void 0) {
-      if (!own2.includes(origin) && !extraOrigins.has(origin)) {
-        throw new HttpError(403, "bad_origin", "This origin may not call the API");
-      }
-      cors["Access-Control-Allow-Origin"] = origin;
-      cors["Vary"] = "Origin";
+    const cors = corsFor(req);
+    if (req.headers.origin !== void 0 && cors["Access-Control-Allow-Origin"] === void 0) {
+      throw new HttpError(403, "bad_origin", "This origin may not call the API");
     }
     const method = req.method ?? "GET";
     if (method === "OPTIONS") {
@@ -20833,6 +20842,19 @@ function createApiServer(options) {
       case "DELETE /annotations/:id":
         if (!deleteAnnotation(db2, id)) throw notFound("Annotation");
         return ok(void 0, 204);
+      case "GET /eval": {
+        let raw;
+        try {
+          raw = await readFile2(options.evalFile ?? defaultEvalResultsPath(), "utf8");
+        } catch {
+          throw new HttpError(404, "not_found", "No evaluation has been run yet");
+        }
+        try {
+          return ok(JSON.parse(raw));
+        } catch {
+          throw new HttpError(500, "bad_eval_file", "The eval results file is not valid JSON");
+        }
+      }
       case "GET /export":
         return ok(exportAll(db2), 200, {
           "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
@@ -20859,7 +20881,7 @@ var db = openDb();
 migrate(db);
 var port = Number(process.env.FTC_PORT ?? DEFAULT_API_PORT);
 var allowedOrigins = (process.env.FTC_WEB_ORIGIN ?? "http://127.0.0.1:4318,http://localhost:4318").split(",").map((o) => o.trim()).filter(Boolean);
-var webDir = join5(dirname3(fileURLToPath(import.meta.url)), "..", "web");
+var webDir = join6(dirname4(fileURLToPath(import.meta.url)), "..", "web");
 var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir });
 try {
   const actual = await listen(server, port);

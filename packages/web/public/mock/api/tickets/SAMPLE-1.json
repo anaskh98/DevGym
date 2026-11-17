@@ -1,0 +1,207 @@
+{
+  "ticket": {
+    "id": "SAMPLE-1",
+    "title": "Let customers export their order history",
+    "body": "Customers keep asking support for a list of their past orders.\nAdd a way for a customer to export their order history.\n\n- The export should include recent orders.\n- Large exports should not slow the service down.\n- Cancelled orders are handled as usual.\n- Only the right people can export.",
+    "source": "markdown",
+    "created_at": "2026-11-16 14:17:55"
+  },
+  "assumptions": [
+    {
+      "id": "5f4e7e5c-39ec-4571-8cdc-e98e2071a4f4",
+      "text": "How far back do recent orders go?",
+      "status": "answered_by_po",
+      "answer": "The last 90 days.",
+      "created_at": "2026-11-16 14:17:55"
+    },
+    {
+      "id": "9fff2d99-3326-43f6-a175-b8a3377418d8",
+      "text": "Are cancelled orders in the export?",
+      "status": "answered_by_po",
+      "answer": "Yes, with their status, so support can match them.",
+      "created_at": "2026-11-16 14:17:55"
+    },
+    {
+      "id": "903ef7e9-de49-45f2-ab35-a6aa25fa87ee",
+      "text": "Who counts as the right people to export?",
+      "status": "assumed_by_dev",
+      "answer": "Assuming: the customer, for their own orders only.",
+      "created_at": "2026-11-16 14:17:55"
+    },
+    {
+      "id": "f8262d7b-c332-4b47-931c-b97ec01bf123",
+      "text": "What happens when an export is very large?",
+      "status": "assumed_by_dev",
+      "answer": "Assuming: it is streamed in pages, in the same request.",
+      "created_at": "2026-11-16 14:17:55"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "dadb15bb-abbc-47e0-b93f-26875c4351be",
+      "ticket_id": "SAMPLE-1",
+      "session_id": "sess-sample-1",
+      "summary": "Stream the export one page of orders at a time, so memory stays flat however many orders match.",
+      "alternatives": [
+        "Load every order, then write the file."
+      ],
+      "origin": "ai",
+      "related_files": [
+        "src/orders/export.test.ts"
+      ],
+      "created_at": "2026-11-16 14:17:55",
+      "pointer": {
+        "id": "f0398342-e4ca-49f5-ae44-ad395e2fb0cd",
+        "repo": "example-org/shop",
+        "pr_number": null,
+        "file_path": "src/orders/export.ts",
+        "symbol": "exportOrders",
+        "commit": "4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39",
+        "line_hint": 14,
+        "url": "https://github.com/example-org/shop/blob/4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39/src/orders/export.ts#L14",
+        "resolved": true,
+        "resolve_note": null
+      },
+      "explain_backs": [
+        {
+          "id": "b5b09b2f-b4d4-4b37-8646-131c6f8d76b0",
+          "question": "Why stream the export in pages instead of building it first?",
+          "answer": "Memory stays the same however many orders match, and the download starts at once.",
+          "rating": "clear",
+          "created_at": "2026-11-16 14:17:55"
+        }
+      ],
+      "annotations": []
+    },
+    {
+      "id": "0da43959-e72f-4cd1-9197-73886cfaee53",
+      "ticket_id": "SAMPLE-1",
+      "session_id": "sess-sample-1",
+      "summary": "Measure the 90 days from the start of today in UTC, so the same request always returns the same orders.",
+      "alternatives": [
+        "Measure from the exact moment of the request."
+      ],
+      "origin": "dev",
+      "related_files": [],
+      "created_at": "2026-11-16 14:17:55",
+      "pointer": {
+        "id": "0b28d1f2-4fe3-4db2-a692-c4e28289cc14",
+        "repo": "example-org/shop",
+        "pr_number": null,
+        "file_path": "src/orders/export.ts",
+        "symbol": "recentOrdersSince",
+        "commit": "4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39",
+        "line_hint": 41,
+        "url": "https://github.com/example-org/shop/blob/4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39/src/orders/export.ts#L41",
+        "resolved": true,
+        "resolve_note": null
+      },
+      "explain_backs": [],
+      "annotations": []
+    },
+    {
+      "id": "c05dc18b-b5aa-4219-9734-5c78fc47440f",
+      "ticket_id": "SAMPLE-1",
+      "session_id": "sess-sample-1",
+      "summary": "Write amounts as decimals with a currency column. Claude proposed the stored minor units; the developer changed it for spreadsheets.",
+      "alternatives": [
+        "Minor units, exactly as stored."
+      ],
+      "origin": "dev_changed_ai",
+      "related_files": [],
+      "created_at": "2026-11-16 14:17:55",
+      "pointer": {
+        "id": "0b2d8d25-7b80-4ec3-9e3f-e51a36af6270",
+        "repo": "example-org/shop",
+        "pr_number": null,
+        "file_path": "src/orders/csv.ts",
+        "symbol": "toCsvRow",
+        "commit": "4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39",
+        "line_hint": 9,
+        "url": "https://github.com/example-org/shop/blob/4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39/src/orders/csv.ts#L9",
+        "resolved": true,
+        "resolve_note": null
+      },
+      "explain_backs": [
+        {
+          "id": "f01486ef-6148-451e-8eba-669d9cbacbb1",
+          "question": "Why did you change the amounts from minor units to decimals?",
+          "answer": "Support opens the file in a spreadsheet. I did not check how the other exports write amounts.",
+          "rating": "partial",
+          "created_at": "2026-11-16 14:17:55"
+        }
+      ],
+      "annotations": []
+    },
+    {
+      "id": "b1297621-266e-4032-8c7b-391881e59791",
+      "ticket_id": "SAMPLE-1",
+      "session_id": "sess-sample-1",
+      "summary": "Reuse the order-history permission check before exporting, instead of adding a new permission.",
+      "alternatives": [
+        "Add a separate export permission."
+      ],
+      "origin": "ai",
+      "related_files": [],
+      "created_at": "2026-11-16 14:17:55",
+      "pointer": {
+        "id": "cc983be5-31cd-4a60-8867-285d30e88acd",
+        "repo": "example-org/shop",
+        "pr_number": null,
+        "file_path": "src/routes/orders.ts",
+        "symbol": "exportRoute",
+        "commit": "4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39",
+        "line_hint": 22,
+        "url": "https://github.com/example-org/shop/blob/4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39/src/routes/orders.ts#L22",
+        "resolved": false,
+        "resolve_note": "exportRoute is not in src/routes/orders.ts at this commit"
+      },
+      "explain_backs": [
+        {
+          "id": "77728947-1b11-4d0c-ab10-2150c06f6510",
+          "question": "Which customers can the reused permission check let through?",
+          "answer": "I am not sure. Claude picked it and the tests passed.",
+          "rating": "not_yet",
+          "created_at": "2026-11-16 14:17:55"
+        }
+      ],
+      "annotations": []
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": "sess-sample-1",
+      "started_at": "2026-11-16 14:17:55",
+      "edited_files": [
+        {
+          "file_path": "src/orders/export.ts",
+          "edit_count": 1,
+          "explained": true
+        },
+        {
+          "file_path": "src/orders/export.test.ts",
+          "edit_count": 1,
+          "explained": true
+        },
+        {
+          "file_path": "src/routes/orders.ts",
+          "edit_count": 1,
+          "explained": true
+        },
+        {
+          "file_path": "src/orders/csv.ts",
+          "edit_count": 1,
+          "explained": true
+        },
+        {
+          "file_path": "README.md",
+          "edit_count": 1,
+          "explained": false
+        }
+      ],
+      "unexplained_files": [
+        "README.md"
+      ]
+    }
+  ]
+}

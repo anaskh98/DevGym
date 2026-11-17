@@ -1,12 +1,12 @@
 {
   "tickets": [
     {
-      "id": "SAMPLE-7",
-      "title": "Export invoices as CSV",
+      "id": "SAMPLE-1",
+      "title": "Let customers export their order history",
       "source": "markdown",
-      "fork_runs": 1,
-      "decisions": 6,
-      "updated_at": "2026-11-12T09:02:00.000Z"
+      "created_at": "2026-11-16 14:17:55",
+      "assumption_count": 4,
+      "decision_count": 4
     }
   ]
 }

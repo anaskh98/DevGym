@@ -14,14 +14,13 @@ Developer profiles live in a SQLite file on the developer's machine and never le
 | Part | State |
 | --- | --- |
 | Backend: BE-1 to BE-13 | Built and tested |
-| Web app: all pages | Built on sample data. **Not yet connected to the REST API**, see below |
-| Eval: EV-1 (demo repo, ticket, answer key) | Built |
+| Web app: FE-1 to FE-8 | Built, reads the REST API, ships inside the plugin (`packages/plugin/web/`) |
+| Eval: EV-1, EV-3, EV-5 | Answer key, scorer (`pnpm eval`) and privacy red team built |
+| Eval: EV-2, EV-4, EV-6 | Not done: hand-marked decisions, senior review, the recorded video |
 
-**The web app and the REST API do not match yet.** The web app was built against the shapes in `packages/shared/src/api.ts` and its mock JSON. The REST API serves the shapes in [docs/api.md](docs/api.md). The web app is to be changed to match the API. Until then `pnpm dev:web` shows sample data only.
+The full demo, step by step: [docs/demo.md](docs/demo.md).
 
-`coach open` shows a small built-in report page served by the local server. Once the web app matches the API, copy its build to `packages/plugin/web/` and the server serves that instead, at `/#/coach`.
-
-`docs/week-1-status.md` and `docs/frontend-status.md` describe an earlier backend. Where they disagree with this file about the backend, this file is right.
+`docs/week-1-status.md` and `docs/frontend-status.md` describe earlier states. Where they disagree with this file, this file is right.
 
 ## Install the plugin
 
@@ -54,20 +53,26 @@ pnpm runs through corepack, so no global install is needed.
 
 ```bash
 corepack pnpm install
-corepack pnpm check      # typecheck, bundle the server, run every test
+corepack pnpm check      # typecheck, build the plugin (server and web app), run every test
 corepack pnpm dev:web    # web app on http://127.0.0.1:4318, with sample data
-corepack pnpm api        # REST API on http://127.0.0.1:4317/api
+corepack pnpm api        # REST API and the built web app on http://127.0.0.1:4317
 ```
 
 | Command | What it does |
 | --- | --- |
-| `pnpm plugin:bundle` | Rebuild the files in `packages/plugin/server/` after changing the server. **Commit the result** |
+| `pnpm build` | Rebuild what ships in the plugin: `packages/plugin/server/` and `packages/plugin/web/`. **Commit the result** |
+| `pnpm mock:refresh` | Regenerate the web app's sample data from the real API (`packages/web/public/mock`) |
+| `pnpm eval:save-run` | After each `/fork` run on DEMO-1, keep its questions for scoring (Fork replaces the list on the next run) |
+| `pnpm eval` | Score the saved Fork runs, the pointers and the privacy guard; the Eval page shows the result |
 | `pnpm plugin:validate` | Run Claude Code's validator on the marketplace and the plugin |
 | `pnpm db:seed` | Create your local database and load the sample ticket |
 | `pnpm db:status` | Show your local database and its row counts |
 
 An installed plugin only gets the `packages/plugin` folder, and no build runs on install. So the server is
-bundled into `packages/plugin/server/*.mjs` and those files are committed.
+bundled into `packages/plugin/server/*.mjs`, the web app is built into `packages/plugin/web/`, and both are committed.
+
+To develop the web app against your real data: run `pnpm api`, then start the web app with
+`VITE_API_MODE=live` and `VITE_API_BASE=http://127.0.0.1:4317` (in a `packages/web/.env.local` file).
 
 To try the plugin from a working copy without installing it:
 

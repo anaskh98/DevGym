@@ -8,7 +8,7 @@ import { RatingTag } from "./RatingTag";
  */
 export function ExplainBackPanel({ explainBack }: { explainBack: ExplainBack }) {
   return (
-    <section className={`explain explain--${explainBack.rating}`} aria-label="Explain-back">
+    <section id={explainBack.id} className={`explain explain--${explainBack.rating}`} aria-label="Explain-back">
       <p className="explain__head">
         <span className="explain__label">Explained back</span>
         <RatingTag rating={explainBack.rating} />

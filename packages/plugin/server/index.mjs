@@ -28612,7 +28612,7 @@ var StdioServerTransport = class {
 };
 
 // src/mcp/stdio.ts
-import { dirname as dirname4, join as join8 } from "node:path";
+import { dirname as dirname5, join as join9 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/db/connection.ts
@@ -36891,7 +36891,9 @@ var PrivacyError = class extends StoreError {
 };
 
 // src/api/server.ts
+import { readFile as readFile3 } from "node:fs/promises";
 import { createServer } from "node:http";
+import { dirname as dirname2, join as join4 } from "node:path";
 
 // src/api/data.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
@@ -36901,7 +36903,8 @@ import { randomUUID } from "node:crypto";
 
 // src/paths.ts
 import { isAbsolute, relative, resolve, sep } from "node:path";
-function toRepoPath(path, root) {
+function toRepoPath(rawPath, root) {
+  const path = sep === "/" ? rawPath.replaceAll("\\", "/") : rawPath;
   const absolute = isAbsolute(path) ? path : resolve(root, path);
   const rel = relative(root, absolute);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
@@ -37513,6 +37516,9 @@ async function servePage(res, pathname, webDir2) {
 var API_HOST = "127.0.0.1";
 var DEFAULT_API_PORT = 4317;
 var MAX_BODY_BYTES = 64 * 1024;
+function defaultEvalResultsPath() {
+  return process.env.FTC_EVAL_RESULTS ?? join4(dirname2(defaultDbPath()), "eval-results.json");
+}
 var annotationInput = external_exports.strictObject({
   target_id: external_exports.string().trim().min(1).max(200),
   note: external_exports.string().trim().min(1).max(2e3),
@@ -37568,34 +37574,38 @@ function parse3(schema, body2) {
 function createApiServer(options) {
   const { db: db2, guard } = options;
   const extraOrigins = new Set(options.allowedOrigins ?? []);
+  const ownOrigins = () => {
+    const port2 = server2.address().port;
+    return [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
+  };
+  const corsFor = (req) => {
+    const origin = req.headers.origin;
+    if (origin === void 0 || !ownOrigins().includes(origin) && !extraOrigins.has(origin)) return {};
+    return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
+  };
   const server2 = createServer((req, res) => {
     handle2(req, res).catch((err2) => {
+      const cors = corsFor(req);
       if (err2 instanceof HttpError) {
-        send2(res, err2.status, { error: { code: err2.code, message: err2.message, ...err2.extra } });
+        send2(res, err2.status, { error: { code: err2.code, message: err2.message, ...err2.extra } }, cors);
       } else if (err2 instanceof PrivacyError) {
-        send2(res, 422, { error: { code: "privacy_guard", message: err2.message, field: err2.field, rule: err2.rule } });
+        send2(res, 422, { error: { code: "privacy_guard", message: err2.message, field: err2.field, rule: err2.rule } }, cors);
       } else if (err2 instanceof StoreError) {
-        send2(res, 404, { error: { code: "not_found", message: err2.message } });
+        send2(res, 404, { error: { code: "not_found", message: err2.message } }, cors);
       } else {
         console.error(err2);
-        send2(res, 500, { error: { code: "internal", message: "Internal error" } });
+        send2(res, 500, { error: { code: "internal", message: "Internal error" } }, cors);
       }
     });
   });
   async function handle2(req, res) {
-    const port2 = server2.address().port;
-    const own2 = [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
+    const own2 = ownOrigins();
     if (!own2.includes(`http://${req.headers.host ?? ""}`)) {
       throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
     }
-    const origin = req.headers.origin;
-    const cors = {};
-    if (origin !== void 0) {
-      if (!own2.includes(origin) && !extraOrigins.has(origin)) {
-        throw new HttpError(403, "bad_origin", "This origin may not call the API");
-      }
-      cors["Access-Control-Allow-Origin"] = origin;
-      cors["Vary"] = "Origin";
+    const cors = corsFor(req);
+    if (req.headers.origin !== void 0 && cors["Access-Control-Allow-Origin"] === void 0) {
+      throw new HttpError(403, "bad_origin", "This origin may not call the API");
     }
     const method = req.method ?? "GET";
     if (method === "OPTIONS") {
@@ -37643,6 +37653,19 @@ function createApiServer(options) {
       case "DELETE /annotations/:id":
         if (!deleteAnnotation(db2, id2)) throw notFound("Annotation");
         return ok(void 0, 204);
+      case "GET /eval": {
+        let raw;
+        try {
+          raw = await readFile3(options.evalFile ?? defaultEvalResultsPath(), "utf8");
+        } catch {
+          throw new HttpError(404, "not_found", "No evaluation has been run yet");
+        }
+        try {
+          return ok(JSON.parse(raw));
+        } catch {
+          throw new HttpError(500, "bad_eval_file", "The eval results file is not valid JSON");
+        }
+      }
       case "GET /export":
         return ok(exportAll(db2), 200, {
           "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
@@ -37730,7 +37753,7 @@ var ReportServer = class {
 };
 
 // src/pointers/service.ts
-import { readFile as readFile3 } from "node:fs/promises";
+import { readFile as readFile4 } from "node:fs/promises";
 import { resolve as resolve3 } from "node:path";
 
 // src/pointers/git.ts
@@ -37806,7 +37829,7 @@ async function lookupPr(repo, prNumber, root, deps = {}) {
 
 // src/pointers/symbols.ts
 import { existsSync as existsSync2 } from "node:fs";
-import { dirname as dirname2, extname as extname2, join as join4 } from "node:path";
+import { dirname as dirname3, extname as extname2, join as join5 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ../../node_modules/.pnpm/web-tree-sitter@0.27.2/node_modules/web-tree-sitter/web-tree-sitter.js
@@ -41839,9 +41862,9 @@ var GRAMMARS = {
   ".jsx": { file: "tree-sitter-javascript.wasm", pkg: "tree-sitter-javascript" }
 };
 function wasmPath(file2, pkg) {
-  const here = dirname2(fileURLToPath(import.meta.url));
-  const bundled = join4(here, "wasm", file2);
-  return existsSync2(bundled) ? bundled : join4(here, "..", "..", "node_modules", pkg, file2);
+  const here = dirname3(fileURLToPath(import.meta.url));
+  const bundled = join5(here, "wasm", file2);
+  return existsSync2(bundled) ? bundled : join5(here, "..", "..", "node_modules", pkg, file2);
 }
 var ready;
 var parsers = /* @__PURE__ */ new Map();
@@ -41936,7 +41959,7 @@ async function enrichPointer(pointer, root, exec = run2) {
     out2.repo = await repoSlug(root, exec) ?? pointer.repo;
     const repoPath = toRepoPath(pointer.file_path, root);
     if (repoPath === null || !isSupported(repoPath)) return out2;
-    const source = await readFile3(resolve3(root, repoPath), "utf8");
+    const source = await readFile4(resolve3(root, repoPath), "utf8");
     if (pointer.line_hint) {
       const found = await symbolAtLine(repoPath, source, pointer.line_hint);
       if (found) out2.symbol = found.name;
@@ -42000,7 +42023,7 @@ async function resolvePointers(db2, options, deps = {}) {
 // src/pr/update.ts
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 
 // src/pr/section.ts
 var SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
@@ -42127,9 +42150,9 @@ async function updatePrDecisions(db2, options, deps = {}) {
   }
   const body2 = JSON.parse(view.stdout).body ?? "";
   const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
-  const dir = await mkdtemp(join5(tmpdir(), "ftc-pr-"));
+  const dir = await mkdtemp(join6(tmpdir(), "ftc-pr-"));
   try {
-    const file2 = join5(dir, "body.md");
+    const file2 = join6(dir, "body.md");
     await writeFile(file2, next, "utf8");
     const edit = await exec("gh", ["pr", "edit", String(pr.number), "--repo", repo, "--body-file", file2], options.root);
     if (edit.code !== 0) {
@@ -42143,9 +42166,9 @@ async function updatePrDecisions(db2, options, deps = {}) {
 
 // src/privacy/denylist.ts
 import { readFileSync } from "node:fs";
-import { dirname as dirname3, join as join6 } from "node:path";
+import { dirname as dirname4, join as join7 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join6(dirname3(defaultDbPath()), "denylist.txt");
+  return process.env.FTC_DENYLIST_PATH ?? join7(dirname4(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -42219,7 +42242,7 @@ function containsBlockedName(text, names) {
 
 // src/privacy/overlap.ts
 import { readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
-import { extname as extname3, join as join7 } from "node:path";
+import { extname as extname3, join as join8 } from "node:path";
 
 // src/privacy/rules.ts
 function cleanText(text) {
@@ -42348,7 +42371,7 @@ function* codeFiles(root) {
     }
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue;
-      const full = join7(dir, entry.name);
+      const full = join8(dir, entry.name);
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) stack.push(full);
       } else if (entry.isFile() && CODE_EXTENSIONS.has(extname3(entry.name).toLowerCase())) {
@@ -42716,10 +42739,10 @@ function createServer2(db2, tickets2, options = {}) {
 // src/mcp/stdio.ts
 var db = openDb();
 migrate(db);
-var projectTickets = process.env.FTC_TICKETS_DIR ?? join8(process.cwd(), "tickets");
-var demoTickets = join8(dirname4(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
+var projectTickets = process.env.FTC_TICKETS_DIR ?? join9(process.cwd(), "tickets");
+var demoTickets = join9(dirname5(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
 var tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
-var webDir = join8(dirname4(fileURLToPath2(import.meta.url)), "..", "web");
+var webDir = join9(dirname5(fileURLToPath2(import.meta.url)), "..", "web");
 var port = process.env.FTC_PORT ? Number(process.env.FTC_PORT) : void 0;
 var server = createServer2(db, tickets, { report: { webDir, port } });
 await server.connect(new StdioServerTransport());

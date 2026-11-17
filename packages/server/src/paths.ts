@@ -4,7 +4,9 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
  * Turns a path into a repo-relative path with forward slashes, for example "src/export.ts".
  * Returns null when the path is outside the repo root.
  */
-export function toRepoPath(path: string, root: string): string | null {
+export function toRepoPath(rawPath: string, root: string): string | null {
+  // On macOS and Linux a backslash is not a separator, so a Windows-style path would be kept as one odd file name.
+  const path = sep === "/" ? rawPath.replaceAll("\\", "/") : rawPath;
   const absolute = isAbsolute(path) ? path : resolve(root, path);
   const rel = relative(root, absolute);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;

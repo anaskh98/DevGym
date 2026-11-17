@@ -1,0 +1,118 @@
+{
+  "growth_plan": {
+    "id": "bb9f0d11-c9c0-4f83-9392-332321ccdff0",
+    "developer_id": "local",
+    "created_at": "2026-11-16 14:17:55",
+    "focus_areas": [
+      {
+        "id": "691513df-de93-4b3e-a867-2b98b7811b9f",
+        "claim": "Accepts access rules from Claude without being able to say who they let through.",
+        "tentative": false,
+        "exercise": "Before accepting the next permission check, list two users it allows and one it refuses, then ask Claude to confirm.",
+        "evidence": [
+          {
+            "id": "0c3f186d-b985-4db2-bab8-2e53f2669456",
+            "skill_tag": "reviewing-ai-code",
+            "summary": "Kept an access check Claude chose without being able to say who it lets through.",
+            "created_at": "2026-11-16 14:17:55",
+            "evidence": [
+              {
+                "id": "b1297621-266e-4032-8c7b-391881e59791",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-1",
+                "origin": "ai"
+              },
+              {
+                "id": "77728947-1b11-4d0c-ab10-2150c06f6510",
+                "kind": "explain_back",
+                "ticket_id": "SAMPLE-1",
+                "rating": "not_yet"
+              }
+            ]
+          },
+          {
+            "id": "cc960b03-0c3e-4c3b-96ba-f5cd1a903616",
+            "skill_tag": "reviewing-ai-code",
+            "summary": "Accepted the date window rule without writing down why UTC was chosen.",
+            "created_at": "2026-11-16 14:17:55",
+            "evidence": [
+              {
+                "id": "0da43959-e72f-4cd1-9197-73886cfaee53",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-1",
+                "origin": "dev"
+              }
+            ]
+          }
+        ],
+        "annotations": []
+      },
+      {
+        "id": "42c9f9ca-2c49-4ffb-b11b-cd1a4f48dcb9",
+        "claim": "Chooses output formats without checking how the rest of the codebase does it.",
+        "tentative": true,
+        "exercise": "Before the next change to an output format, find two other places that write the same kind of value.",
+        "evidence": [
+          {
+            "id": "0c36c4d5-65c0-44d8-b3db-9f6752249512",
+            "skill_tag": "codebase-consistency",
+            "summary": "Chose a number format for the reader without checking how other exports write it.",
+            "created_at": "2026-11-16 14:17:55",
+            "evidence": [
+              {
+                "id": "c05dc18b-b5aa-4219-9734-5c78fc47440f",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-1",
+                "origin": "dev_changed_ai"
+              },
+              {
+                "id": "f01486ef-6148-451e-8eba-669d9cbacbb1",
+                "kind": "explain_back",
+                "ticket_id": "SAMPLE-1",
+                "rating": "partial"
+              }
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "id": "700e8f1f-8368-43c0-b475-a54e192f209e",
+            "target_id": "42c9f9ca-2c49-4ffb-b11b-cd1a4f48dcb9",
+            "note": "I checked afterwards: the invoice export writes decimals too, so this one matches.",
+            "disagrees": true,
+            "created_at": "2026-11-16 14:17:55"
+          }
+        ]
+      },
+      {
+        "id": "c779a27e-66e4-460e-83cb-d2f0c22cea05",
+        "claim": "Reasons well about memory on results of unknown size.",
+        "tentative": true,
+        "exercise": "Add a test that exports 100,000 orders and checks that memory stays flat.",
+        "evidence": [
+          {
+            "id": "ddd2298d-fb73-46ca-953a-7c5cf706334d",
+            "skill_tag": "performance",
+            "summary": "Explains clearly why paging keeps memory flat when the result size is not bounded.",
+            "created_at": "2026-11-16 14:17:55",
+            "evidence": [
+              {
+                "id": "dadb15bb-abbc-47e0-b93f-26875c4351be",
+                "kind": "decision",
+                "ticket_id": "SAMPLE-1",
+                "origin": "ai"
+              },
+              {
+                "id": "b5b09b2f-b4d4-4b37-8646-131c6f8d76b0",
+                "kind": "explain_back",
+                "ticket_id": "SAMPLE-1",
+                "rating": "clear"
+              }
+            ]
+          }
+        ],
+        "annotations": []
+      }
+    ]
+  }
+}

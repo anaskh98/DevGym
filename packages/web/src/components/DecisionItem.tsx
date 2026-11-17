@@ -1,9 +1,9 @@
-import type { DecisionView } from "@ftc/shared";
+import type { Decision as DecisionView } from "@ftc/shared";
+import { formatTime, isoDate } from "../lib/dates";
 import { ExplainBackPanel } from "./ExplainBackPanel";
 import { OriginBadge } from "./OriginBadge";
 import { PointerLink } from "./PointerLink";
 
-const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
 /**
  * One decision on the trail: who made it, what was decided, what was not
@@ -15,8 +15,8 @@ export function DecisionItem({ decision, highlighted = false }: { decision: Deci
       id={decision.id}
       className={`decision decision--${decision.origin}${highlighted ? " decision--highlighted" : ""}`}
     >
-      <time className="decision__time" dateTime={decision.created_at}>
-        {time.format(new Date(decision.created_at))}
+      <time className="decision__time" dateTime={isoDate(decision.created_at)}>
+        {formatTime(decision.created_at)}
       </time>
       <div className="decision__body">
         <p className="decision__origin">

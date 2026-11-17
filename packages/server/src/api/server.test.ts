@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
@@ -52,7 +52,12 @@ beforeEach(async () => {
   const p = store.saveGrowthPlan(db, { focus_areas: [{ claim: "One answer suggests a gap", evidence_ids: [o.observation_id], exercise: "Write the limit down first" }] });
   ids = { decision: d.decision_id, explainBack: e.explain_back_id, observation: o.observation_id, plan: p.growth_plan_id, claim: p.focus_areas[0]!.id };
 
-  server = createApiServer({ db, guard: new PrivacyGuard({ root: repo, denylist: () => ["Globex"] }), allowedOrigins: [VITE] });
+  server = createApiServer({
+    db,
+    guard: new PrivacyGuard({ root: repo, denylist: () => ["Globex"] }),
+    allowedOrigins: [VITE],
+    evalFile: join(repo, "eval-results.json"),
+  });
   port = await listen(server, 0);
 });
 afterEach(async () => {
@@ -276,5 +281,49 @@ describe("local-only safety", () => {
       headers: { "Content-Type": "text/plain" },
     });
     expect(res.status).toBe(415);
+  });
+});
+
+describe("errors the web app must be able to read", () => {
+  it("sends the CORS header on an error too, so the page can show why a note was rejected", async () => {
+    const rejected = await call("POST", "/api/annotations", {
+      headers: { Origin: VITE },
+      body: { target_id: ids.claim, note: "const x = 1; doIt(x);" },
+    });
+    expect(rejected.status).toBe(422);
+    expect(rejected.headers["access-control-allow-origin"]).toBe(VITE);
+    expect(rejected.body.error.code).toBe("privacy_guard");
+
+    const missing = await call("GET", "/api/tickets/NOPE", { headers: { Origin: VITE } });
+    expect(missing.status).toBe(404);
+    expect(missing.headers["access-control-allow-origin"]).toBe(VITE);
+  });
+
+  it("still gives a refused origin no CORS header", async () => {
+    const res = await call("GET", "/api/tickets/NOPE", { headers: { Origin: "https://evil.example" } });
+    expect(res.status).toBe(403);
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+});
+
+describe("eval results", () => {
+  it("answers 404 until the harness has written a results file", async () => {
+    const res = await call("GET", "/api/eval");
+    expect(res.status).toBe(404);
+  });
+
+  it("serves the results file as it is", async () => {
+    const results = { run_at: "2026-11-16T10:00:00.000Z", ticket_id: "DEMO-1", fork_runs: 3, scores: [], failures: [] };
+    writeFileSync(join(repo, "eval-results.json"), JSON.stringify(results));
+    const res = await call("GET", "/api/eval");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(results);
+  });
+
+  it("reports a broken results file instead of crashing", async () => {
+    writeFileSync(join(repo, "eval-results.json"), "{not json");
+    const res = await call("GET", "/api/eval");
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("bad_eval_file");
   });
 });

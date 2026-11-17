@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { Link, useParams } from "react-router";
-import type { ForkResultResponse, ForkRun } from "@ftc/shared";
+import type { Assumption, TicketDetailResponse } from "@ftc/shared";
 import { api } from "../api/client";
 import { useApi } from "../api/useApi";
 import { ForkQuestion } from "../components/ForkQuestion";
@@ -10,13 +9,9 @@ import { TicketHead } from "../components/TicketHead";
 import { plural, summarize } from "../lib/fork";
 import { useTitle } from "../lib/useTitle";
 
-const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-
-function Summary({ run }: { run: ForkRun }) {
-  const { total, answeredByPo, assumedByDev } = summarize(run);
-  if (total === 0) {
-    return <p className="summary__line">Fork found nothing in this ticket that would change the code.</p>;
-  }
+function Summary({ assumptions }: { assumptions: Assumption[] }) {
+  const { total, answeredByPo, assumedByDev } = summarize(assumptions);
+  if (total === 0) return null;
   return (
     <div className="summary">
       <p className="summary__line">
@@ -25,12 +20,8 @@ function Summary({ run }: { run: ForkRun }) {
           ? `; ${assumedByDev} ${assumedByDev === 1 ? "is an assumption" : "are assumptions"} to confirm before merge.`
           : ", so nothing is left as an assumption."}
       </p>
-      <div
-        className="summary__bar"
-        role="img"
-        aria-label={`${answeredByPo} answered by PO, ${assumedByDev} assumed by dev`}
-      >
-        {run.assumptions.map((assumption) => (
+      <div className="summary__bar" role="img" aria-label={`${answeredByPo} answered by PO, ${assumedByDev} assumed by dev`}>
+        {assumptions.map((assumption) => (
           <span key={assumption.id} className={`summary__cell summary__cell--${assumption.status}`} />
         ))}
       </div>
@@ -38,15 +29,15 @@ function Summary({ run }: { run: ForkRun }) {
   );
 }
 
-function ForkResult({ result }: { result: ForkResultResponse }) {
-  const { ticket, runs } = result;
+function ForkResult({ result }: { result: TicketDetailResponse }) {
+  const { ticket, assumptions } = result;
   useTitle(`Fork: ${ticket.id}`);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const run = runs.find((r) => r.run_id === selectedRunId) ?? runs[0];
 
   return (
     <article className="fork-page">
-      <TicketHead ticket={ticket}>{run && <Summary run={run} />}</TicketHead>
+      <TicketHead ticket={ticket}>
+        <Summary assumptions={assumptions} />
+      </TicketHead>
 
       <div className="fork-page__body">
         <section className="ticket" aria-labelledby="ticket-heading">
@@ -57,35 +48,17 @@ function ForkResult({ result }: { result: ForkResultResponse }) {
         <section className="forks" aria-labelledby="forks-heading">
           <div className="forks__head">
             <h2 id="forks-heading">Questions and assumptions</h2>
-            {runs.length > 1 && run && (
-              <label className="run-picker">
-                Fork run
-                <select value={run.run_id} onChange={(event) => setSelectedRunId(event.target.value)}>
-                  {runs.map((r, index) => (
-                    <option key={r.run_id} value={r.run_id}>
-                      {dateTime.format(new Date(r.created_at))}
-                      {index === 0 ? " (latest)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
           </div>
-
-          {!run ? (
-            <EmptyState title="Fork has not run on this ticket">
+          {assumptions.length === 0 ? (
+            <EmptyState title="No questions saved for this ticket">
               <p>
-                Run <code>/ftc:fork {ticket.id}</code> in Claude Code. Fork asks only the questions
-                that would change the code, then saves the answers here.
+                Run <code>/fork-trail-coach:fork {ticket.id}</code> in Claude Code. Fork asks only the questions that
+                would change the code. If it finds none, it says so and saves nothing.
               </p>
-            </EmptyState>
-          ) : run.assumptions.length === 0 ? (
-            <EmptyState title="No questions">
-              <p>Every reading of this ticket leads to the same code, so there was nothing to ask.</p>
             </EmptyState>
           ) : (
             <ol className="fork-list">
-              {run.assumptions.map((assumption, index) => (
+              {assumptions.map((assumption, index) => (
                 <ForkQuestion key={assumption.id} assumption={assumption} number={index + 1} />
               ))}
             </ol>
@@ -98,7 +71,7 @@ function ForkResult({ result }: { result: ForkResultResponse }) {
 
 export function ForkPage() {
   const { ticketId = "" } = useParams();
-  const result = useApi(`fork:${ticketId}`, (signal) => api.getForkResult(ticketId, signal));
+  const result = useApi(`ticket:${ticketId}`, (signal) => api.getTicket(ticketId, signal));
 
   if (result.status === "loading") return <Loading what={`ticket ${ticketId}`} />;
   if (result.status === "error") {

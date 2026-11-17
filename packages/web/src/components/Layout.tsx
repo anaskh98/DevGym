@@ -1,5 +1,5 @@
 import { NavLink, Outlet, ScrollRestoration } from "react-router";
-import { apiConfig } from "../api/config";
+import { apiConfig, apiHost } from "../api/config";
 
 const SECTIONS = [
   { to: "/fork", label: "Fork" },
@@ -13,7 +13,7 @@ function DataSource() {
   if (apiConfig.mode === "live") {
     return (
       <p className="rail__source">
-        Reading your local data from <code>{apiConfig.apiBase.replace(/^https?:\/\//, "")}</code>
+        Reading your local data from <code>{apiHost(apiConfig)}</code>
       </p>
     );
   }

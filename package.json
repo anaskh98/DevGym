@@ -9,16 +9,20 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "build": "corepack pnpm plugin:bundle && corepack pnpm --filter @ftc/web build",
+    "build": "corepack pnpm plugin:bundle && corepack pnpm plugin:web",
     "typecheck": "corepack pnpm -r typecheck",
     "test": "corepack pnpm -r test",
-    "check": "corepack pnpm typecheck && corepack pnpm plugin:bundle && corepack pnpm test",
+    "check": "corepack pnpm typecheck && corepack pnpm build && corepack pnpm test",
     "plugin:bundle": "corepack pnpm --filter @ftc/server build",
     "plugin:validate": "claude plugin validate . && claude plugin validate ./packages/plugin",
     "db:migrate": "corepack pnpm --filter @ftc/server db:migrate",
     "db:seed": "corepack pnpm --filter @ftc/server db:seed",
     "db:status": "corepack pnpm --filter @ftc/server db:status",
     "api": "corepack pnpm --filter @ftc/server api",
-    "dev:web": "corepack pnpm --filter @ftc/web dev"
+    "dev:web": "corepack pnpm --filter @ftc/web dev",
+    "plugin:web": "corepack pnpm --filter @ftc/web build:plugin",
+    "mock:refresh": "corepack pnpm --filter @ftc/server build && corepack pnpm --filter @ftc/server sample-data",
+    "eval": "corepack pnpm --filter @ftc/server build && corepack pnpm --filter @ftc/server eval",
+    "eval:save-run": "corepack pnpm --filter @ftc/server build && corepack pnpm --filter @ftc/server eval:save-run"
   }
 }

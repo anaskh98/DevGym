@@ -3,7 +3,8 @@
   "version": 2,
   "note": "Answer key for the synthetic ticket. Keep it out of the demo repo and out of the plugin: if Fork can read it, the score means nothing.",
   "changes": [
-    "v2 (16 Nov 2026): A2 was \"delete the booking or keep it as cancelled\". The ticket's own acceptance line (\"Cancelling returns the updated booking\") and the README settle that, so it was not a real fork. A2 is now the part that is open: whether a cancelled booking still counts in the usage report. The delete-or-keep question moved to the decoys as D5. Found in the stand-in Fork run of 15 Nov."
+    "v2 (16 Nov 2026): A2 was \"delete the booking or keep it as cancelled\". The ticket's own acceptance line (\"Cancelling returns the updated booking\") and the README settle that, so it was not a real fork. A2 is now the part that is open: whether a cancelled booking still counts in the usage report. The delete-or-keep question moved to the decoys as D5. Found in the stand-in Fork run of 15 Nov.",
+    "v3 (16 Nov 2026): decoys and extras got match_hints, so the scorer (pnpm eval) can sort Fork's questions. Matching is by keyword and is approximate; read the failure log. A5 also matches \"message\", \"told\", \"tell\" and \"informed\": the stand-in run asked \"Who gets a message...\" and keyword matching missed it."
   ],
   "planted": [
     {
@@ -129,7 +130,12 @@
         "attendees",
         "who should",
         "people affected",
-        "let know"
+        "let know",
+        "message",
+        "who gets",
+        "told",
+        "tell",
+        "informed"
       ],
       "po_answer": "Tell the member who booked and every attendee, except the person who cancelled."
     }
@@ -138,39 +144,80 @@
     {
       "id": "D1",
       "question": "Which time zone are the 24 hours measured in?",
-      "settled_by": "README, Conventions: every timestamp is UTC and all comparisons are done in UTC."
+      "settled_by": "README, Conventions: every timestamp is UTC and all comparisons are done in UTC.",
+      "match_hints": [
+        "time zone",
+        "timezone",
+        "utc"
+      ]
     },
     {
       "id": "D2",
       "question": "What should the endpoint be called, and which HTTP method?",
-      "settled_by": "README, Conventions: a state change is POST /<resource>/:id/<action>. Naming does not change behaviour."
+      "settled_by": "README, Conventions: a state change is POST /<resource>/:id/<action>. Naming does not change behaviour.",
+      "match_hints": [
+        "endpoint",
+        "route",
+        "http method",
+        "url path"
+      ]
     },
     {
       "id": "D3",
       "question": "What should the response look like, and which error codes should be used?",
-      "settled_by": "README: bookings are returned through toBookingResponse; the error table gives the status codes."
+      "settled_by": "README: bookings are returned through toBookingResponse; the error table gives the status codes.",
+      "match_hints": [
+        "response look",
+        "error code",
+        "status code",
+        "response shape"
+      ]
     },
     {
       "id": "D4",
       "question": "Can a member cancel another member's booking?",
-      "settled_by": "The ticket: a member can cancel their own booking."
+      "settled_by": "The ticket: a member can cancel their own booking.",
+      "match_hints": [
+        "another member",
+        "someone else",
+        "other member",
+        "other people"
+      ]
     },
     {
       "id": "D5",
       "question": "Should a cancelled booking be deleted, or kept and marked as cancelled?",
-      "settled_by": "The ticket: \"Cancelling returns the updated booking\", and the README: a state change returns the updated resource. The booking is kept."
+      "settled_by": "The ticket: \"Cancelling returns the updated booking\", and the README: a state change returns the updated resource. The booking is kept.",
+      "match_hints": [
+        "deleted",
+        "delete",
+        "kept and marked",
+        "soft delete",
+        "removed or kept"
+      ]
     }
   ],
   "acceptable_extras": [
     {
       "id": "X1",
       "question": "What happens when a booking that is already cancelled is cancelled again?",
-      "why_acceptable": "A real fork (succeed quietly or return a conflict), though small. Not counted as caught, not counted as a false alarm."
+      "why_acceptable": "A real fork (succeed quietly or return a conflict), though small. Not counted as caught, not counted as a false alarm.",
+      "match_hints": [
+        "already cancelled",
+        "cancelled again",
+        "twice"
+      ]
     },
     {
       "id": "X2",
       "question": "Can a booking that has already started or finished be cancelled?",
-      "why_acceptable": "A real edge of A1. Count it as A1 when asked together with the late-cancellation question; otherwise neither caught nor false alarm."
+      "why_acceptable": "A real edge of A1. Count it as A1 when asked together with the late-cancellation question; otherwise neither caught nor false alarm.",
+      "match_hints": [
+        "already started",
+        "has started",
+        "already finished",
+        "in the past"
+      ]
     }
   ]
 }

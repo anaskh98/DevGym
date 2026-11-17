@@ -1,6 +1,6 @@
 {
-  "run_at": "2026-11-12T15:30:00.000Z",
-  "ticket_id": "SAMPLE-7",
+  "run_at": "2026-11-16T12:00:00.000Z",
+  "ticket_id": "SAMPLE-1",
   "fork_runs": 3,
   "scores": [
     {
@@ -24,12 +24,7 @@
       "status": "measured",
       "passed": 9,
       "total": 11,
-      "also": [
-        {
-          "label": "logged but not in the ground truth",
-          "value": 1
-        }
-      ]
+      "also": []
     },
     {
       "id": "pointers",
@@ -43,94 +38,92 @@
     {
       "id": "coach",
       "label": "Coach",
-      "measures": "claims two seniors rated as supported by their evidence",
-      "status": "measured",
-      "passed": 3,
-      "total": 4,
-      "also": []
+      "measures": "claims the seniors rated as supported by their evidence",
+      "status": "not_run",
+      "passed": 0,
+      "total": 0,
+      "also": [],
+      "note": "Needs the senior review (EV-4)."
     },
     {
       "id": "privacy",
       "label": "Privacy guard",
       "measures": "red-team attempts that were rejected",
       "status": "measured",
-      "passed": 11,
-      "total": 12,
-      "also": []
+      "passed": 15,
+      "total": 16,
+      "also": [
+        {
+          "label": "harmless texts wrongly blocked",
+          "value": 0
+        }
+      ]
     }
   ],
   "failures": [
     {
-      "id": "f-01",
+      "id": "fork-r2-missed",
       "area": "fork",
       "run": 2,
-      "what": "Missed the question of who may export.",
+      "what": "Missed: who may export.",
       "expected": "A question about which roles can export.",
-      "got": "Assumed anyone who can see the list can export, without asking."
+      "got": "No question; the run assumed it silently."
     },
     {
-      "id": "f-02",
+      "id": "fork-r3-missed",
       "area": "fork",
       "run": 3,
-      "what": "Missed the question about very large exports.",
+      "what": "Missed: very large exports.",
       "expected": "A question about downloading at once or emailing a link.",
-      "got": "No question, and no assumption recorded."
+      "got": "No question."
     },
     {
-      "id": "f-03",
+      "id": "fork-r1-false",
       "area": "fork",
       "run": 1,
       "what": "False alarm: asked which file format to use.",
-      "expected": "No question. The ticket title says CSV.",
+      "expected": "No question: the ticket settles it.",
       "got": "Asked the PO to choose between CSV and XLSX."
     },
     {
-      "id": "f-04",
+      "id": "fork-r3-false",
       "area": "fork",
       "run": 3,
-      "what": "False alarm: asked what the endpoint should be called.",
-      "expected": "No question. The README has a route convention.",
+      "what": "False alarm: asked what the route should be called.",
+      "expected": "No question: the README has a route convention.",
       "got": "Asked the PO to pick a route name."
     },
     {
-      "id": "f-05",
+      "id": "trail-1",
       "area": "paper_trail",
       "run": null,
-      "what": "The permission check in the route was edited with no decision logged.",
-      "expected": "A decision pointing at src/routes/invoices.ts.",
-      "got": "The file was changed and flagged as unexplained."
+      "what": "The permission check was edited with no decision logged.",
+      "expected": "A decision pointing at src/routes/orders.ts.",
+      "got": "The file was flagged as unexplained."
     },
     {
-      "id": "f-06",
+      "id": "trail-2",
       "area": "paper_trail",
       "run": null,
-      "what": "The choice of date format in the file was not logged.",
+      "what": "The date format in the file was not logged.",
       "expected": "A decision on writing dates as ISO 8601.",
-      "got": "Nothing recorded; the format appears only in the code."
+      "got": "Nothing recorded."
     },
     {
-      "id": "f-07",
+      "id": "pointer-1",
       "area": "pointers",
       "run": null,
-      "what": "One pointer broke after the squash merge.",
-      "expected": "A link to escapeCell at the merge commit.",
-      "got": "The link still names the pre-merge commit, which is no longer on the branch."
+      "what": "A pointer broke after the squash merge.",
+      "expected": "exportRoute found at the merge commit.",
+      "got": "exportRoute is not in src/routes/orders.ts at this commit."
     },
     {
-      "id": "f-08",
-      "area": "coach",
-      "run": null,
-      "what": "One claim was rated as not supported by its evidence.",
-      "expected": "A claim that follows from the observation it cites.",
-      "got": "A claim about testing habits that cites an observation about memory use."
-    },
-    {
-      "id": "f-09",
+      "id": "privacy-1",
       "area": "privacy",
       "run": null,
-      "what": "A client name inside a file path got through.",
-      "expected": "The write is rejected by the client-name denylist.",
-      "got": "The name was stored in a pointer's file path."
+      "what": "A client name split across a file path got through.",
+      "expected": "Rejected by the client-name denylist.",
+      "got": "Saved."
     }
   ]
 }

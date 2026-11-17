@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { ApiError } from "../api/client";
-import { apiConfig } from "../api/config";
+import { apiConfig, apiHost } from "../api/config";
 
 export function Loading({ what }: { what: string }) {
   return (
@@ -27,8 +27,8 @@ export function ErrorState({ error, what }: { error: ApiError; what: string }) {
       <p>{error.message}</p>
       {error.kind === "unreachable" && live && (
         <p>
-          The app is set to read from the local service at <code>{apiConfig.apiBase}</code>. Start
-          it, or set <code>VITE_API_MODE=mock</code> to use sample data.
+          The local service at <code>{apiHost(apiConfig)}</code> is not answering. In Claude Code, run{" "}
+          <code>/fork-trail-coach:coach open</code> to start it, or <code>pnpm api</code> when developing.
         </p>
       )}
       {error.kind === "bad_response" && (

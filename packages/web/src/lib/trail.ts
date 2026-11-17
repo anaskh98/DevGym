@@ -1,4 +1,4 @@
-import type { DecisionOrigin, DecisionView, ExplainBackRating } from "@ftc/shared";
+import type { Decision as DecisionView, DecisionOrigin, ExplainBackRating } from "@ftc/shared";
 import { plural } from "./fork";
 
 export const ORIGINS: readonly DecisionOrigin[] = ["ai", "dev", "dev_changed_ai"];

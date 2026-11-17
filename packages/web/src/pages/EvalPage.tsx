@@ -2,12 +2,12 @@ import type { EvalResults, EvalScore } from "@ftc/shared";
 import { api } from "../api/client";
 import { apiConfig } from "../api/config";
 import { useApi } from "../api/useApi";
+import { formatDayTime } from "../lib/dates";
 import { EmptyState, ErrorState, Loading } from "../components/States";
 import { plural } from "../lib/fork";
 import { AREA_LABEL, isMeasured, missed, orderedScores, scoreText, sortedFailures } from "../lib/eval";
 import { useTitle } from "../lib/useTitle";
 
-const dayTime = new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" });
 
 /** One cell per item counted: filled when it passed. Too many items to draw becomes a plain bar. */
 function ScoreCells({ score }: { score: EvalScore }) {
@@ -57,13 +57,13 @@ function Results({ results }: { results: EvalResults }) {
 
   return (
     <>
-      {apiConfig.mode === "mock" && apiConfig.mockDir === "mock" && (
+      {apiConfig.mode === "mock" && (
         <p className="sample-banner" role="note">
           These numbers are made up to show the page. They are not from a real evaluation run.
         </p>
       )}
       <p className="summary__line">
-        Run on {dayTime.format(new Date(results.run_at))}, on ticket {results.ticket_id}. Fork was run{" "}
+        Run on {formatDayTime(results.run_at)}, on ticket {results.ticket_id}. Fork was run{" "}
         {plural(results.fork_runs, "time")}.
       </p>
 
@@ -133,9 +133,9 @@ export function EvalPage() {
         (results.error.kind === "not_found" ? (
           <EmptyState title="No evaluation has been run">
             <p>
-              The eval harness runs Fork three times on the demo ticket, compares Paper Trail with the
-              hand-marked decisions, checks the pointers after a merge, and writes a results file. The
-              scores and the failure log will appear here once that file exists.
+              Run <code>pnpm eval</code> in the plugin repository. It scores the saved Fork runs against the
+              answer key, checks the pointers, and red-teams the privacy guard, then writes the results this
+              page shows.
             </p>
           </EmptyState>
         ) : (

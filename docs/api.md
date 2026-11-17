@@ -1,6 +1,8 @@
 # Local REST API
 
-The web app reads and writes the developer's local profile through this API.
+The web app reads and writes the developer's local profile through this API. The schemas in
+`packages/shared/src/api.ts` describe every answer; `packages/server/src/api/contract.test.ts` checks the
+real answers against them, so the web app and the API cannot drift apart without a failing test.
 
 - Base URL: `http://127.0.0.1:4317/api` (set `FTC_PORT` to change the port)
 - Start it: `corepack pnpm build`, then `corepack pnpm api`
@@ -15,6 +17,8 @@ The web app reads and writes the developer's local profile through this API.
 - Any other `Origin` or `Host` gets `403`.
 
 ## Errors
+
+Error answers carry the same CORS header as successful ones, so the web app can show the `message`.
 
 Every error has the same shape:
 
@@ -140,6 +144,12 @@ Returns `201` with `{ "annotation": { "id", "target_id", "note", "disagrees", "c
 ### `DELETE /annotations/:id`
 
 Returns `204`, or `404` when the note does not exist.
+
+### `GET /eval`
+
+The results file `pnpm eval` writes (`eval-results.json` next to the database; `FTC_EVAL_RESULTS` overrides it),
+served as it is. `404` until an evaluation has been run. Shape: `EvalResults` in `packages/shared/src/api.ts`.
+It holds scores, not profile data.
 
 ### `GET /export`
 

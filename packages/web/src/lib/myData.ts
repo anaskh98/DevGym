@@ -1,49 +1,30 @@
-import { STORED_KINDS, type MyDataResponse, type StoredKind } from "@ftc/shared";
+import { STORED_TABLES, type ExportResponse } from "@ftc/shared";
 
-/** What each kind of record is, in the words the "My data" page uses. */
-export const KIND_INFO: Record<StoredKind, { label: string; what: string }> = {
-  tickets: {
-    label: "Tickets",
-    what: "The tickets Fork has read.",
-  },
+/** What each table holds, in the words the "My data" page uses. */
+export const TABLE_INFO: Record<string, { label: string; what: string }> = {
+  tickets: { label: "Tickets", what: "The tickets Fork has read." },
   assumptions: {
     label: "Questions and assumptions",
     what: "What Fork asked about each ticket, and whether the PO answered or the developer assumed.",
   },
-  decisions: {
-    label: "Decisions",
-    what: "Choices made while coding a ticket, and who made each one.",
-  },
-  pointers: {
-    label: "Code pointers",
-    what: "Where each decision lives: file, function and line. Never the code itself.",
-  },
-  explain_backs: {
-    label: "Explain-backs",
-    what: "Your own explanations of decisions, each with a rating.",
-  },
-  observations: {
-    label: "Observations",
-    what: "Notes about your skills, each tied to the decisions it rests on.",
-  },
-  growth_plans: {
-    label: "Growth plans",
-    what: "Coach's focus areas and exercises.",
-  },
-  annotations: {
-    label: "Your notes",
-    what: "Notes you added to a growth plan, including where you disagreed.",
-  },
+  trail_sessions: { label: "Coding sessions", what: "The coding sessions Paper Trail followed, and their ticket." },
+  file_edits: { label: "Edited files", what: "Which files each session edited. Paths only, never the content." },
+  decisions: { label: "Decisions", what: "Choices made while coding a ticket, and who made each one." },
+  pointers: { label: "Code pointers", what: "Where each decision lives: file, function and line. Never the code itself." },
+  explain_backs: { label: "Explain-backs", what: "Your own explanations of decisions, each with a rating." },
+  observations: { label: "Observations", what: "Notes about your skills, each tied to the decisions it rests on." },
+  growth_plans: { label: "Growth plans", what: "Coach's focus areas and exercises." },
+  annotations: { label: "Your notes", what: "Notes you added, including where you disagreed." },
 };
 
-export function countRecords(response: MyDataResponse): Record<StoredKind, number> {
-  return Object.fromEntries(
-    STORED_KINDS.map((kind) => [kind, response.data[kind].length]),
-  ) as Record<StoredKind, number>;
+/** Every table in the export, known ones first in page order, then any the service added later. */
+export function tablesOf(response: ExportResponse): string[] {
+  const extra = Object.keys(response.data).filter((t) => !(STORED_TABLES as readonly string[]).includes(t));
+  return [...STORED_TABLES, ...extra.sort()];
 }
 
-export function totalRecords(response: MyDataResponse): number {
-  return STORED_KINDS.reduce((sum, kind) => sum + response.data[kind].length, 0);
+export function totalRecords(response: ExportResponse): number {
+  return Object.values(response.data).reduce((sum, rows) => sum + rows.length, 0);
 }
 
 export interface ExportFile {
@@ -51,11 +32,10 @@ export interface ExportFile {
   text: string;
 }
 
-/** The export is the page's own data, unchanged, so the file matches what is shown. */
-export function buildExport(response: MyDataResponse, today: Date = new Date()): ExportFile {
-  const day = today.toISOString().slice(0, 10);
+/** The export is the service's own export, unchanged, so the file matches what is stored. */
+export function buildExport(response: ExportResponse, today: Date = new Date()): ExportFile {
   return {
-    filename: `ftc-data-${day}.json`,
+    filename: `fork-trail-coach-export-${today.toISOString().slice(0, 10)}.json`,
     text: `${JSON.stringify(response, null, 2)}\n`,
   };
 }

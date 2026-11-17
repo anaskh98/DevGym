@@ -1,9 +1,11 @@
 // REST API for the local web app. It serves the developer's private profile, so it only listens on
 // 127.0.0.1 and refuses requests that a web page on another site could send.
+import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { dirname, join } from "node:path";
 import { z } from "zod";
-import type { Db } from "../db/connection.js";
+import { defaultDbPath, type Db } from "../db/connection.js";
 import { PrivacyError, StoreError } from "../errors.js";
 import type { PrivacyGuard } from "../privacy/guard.js";
 import * as data from "./data.js";
@@ -20,6 +22,13 @@ export interface ApiOptions {
   allowedOrigins?: string[];
   /** Folder with the built web app. When it is missing, the built-in Coach report page is served. */
   webDir?: string | undefined;
+  /** The results file the eval harness writes. Defaults to defaultEvalResultsPath(). */
+  evalFile?: string | undefined;
+}
+
+/** The eval results live next to the local database, outside any repo. FTC_EVAL_RESULTS overrides the path. */
+export function defaultEvalResultsPath(): string {
+  return process.env.FTC_EVAL_RESULTS ?? join(dirname(defaultDbPath()), "eval-results.json");
 }
 
 const annotationInput = z.strictObject({
@@ -83,24 +92,35 @@ export function createApiServer(options: ApiOptions): Server {
   const { db, guard } = options;
   const extraOrigins = new Set(options.allowedOrigins ?? []);
 
+  const ownOrigins = () => {
+    const port = (server.address() as AddressInfo).port;
+    return [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+  };
+  /** CORS headers for a caller we accept. Errors need them too, or the web app cannot read why a call failed. */
+  const corsFor = (req: IncomingMessage): Record<string, string> => {
+    const origin = req.headers.origin;
+    if (origin === undefined || (!ownOrigins().includes(origin) && !extraOrigins.has(origin))) return {};
+    return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
+  };
+
   const server = createServer((req, res) => {
     handle(req, res).catch((err: unknown) => {
+      const cors = corsFor(req);
       if (err instanceof HttpError) {
-        send(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } });
+        send(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } }, cors);
       } else if (err instanceof PrivacyError) {
-        send(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } });
+        send(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } }, cors);
       } else if (err instanceof StoreError) {
-        send(res, 404, { error: { code: "not_found", message: err.message } });
+        send(res, 404, { error: { code: "not_found", message: err.message } }, cors);
       } else {
         console.error(err);
-        send(res, 500, { error: { code: "internal", message: "Internal error" } });
+        send(res, 500, { error: { code: "internal", message: "Internal error" } }, cors);
       }
     });
   });
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const port = (server.address() as AddressInfo).port;
-    const own = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+    const own = ownOrigins();
 
     // The Host header must be this server. This stops a hostile site that points its own domain
     // name at 127.0.0.1 (DNS rebinding) from reading the profile.
@@ -108,14 +128,9 @@ export function createApiServer(options: ApiOptions): Server {
       throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
     }
     // Browsers name the calling page in Origin. Only the local web app may call.
-    const origin = req.headers.origin;
-    const cors: Record<string, string> = {};
-    if (origin !== undefined) {
-      if (!own.includes(origin) && !extraOrigins.has(origin)) {
-        throw new HttpError(403, "bad_origin", "This origin may not call the API");
-      }
-      cors["Access-Control-Allow-Origin"] = origin;
-      cors["Vary"] = "Origin";
+    const cors = corsFor(req);
+    if (req.headers.origin !== undefined && cors["Access-Control-Allow-Origin"] === undefined) {
+      throw new HttpError(403, "bad_origin", "This origin may not call the API");
     }
     const method = req.method ?? "GET";
     if (method === "OPTIONS") {
@@ -174,6 +189,20 @@ export function createApiServer(options: ApiOptions): Server {
         if (!data.deleteAnnotation(db, id)) throw notFound("Annotation");
         return ok(undefined, 204);
 
+      case "GET /eval": {
+        // Not profile data: the scores the eval harness wrote. The file is served as it is.
+        let raw: string;
+        try {
+          raw = await readFile(options.evalFile ?? defaultEvalResultsPath(), "utf8");
+        } catch {
+          throw new HttpError(404, "not_found", "No evaluation has been run yet");
+        }
+        try {
+          return ok(JSON.parse(raw));
+        } catch {
+          throw new HttpError(500, "bad_eval_file", "The eval results file is not valid JSON");
+        }
+      }
       case "GET /export":
         return ok(data.exportAll(db), 200, {
           "Content-Disposition": `attachment; filename="fork-trail-coach-export-${new Date().toISOString().slice(0, 10)}.json"`,

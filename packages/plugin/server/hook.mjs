@@ -181,7 +181,8 @@ function migrate(db, list = migrations) {
 
 // src/paths.ts
 import { isAbsolute, relative, resolve, sep } from "node:path";
-function toRepoPath(path, root) {
+function toRepoPath(rawPath, root) {
+  const path = sep === "/" ? rawPath.replaceAll("\\", "/") : rawPath;
   const absolute = isAbsolute(path) ? path : resolve(root, path);
   const rel = relative(root, absolute);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
