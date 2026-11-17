@@ -13,6 +13,17 @@ export const getTicketInput = z.strictObject({
   ticket_id: id.describe("Ticket id, for example SAMPLE-1"),
 });
 
+export const TICKET_IMPORT_SOURCES = ["jira"] as const;
+
+// A ticket read through another connector (the Atlassian MCP, for example) and handed to this server.
+// Title and body are source material, so they may describe code; they are not run through the code checks.
+export const importTicketInput = z.strictObject({
+  ticket_id: id.describe("The ticket's key in its source, for example PROJ-123"),
+  title: z.string().trim().min(1).max(500).describe("The ticket's summary"),
+  body: z.string().trim().max(50_000).default("").describe("The ticket's description, as Markdown or plain text"),
+  source: z.enum(TICKET_IMPORT_SOURCES).describe("Where the ticket was read from"),
+});
+
 export const saveAssumptionsInput = z.strictObject({
   ticket_id: id,
   assumptions: z
@@ -126,6 +137,7 @@ export const saveGrowthPlanInput = z.strictObject({
     .max(3),
 });
 
+export type ImportTicketInput = z.infer<typeof importTicketInput>;
 export type SaveAssumptionsInput = z.infer<typeof saveAssumptionsInput>;
 export type StartTrailInput = z.infer<typeof startTrailInput>;
 export type LogDecisionInput =z.infer<typeof logDecisionInput>;

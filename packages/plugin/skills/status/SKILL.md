@@ -17,4 +17,8 @@ Then check the local service: call `get_ticket` on the `fork-trail-coach` MCP se
 If it works, say the local service is running. If the tool is missing or fails, say the local service is not
 running and that it needs Node 22 or newer.
 
+Then check Jira: if Atlassian connector tools such as `getJiraIssue` are available, say Fork can read Jira tickets by
+their key. If not, say Fork reads only the plugin's Markdown tickets, and that connecting the Atlassian connector
+adds Jira tickets. Do not call any Atlassian tool for this check.
+
 Keep the answer to these lines. Do not invent features.

@@ -80,6 +80,7 @@ describe("tool list", () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       "get_ticket",
       "get_trail",
+      "import_ticket",
       "list_decisions",
       "list_observations",
       "log_decision",
@@ -230,6 +231,53 @@ describe("get_ticket", () => {
     await rejected("get_ticket", {});
     await rejected("get_ticket", { ticket_id: 5 });
     await rejected("get_ticket", { ticket_id: "SAMPLE-1", extra: true });
+  });
+});
+
+describe("import_ticket", () => {
+  const jira = (extra: Record<string, unknown> = {}) => ({
+    ticket_id: "PROJ-42",
+    title: "Let admins archive old rooms",
+    // Ticket text may describe code: it is source material, not something the developer wrote.
+    body: "Archived rooms are hidden from search.\n\n```ts\nconst rows = rooms.filter(isArchived)\n```",
+    source: "jira",
+    ...extra,
+  });
+
+  it("saves a Jira ticket that the other tools can then use", async () => {
+    const saved = await ok("import_ticket", jira());
+    expect(saved).toMatchObject({ id: "PROJ-42", title: "Let admins archive old rooms", source: "jira" });
+    expect((await ok("get_ticket", { ticket_id: "PROJ-42" })).source).toBe("jira");
+    await ok("save_assumptions", { ticket_id: "PROJ-42", assumptions: [{ text: "Can archived rooms be restored?", status: "assumed_by_dev", answer: "Assuming: yes" }] });
+    await ok("log_decision", decision({ ticket_id: "PROJ-42" }));
+    expect(count("assumptions")).toBe(1);
+  });
+
+  it("replaces the saved copy when imported again, and accepts an empty description", async () => {
+    await ok("import_ticket", jira());
+    await ok("import_ticket", jira({ title: "Archive rooms", body: "" }));
+    expect(await ok("get_ticket", { ticket_id: "PROJ-42" })).toMatchObject({ title: "Archive rooms", body: "" });
+    expect(count("tickets")).toBe(1);
+  });
+
+  it("refuses an id that the plugin's own tickets already use", async () => {
+    expect(await rejected("import_ticket", jira({ ticket_id: "SAMPLE-1" }))).toMatch(/already exists.*get_ticket/);
+    expect(count("tickets")).toBe(0);
+  });
+
+  it("does not store a ticket that names a client", async () => {
+    expect(await rejected("import_ticket", jira({ title: "Archive rooms for Globex" }))).toMatch(/client denylist/);
+    expect(await rejected("import_ticket", jira({ body: "Globex asked for this" }))).toMatch(/client denylist/);
+    expect(count("tickets")).toBe(0);
+  });
+
+  it("rejects bad input", async () => {
+    await rejected("import_ticket", jira({ source: "trello" }));
+    await rejected("import_ticket", jira({ title: "" }));
+    await rejected("import_ticket", jira({ ticket_id: "" }));
+    await rejected("import_ticket", jira({ extra: true }));
+    await rejected("import_ticket", { ticket_id: "PROJ-1", source: "jira" });
+    expect(count("tickets")).toBe(0);
   });
 });
 

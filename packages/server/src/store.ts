@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { transaction, type Db } from "./db/connection.js";
 import { StoreError } from "./errors.js";
 import type {
+  ImportTicketInput,
   LogDecisionInput,
   RecordExplainBackInput,
   SaveAssumptionsInput,
@@ -62,6 +63,29 @@ export async function ensureTicket(
   if (fresh) guard?.checkTicket(fresh);
   if (fresh) upsertTicket(db, { ...fresh, source: adapter.source });
   return getTicket(db, ticketId);
+}
+
+/**
+ * Saves a ticket that was read through another connector (Jira through the Atlassian MCP, for example).
+ * Later tools find it through ensureTicket's saved-copy fallback.
+ * Refused when the plugin's own ticket source has the same id: ensureTicket reads that source first and
+ * would quietly replace the imported copy, so the two sources must not share an id.
+ */
+export async function importTicket(
+  db: Db,
+  adapter: TicketAdapter,
+  input: ImportTicketInput,
+  guard?: PrivacyGuard,
+): Promise<Ticket> {
+  if (await adapter.getTicket(input.ticket_id)) {
+    throw new StoreError(
+      `Ticket '${input.ticket_id}' already exists in the plugin's ${adapter.source} tickets. Use get_ticket for it`,
+    );
+  }
+  const ticket = { id: input.ticket_id, title: input.title, body: input.body };
+  guard?.checkTicket(ticket);
+  upsertTicket(db, { ...ticket, source: input.source });
+  return getTicket(db, input.ticket_id);
 }
 
 /** Replaces the ticket's assumption list, so running Fork again does not pile up duplicates. */

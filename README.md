@@ -32,7 +32,7 @@ claude plugin marketplace add <owner>/<repo>
 claude plugin install fork-trail-coach@fork-trail-coach
 ```
 
-Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets/` folder:
+Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets/` folder, or with Claude Code's Atlassian connector connected so Fork can read Jira issues by key (for example `/fork-trail-coach:fork PROJ-123`):
 
 | Command | What it does |
 | --- | --- |
@@ -127,6 +127,8 @@ scripts/publish-demo-repo.sh <owner>/roomly
 The answer key is in `packages/eval/answer-key/`. It must stay out of `demo-repo/` and out of `packages/plugin/`; a test in `packages/eval` fails if anything from it leaks into either. Do not run Fork from inside this monorepo: the key would be inside Claude Code's project folder. See [packages/eval/README.md](packages/eval/README.md).
 
 The plugin ships one ticket of its own, `SAMPLE-1`, so the tools can be tried anywhere. It is unrelated to `DEMO-1`.
+
+Jira tickets: Fork looks in the Markdown tickets first. If the id is not there and the Atlassian connector is connected, it reads the issue with the connector (read only) and saves a local copy through the `import_ticket` tool, so Paper Trail, explain-back and the PR Decisions section can link to it. The plugin holds no Jira credentials. An id that exists in the Markdown tickets always uses the Markdown copy.
 
 ## Settings
 
