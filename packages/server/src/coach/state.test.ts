@@ -296,3 +296,14 @@ describe("stage 1.5: the drill-only path", () => {
     expect(status([], [answer("clear", { at: "2026-11-16T10:00:00Z" })], drills, M2, NOW, low).state).toBe("shown");
   });
 });
+
+describe("stage 1.5: needs on the drill-only path", () => {
+  it("says how many drills and answers are still needed when the work gives little chance", () => {
+    const low: Exposure = { level: "low", functions: 1 };
+    const one = status([dev()], [], [drill(true, { drill_id: "d1", at: "2026-11-14T10:00:00Z" })], M2, NOW, low);
+    expect(one.needs).toContain("or by drills: pass 1 more drill on a new prompt");
+    expect(one.needs).toContain("or by drills: 1 clear answer to a follow-up question");
+    const two = status([dev()], [], [drill(true, { drill_id: "d1", at: "2026-11-14T10:00:00Z" }), drill(true, { drill_id: "d2", at: "2026-11-15T10:00:00Z" })], M2, NOW, low);
+    expect(two.needs).not.toContain("or by drills: pass 1 more drill on a new prompt");
+  });
+});

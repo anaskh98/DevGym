@@ -211,7 +211,12 @@ export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStat
   const needs: string[] = [];
   if (state === "shown") needs.push(shownBy === "drill" ? "show it in your work, then pass a drill" : "pass a drill");
   else if (state !== "proven") {
-    if (lowExposure) needs.push("more chances in your work, or take a drill");
+    if (lowExposure) {
+      needs.push("more chances in your work, or take a drill");
+      // The drill-only path, spelled out, so nobody is told a drill cannot help.
+      if (distinct.length < 2) needs.push(`or by drills: pass ${plural(2 - distinct.length, "more drill", "more drills")} on a new prompt`);
+      if (!firstClear) needs.push("or by drills: 1 clear answer to a follow-up question");
+    }
     if (current.proofs < t.proofs) needs.push(`${plural(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
     if (current.proofTickets < t.tickets) needs.push(`proof on ${plural(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
     for (const file of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file)}`);
