@@ -4,6 +4,7 @@ import { apiHost, readApiConfig, resolveUrl } from "../src/api/config";
 import { plural, summarize } from "../src/lib/fork";
 import { parseBlocks } from "../src/lib/markdown";
 import { pointerLabel, pointerState } from "../src/lib/pointer";
+import { countBy, flag, list, plainPreview, text } from "../src/lib/myData";
 
 describe("API config", () => {
   it("defaults to the committed sample data", () => {
@@ -103,5 +104,25 @@ describe("coach helpers", () => {
   it("says who wrote it and whether the developer owns it, without any code", () => {
     const line = evidenceLine({ kind: "review", polarity: "negative", author: "ai", decided_by: null, owned: true, file: "src/pay.ts", symbol: "charge", ticket: "PAY-1", signal: null, note: "No time limit on the call" });
     expect(line).toBe("No time limit on the call · src/pay.ts (charge) · ticket PAY-1 · written by the AI · owned by you: you shipped it");
+  });
+});
+
+describe("My data cards", () => {
+  it("reads stored fields safely", () => {
+    const row = { id: "a", n: 3, done: 1, alts: '["x","y"]', bad: "[oops", obj: { k: 1 } };
+    expect(text(row, "id")).toBe("a");
+    expect(text(row, "n")).toBe("3");
+    expect(text(row, "obj")).toBe("");
+    expect(flag(row, "done")).toBe(true);
+    expect(flag(row, "missing")).toBe(false);
+    expect(list(row, "alts")).toEqual(["x", "y"]);
+    expect(list(row, "bad")).toEqual([]);
+    expect(countBy([{ s: "1" }, { s: "1" }, { s: "2" }], "s").get("1")).toBe(2);
+  });
+
+  it("turns a ticket's Markdown into a plain preview", () => {
+    expect(plainPreview("## Why\n\n**User story**\n- As an *admin*, see [the docs](http://x)\n\n`code`")).toBe(
+      "Why\nUser story\nAs an admin, see the docs\ncode",
+    );
   });
 });

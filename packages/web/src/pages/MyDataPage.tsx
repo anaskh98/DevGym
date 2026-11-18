@@ -3,10 +3,11 @@ import type { ExportResponse } from "@ftc/shared";
 import { api, ApiError } from "../api/client";
 import { apiConfig } from "../api/config";
 import { useApi } from "../api/useApi";
+import { TableSection } from "../components/DataCards";
 import { ErrorState, Loading } from "../components/States";
 import { plural } from "../lib/fork";
 import { useTitle } from "../lib/useTitle";
-import { buildExport, downloadFile, TABLE_INFO, tablesOf, totalRecords } from "../lib/myData";
+import { buildExport, downloadFile, TABLE_GROUPS, TABLE_INFO, tablesOf, totalRecords } from "../lib/myData";
 
 type Notice =
   | { kind: "exported"; filename: string; records: number }
@@ -19,6 +20,10 @@ function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: 
   const [notice, setNotice] = useState<Notice | null>(null);
 
   const total = totalRecords(response);
+  const tables = tablesOf(response);
+  const grouped = new Set(TABLE_GROUPS.flatMap((group) => group.tables));
+  const others = tables.filter((table) => !grouped.has(table));
+  const groups = others.length > 0 ? [...TABLE_GROUPS, { title: "Other", tables: others }] : TABLE_GROUPS;
   const sample = apiConfig.mode === "mock";
 
   const exportJson = () => {
@@ -45,28 +50,35 @@ function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: 
 
   return (
     <>
-      <p className="data__where">
-        {total === 0
-          ? "Nothing is stored about you."
-          : `${plural(total, "record")}, all in one SQLite file on this computer, outside any repository.`}
-      </p>
-
-      <div className="data__actions">
-        <button type="button" className="button" onClick={exportJson}>
-          Export as JSON
-        </button>
-        <button
-          type="button"
-          className="button button--danger"
-          disabled={total === 0 || confirming}
-          onClick={() => {
-            setNotice(null);
-            setConfirming(true);
-          }}
-        >
-          Delete everything
-        </button>
-      </div>
+      <section className="data__summary" aria-label="Summary">
+        <div className="data__total">
+          <p>
+            <span className="data__total-number">{total}</span>{" "}
+            <span className="data__total-label">{total === 1 ? "record stored" : "records stored"}</span>
+          </p>
+          <p className="data__where">
+            {total === 0
+              ? "Nothing is stored about you."
+              : "All in one SQLite file on this computer, outside any repository."}
+          </p>
+        </div>
+        <div className="data__actions">
+          <button type="button" className="button" onClick={exportJson}>
+            Export as JSON
+          </button>
+          <button
+            type="button"
+            className="button button--danger"
+            disabled={total === 0 || confirming}
+            onClick={() => {
+              setNotice(null);
+              setConfirming(true);
+            }}
+          >
+            Delete everything
+          </button>
+        </div>
+      </section>
 
       {confirming && (
         <div className="confirm" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
@@ -94,30 +106,36 @@ function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: 
       </p>
 
       <h2 className="data__heading">What is stored</h2>
-      <ul className="data__kinds">
-        {tablesOf(response).map((kind) => {
-          const records = response.data[kind] ?? [];
-          const info = TABLE_INFO[kind] ?? { label: kind, what: "" };
+      <ul className="tiles">
+        {tables.map((table) => {
+          const count = response.data[table]?.length ?? 0;
           return (
-            <li key={kind}>
-              <details className="kind" {...(records.length === 0 ? { "data-empty": "" } : {})}>
-                <summary>
-                  <span className="kind__label">{info.label}</span>
-                  <span className="kind__what">{info.what}</span>
-                  <span className="kind__count">{records.length}</span>
-                </summary>
-                {records.length === 0 ? (
-                  <p className="kind__none">None stored.</p>
-                ) : (
-                  <pre className="kind__records" tabIndex={0}>
-                    {JSON.stringify(records, null, 2)}
-                  </pre>
-                )}
-              </details>
+            <li key={table}>
+              <button
+                type="button"
+                className="tile"
+                {...(count === 0 ? { "data-empty": "" } : {})}
+                onClick={() =>
+                  document.getElementById(`store-${table}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                <span className="tile__count">{count}</span>
+                <span className="tile__label">{(TABLE_INFO[table] ?? { label: table }).label}</span>
+              </button>
             </li>
           );
         })}
       </ul>
+
+      {groups.map((group) => (
+        <section key={group.title} className="store-group" aria-label={group.title}>
+          <h2 className="store-group__title">{group.title}</h2>
+          {group.tables.map((table) => {
+            const info = TABLE_INFO[table] ?? { label: table, what: "" };
+            return <TableSection key={table} table={table} label={info.label} what={info.what} response={response} />;
+          })}
+        </section>
+      ))}
     </>
   );
 }
