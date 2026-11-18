@@ -1518,8 +1518,8 @@ var require_dataType = __commonJS({
       return types;
     }
     exports.getSchemaTypes = getSchemaTypes;
-    function getJSONTypes(ts) {
-      const types = Array.isArray(ts) ? ts : ts ? [ts] : [];
+    function getJSONTypes(ts2) {
+      const types = Array.isArray(ts2) ? ts2 : ts2 ? [ts2] : [];
       if (types.every(rules_1.isJSONType))
         return types;
       throw new Error("type must be JSONType or JSONType[]: " + types.join(","));
@@ -2561,18 +2561,18 @@ var require_validate = __commonJS({
       });
       narrowSchemaTypes(it, types);
     }
-    function checkMultipleTypes(it, ts) {
-      if (ts.length > 1 && !(ts.length === 2 && ts.includes("null"))) {
+    function checkMultipleTypes(it, ts2) {
+      if (ts2.length > 1 && !(ts2.length === 2 && ts2.includes("null"))) {
         strictTypesError(it, "use allowUnionTypes to allow union type keyword");
       }
     }
-    function checkKeywordTypes(it, ts) {
+    function checkKeywordTypes(it, ts2) {
       const rules = it.self.RULES.all;
       for (const keyword in rules) {
         const rule = rules[keyword];
         if (typeof rule == "object" && (0, applicability_1.shouldUseRule)(it.schema, rule)) {
           const { type } = rule.definition;
-          if (type.length && !type.some((t) => hasApplicableType(ts, t))) {
+          if (type.length && !type.some((t) => hasApplicableType(ts2, t))) {
             strictTypesError(it, `missing type "${type.join(",")}" for keyword "${keyword}"`);
           }
         }
@@ -2581,18 +2581,18 @@ var require_validate = __commonJS({
     function hasApplicableType(schTs, kwdT) {
       return schTs.includes(kwdT) || kwdT === "number" && schTs.includes("integer");
     }
-    function includesType(ts, t) {
-      return ts.includes(t) || t === "integer" && ts.includes("number");
+    function includesType(ts2, t) {
+      return ts2.includes(t) || t === "integer" && ts2.includes("number");
     }
     function narrowSchemaTypes(it, withTypes) {
-      const ts = [];
+      const ts2 = [];
       for (const t of it.dataTypes) {
         if (includesType(withTypes, t))
-          ts.push(t);
+          ts2.push(t);
         else if (withTypes.includes("integer") && t === "number")
-          ts.push("integer");
+          ts2.push("integer");
       }
-      it.dataTypes = ts;
+      it.dataTypes = ts2;
     }
     function strictTypesError(it, msg) {
       const schemaPath = it.schemaEnv.baseId + it.errSchemaPath;
@@ -4682,7 +4682,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -16609,8 +16609,8 @@ function ko_default() {
 }
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/locales/lt.js
-var capitalizeFirstCharacter = (text) => {
-  return text.charAt(0).toUpperCase() + text.slice(1);
+var capitalizeFirstCharacter = (text2) => {
+  return text2.charAt(0).toUpperCase() + text2.slice(1);
 };
 function getUnitTypeFromNumber(number4) {
   const abs = Math.abs(number4);
@@ -17970,8 +17970,8 @@ var error43 = () => {
       case "not_multiple_of":
         return `N\xFAmero inv\xE1lido: deve ser m\xFAltiplo de ${issue2.divisor}`;
       case "unrecognized_keys": {
-        const plural2 = issue2.keys.length > 1 ? "s" : "";
-        return `Chave${plural2} inv\xE1lida${plural2}: ${joinValues(issue2.keys, ", ")}`;
+        const plural3 = issue2.keys.length > 1 ? "s" : "";
+        return `Chave${plural3} inv\xE1lida${plural3}: ${joinValues(issue2.keys, ", ")}`;
       }
       case "invalid_key":
         return `Entrada inv\xE1lida n${translateOriginWithArticle(issue2.origin, "definite")}`;
@@ -18115,8 +18115,8 @@ var error44 = () => {
       case "not_multiple_of":
         return `N\xFAmero inv\xE1lido: deve ser m\xFAltiplo de ${issue2.divisor}`;
       case "unrecognized_keys": {
-        const plural2 = issue2.keys.length > 1 ? "s" : "";
-        return `Chave${plural2} inv\xE1lida${plural2}: ${joinValues(issue2.keys, ", ")}`;
+        const plural3 = issue2.keys.length > 1 ? "s" : "";
+        return `Chave${plural3} inv\xE1lida${plural3}: ${joinValues(issue2.keys, ", ")}`;
       }
       case "invalid_key":
         return `Entrada inv\xE1lida n${translateOriginWithArticle(issue2.origin, "definite")}`;
@@ -21370,7 +21370,7 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
   const outputVar = newVar(ctx);
   doc.write(`const ${outputVar} = [];`);
   for (let i2 = 0; i2 < items.length; i2++) {
-    const itemSchema = items[i2];
+    const itemSchema2 = items[i2];
     if (i2 >= optoutStart) {
       doc.write(`if (${outputVar}.length === ${i2}) {`);
       doc.indented((d) => {
@@ -21378,12 +21378,12 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
         d.indented((d2) => {
           const elemVar = newVar(ctx);
           d2.write(`const ${elemVar} = ${accessor}[${i2}];`);
-          const elemOutput = compileChild(d2, ctx, itemSchema, elemVar);
+          const elemOutput = compileChild(d2, ctx, itemSchema2, elemVar);
           d2.write(`${outputVar}[${i2}] = ${elemOutput};`);
         });
         d.write(`} else {`);
         d.indented((d2) => {
-          if (dropsWhenAbsent(itemSchema)) {
+          if (dropsWhenAbsent(itemSchema2)) {
             d2.write(`${outputVar}.length = ${i2};`);
             return;
           }
@@ -21392,7 +21392,7 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
           d2.write(`const ${elemVar} = undefined;`);
           d2.write(`const ${branchVar} = (() => {`);
           d2.indented((d3) => {
-            const elemOutput = compileChild(d3, ctx, itemSchema, elemVar);
+            const elemOutput = compileChild(d3, ctx, itemSchema2, elemVar);
             d3.write(`return ${elemOutput};`);
           });
           d2.write(`})();`);
@@ -21405,7 +21405,7 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
     } else {
       const elemVar = newVar(ctx);
       doc.write(`const ${elemVar} = ${accessor}[${i2}];`);
-      const elemOutput = compileChild(doc, ctx, itemSchema, elemVar);
+      const elemOutput = compileChild(doc, ctx, itemSchema2, elemVar);
       doc.write(`${outputVar}[${i2}] = ${elemOutput};`);
     }
   }
@@ -28612,7 +28612,7 @@ var StdioServerTransport = class {
 };
 
 // src/mcp/stdio.ts
-import { dirname as dirname5, join as join9 } from "node:path";
+import { dirname as dirname5, join as join11 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/db/connection.ts
@@ -28923,8 +28923,8 @@ function migrate(db2, list = migrations) {
 // src/tickets/markdown.ts
 import { readdir, readFile } from "node:fs/promises";
 import { join as join2 } from "node:path";
-function parseTicketMarkdown(text) {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text.replace(/^﻿/, ""));
+function parseTicketMarkdown(text2) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text2.replace(/^﻿/, ""));
   if (!match) throw new Error("Ticket file has no front matter block");
   const meta3 = {};
   for (const line of (match[1] ?? "").split(/\r?\n/)) {
@@ -37101,7 +37101,7 @@ function saveAssumptions(db2, input2) {
   });
   return { assumption_ids: ids };
 }
-function logDecision(db2, input2, root = process.cwd()) {
+function logDecision(db2, input2, root = process.cwd(), ladderId2 = null) {
   requireRow(db2, "tickets", "Ticket", input2.ticket_id);
   const decisionId = randomUUID();
   let pointerId = null;
@@ -37115,7 +37115,7 @@ function logDecision(db2, input2, root = process.cwd()) {
       ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
     }
     db2.prepare(
-      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files, ladder_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
       decisionId,
       input2.ticket_id,
@@ -37124,7 +37124,9 @@ function logDecision(db2, input2, root = process.cwd()) {
       JSON.stringify(input2.alternatives),
       input2.origin,
       pointerId,
-      JSON.stringify(relatedFiles)
+      JSON.stringify(relatedFiles),
+      ladderId2,
+      input2.item_id ?? null
     );
   });
   return { decision_id: decisionId, pointer_id: pointerId };
@@ -37678,14 +37680,14 @@ var HttpError = class extends Error {
   extra;
 };
 function send2(res, status, body2, headers = {}) {
-  const text = body2 === void 0 ? "" : JSON.stringify(body2);
+  const text2 = body2 === void 0 ? "" : JSON.stringify(body2);
   res.writeHead(status, {
     ...body2 === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     ...headers
   });
-  res.end(text);
+  res.end(text2);
 }
 async function readJson(req) {
   if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
@@ -37776,9 +37778,9 @@ function createApiServer(options) {
       case "GET /tickets":
         return ok({ tickets: listTickets(db2) });
       case "GET /tickets/:id": {
-        const detail = ticketDetail(db2, id2);
-        if (!detail) throw notFound("Ticket");
-        return ok(detail);
+        const detail2 = ticketDetail(db2, id2);
+        if (!detail2) throw notFound("Ticket");
+        return ok(detail2);
       }
       case "GET /tickets/:id/decisions": {
         if (!ticketDetail(db2, id2)) throw notFound("Ticket");
@@ -38014,14 +38016,14 @@ var Edit = class {
    * based on an edit operation. This is useful for editing points without
    * requiring a tree or node instance.
    */
-  editPoint(point, index) {
+  editPoint(point2, index) {
     let newIndex = index;
-    const newPoint = { ...point };
+    const newPoint = { ...point2 };
     if (index >= this.oldEndIndex) {
       newIndex = this.newEndIndex + (index - this.oldEndIndex);
-      const originalRow = point.row;
-      newPoint.row = this.newEndPosition.row + (point.row - this.oldEndPosition.row);
-      newPoint.column = originalRow === this.oldEndPosition.row ? this.newEndPosition.column + (point.column - this.oldEndPosition.column) : point.column;
+      const originalRow = point2.row;
+      newPoint.row = this.newEndPosition.row + (point2.row - this.oldEndPosition.row);
+      newPoint.column = originalRow === this.oldEndPosition.row ? this.newEndPosition.column + (point2.column - this.oldEndPosition.column) : point2.column;
     } else if (index > this.startIndex) {
       newIndex = this.newEndIndex;
       newPoint.row = this.newEndPosition.row;
@@ -38088,8 +38090,8 @@ function assertInternal(x) {
   if (x !== INTERNAL) throw new Error("Illegal constructor");
 }
 __name(assertInternal, "assertInternal");
-function isPoint(point) {
-  return !!point && typeof point.row === "number" && typeof point.column === "number";
+function isPoint(point2) {
+  return !!point2 && typeof point2.row === "number" && typeof point2.column === "number";
 }
 __name(isPoint, "isPoint");
 function setModule(module2) {
@@ -39124,8 +39126,8 @@ var Node = class {
    * you want to keep and continue to use after an edit.
    */
   edit(edit) {
-    const { point, index } = edit.editPoint(this.startPosition, this.startIndex);
-    this.startPosition = point;
+    const { point: point2, index } = edit.editPoint(this.startPosition, this.startIndex);
+    this.startPosition = point2;
     this.startIndex = index;
   }
   /** Get the S-expression representation of this node. */
@@ -39196,9 +39198,9 @@ function unmarshalTreeCursor({ handles }) {
   handles[3] = C.getValue(TRANSFER_BUFFER + 3 * SIZE_OF_INT, "i32");
 }
 __name(unmarshalTreeCursor, "unmarshalTreeCursor");
-function marshalPoint(address, point) {
-  C.setValue(address, point.row, "i32");
-  C.setValue(address + SIZE_OF_INT, point.column, "i32");
+function marshalPoint(address, point2) {
+  C.setValue(address, point2.row, "i32");
+  C.setValue(address + SIZE_OF_INT, point2.column, "i32");
 }
 __name(marshalPoint, "marshalPoint");
 function unmarshalPoint(address) {
@@ -41441,11 +41443,11 @@ function parseMatchPredicate(steps, index, operator, textPredicates) {
     for (const c of captures) {
       if (c.name === captureName) nodes.push(c.node.text);
     }
-    const test = /* @__PURE__ */ __name((text, positive) => {
-      return positive ? regex.test(text) : !regex.test(text);
+    const test = /* @__PURE__ */ __name((text2, positive) => {
+      return positive ? regex.test(text2) : !regex.test(text2);
     }, "test");
     if (nodes.length === 0) return !isPositive;
-    return matchAll ? nodes.every((text) => test(text, isPositive)) : nodes.some((text) => test(text, isPositive));
+    return matchAll ? nodes.every((text2) => test(text2, isPositive)) : nodes.some((text2) => test(text2, isPositive));
   });
 }
 __name(parseMatchPredicate, "parseMatchPredicate");
@@ -41475,7 +41477,7 @@ function parseAnyOfPredicate(steps, index, operator, textPredicates) {
       if (c.name === captureName) nodes.push(c.node.text);
     }
     if (nodes.length === 0) return !isPositive;
-    return nodes.every((text) => values.includes(text)) === isPositive;
+    return nodes.every((text2) => values.includes(text2)) === isPositive;
   });
 }
 __name(parseAnyOfPredicate, "parseAnyOfPredicate");
@@ -42178,8 +42180,8 @@ var STATUS_LABEL = {
   answered_by_po: "Answered by PO",
   assumed_by_dev: "Assumed by dev"
 };
-function inline(text) {
-  return text.replace(/\s*\r?\n\s*/g, " ").replace(/</g, "&lt;").replace(/\|/g, "\\|").replace(/@(?=\w)/g, "@\u200B").trim();
+function inline(text2) {
+  return text2.replace(/\s*\r?\n\s*/g, " ").replace(/</g, "&lt;").replace(/\|/g, "\\|").replace(/@(?=\w)/g, "@\u200B").trim();
 }
 function pointerText(d) {
   if (!d.file_path) return null;
@@ -42305,16 +42307,1768 @@ async function updatePrDecisions(db2, options, deps = {}) {
   return { ...result, updated: true };
 }
 
+// src/coach/ladder/schema.ts
+var TRACKS = ["backend", "frontend"];
+var LEVELS = ["junior", "mid", "senior", "staff"];
+var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
+var ITEM_ID = /^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/;
+var DEFAULT_THRESHOLDS = {
+  proofs: 3,
+  tickets: 2,
+  window_days: 60,
+  clear_answers: 2,
+  judge_cap: 1,
+  drill_retry_days: 3,
+  question_timeout_min: 30,
+  max_questions: 3,
+  hash_keep_days: 120,
+  catchup_max: 200
+};
+var text = external_exports.string().trim().min(1).max(600);
+var shortId = external_exports.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/, "ids are lowercase letters, digits, dots and dashes");
+var point = external_exports.strictObject({ id: shortId, text });
+var drillSchema = external_exports.strictObject({
+  id: shortId,
+  prompt: external_exports.string().trim().min(10).max(1500),
+  key_points: external_exports.array(point).min(2).max(10),
+  red_flags: external_exports.array(point).max(10),
+  pass: external_exports.number().int().min(1).optional()
+}).superRefine((d, ctx) => {
+  if (d.pass !== void 0 && d.pass > d.key_points.length) {
+    ctx.addIssue({ code: "custom", message: `Drill ${d.id}: pass is ${d.pass} but it has ${d.key_points.length} key points` });
+  }
+  const ids = [...d.key_points, ...d.red_flags].map((p) => p.id);
+  if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: `Drill ${d.id}: key point and red flag ids must be unique` });
+});
+var itemSchema = external_exports.strictObject({
+  id: external_exports.string().regex(ITEM_ID, "item ids look like BE.ERR.M2"),
+  title: text,
+  good_looks_like: external_exports.array(text).min(1).max(3),
+  signals: external_exports.array(external_exports.strictObject({ id: shortId, polarity: external_exports.enum(["positive", "negative"]), regresses: external_exports.boolean().optional() })).max(10),
+  explain_angles: external_exports.array(text).min(1).max(3),
+  drills: external_exports.array(drillSchema).min(1).max(3),
+  study: external_exports.array(text).min(2).max(4),
+  stack_notes: external_exports.record(
+    shortId,
+    external_exports.strictObject({ note: text, link: external_exports.string().regex(/^https:\/\/\S+$/, "stack note links must start with https://") })
+  )
+});
+var thresholdsSchema = external_exports.strictObject(
+  Object.fromEntries(Object.keys(DEFAULT_THRESHOLDS).map((k) => [k, external_exports.number().int().positive()]))
+);
+var ladderSchema = external_exports.strictObject({
+  track: external_exports.enum(TRACKS),
+  areas: external_exports.array(
+    external_exports.strictObject({
+      id: external_exports.string().regex(/^[A-Z][A-Z0-9]{1,7}$/, "area ids are 2 to 8 capital letters or digits, starting with a letter"),
+      name: text,
+      levels: external_exports.strictObject({ junior: external_exports.array(itemSchema), mid: external_exports.array(itemSchema), senior: external_exports.array(itemSchema), staff: external_exports.array(itemSchema) })
+    })
+  ).min(1),
+  thresholds: thresholdsSchema.partial().optional()
+}).superRefine((ladder, ctx) => {
+  const prefix = ladder.track === "backend" ? "BE." : "FE.";
+  const seen = /* @__PURE__ */ new Set();
+  for (const area of ladder.areas) {
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        if (seen.has(item.id)) ctx.addIssue({ code: "custom", message: `${item.id} is used more than once` });
+        seen.add(item.id);
+        if (!item.id.startsWith(prefix)) {
+          ctx.addIssue({ code: "custom", message: `${item.id} does not start with ${prefix} in a ${ladder.track} ladder` });
+        }
+        const letter = item.id.split(".")[2]?.[0];
+        if (letter !== LEVEL_LETTER[level]) {
+          const said = LEVELS.find((l) => LEVEL_LETTER[l] === letter) ?? "an unknown level";
+          ctx.addIssue({ code: "custom", message: `${item.id} sits under ${level} but its id says ${said}` });
+        }
+      }
+    }
+  }
+});
+
+// src/coach/settings.ts
+function read(db2, key, fallback) {
+  const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
+  return row ? JSON.parse(row.value) : fallback;
+}
+function write(db2, key, value) {
+  db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
+}
+function getTracks(db2) {
+  return read(db2, "tracks", []).filter((t) => TRACKS.includes(t));
+}
+function setTracks(db2, tracks) {
+  write(db2, "tracks", [...new Set(tracks)]);
+}
+function getExtraEmails(db2) {
+  return read(db2, "extra_emails", []);
+}
+function setExtraEmails(db2, emails) {
+  write(db2, "extra_emails", [...new Set(emails.map((e) => e.trim().toLowerCase()))]);
+}
+
+// src/coach/status.ts
+import { randomUUID as randomUUID4 } from "node:crypto";
+
+// src/git/diff.ts
+import { createHash } from "node:crypto";
+function cleanPath(raw) {
+  let path = raw.trim();
+  if (path === "/dev/null") return null;
+  if (path.startsWith('"') && path.endsWith('"')) {
+    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
+  }
+  return path.replace(/^[ab]\//, "");
+}
+var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+function parseUnifiedDiff(text2) {
+  const files = [];
+  let file2 = null;
+  let inHunk = false;
+  let oldLine = 0;
+  let newLine = 0;
+  for (const rawLine of text2.split("\n")) {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    if (line.startsWith("diff --git ")) {
+      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
+      files.push(file2);
+      inHunk = false;
+      continue;
+    }
+    if (!file2) continue;
+    if (!inHunk) {
+      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
+      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
+      else if (line.startsWith("--- ")) {
+        const old = cleanPath(line.slice(4));
+        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
+        if (old) file2.path = file2.path || old;
+      } else if (line.startsWith("+++ ")) {
+        const next = cleanPath(line.slice(4));
+        if (next) file2.path = next;
+        else if (file2.oldPath === null) {
+        }
+      } else if (line.startsWith("Binary files ")) file2.binary = true;
+    }
+    const hunk = HUNK.exec(line);
+    if (hunk) {
+      inHunk = true;
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[2]);
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
+    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
+    else if (line.startsWith(" ")) {
+      oldLine++;
+      newLine++;
+    }
+  }
+  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
+  return files;
+}
+async function commitDiff(root, sha, exec = run2) {
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
+  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
+  return parseUnifiedDiff(result.stdout);
+}
+function changeId(diff) {
+  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
++${f.added.map((l) => l.text).join("\n")}
+-${f.removed.map((l) => l.text).join("\n")}`);
+  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
+}
+
+// src/git/log.ts
+var SEP = "";
+async function repoTopLevel(cwd, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
+  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
+}
+async function currentBranch(root, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
+  const name2 = result.stdout.trim();
+  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
+}
+async function developerEmails(root, extra, exec = run2) {
+  const result = await exec("git", ["config", "user.email"], root);
+  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
+  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
+}
+async function listCommits(root, opts) {
+  const exec = opts.exec ?? run2;
+  const args2 = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
+  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
+  const result = await exec("git", args2, root);
+  if (result.code !== 0) return [];
+  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
+  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
+    const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
+    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
+  }).filter((c) => emails.has(c.authorEmail)).reverse();
+}
+async function defaultBranchCommits(root, exec = run2) {
+  for (const ref of ["origin/HEAD", "main", "master"]) {
+    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
+    if (found.code !== 0) continue;
+    const list = await exec("git", ["rev-list", ref], root);
+    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+  }
+  return /* @__PURE__ */ new Set();
+}
+
+// src/coach/attribution.ts
+import { createHash as createHash2 } from "node:crypto";
+function normalizeLine(line) {
+  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
+  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
+  return s.length >= 4 ? s : null;
+}
+function lineHash(normalized) {
+  return createHash2("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+function aiHashesFor(db2, repoRoot, filePath) {
+  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
+  return new Set(rows2.map((r) => r.hash));
+}
+function firstHashAt(db2, repoRoot) {
+  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
+  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
+}
+function sqliteTime(date5) {
+  return date5.toISOString().replace("T", " ").slice(0, 19);
+}
+function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
+  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
+  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
+}
+
+// src/coach/capture.ts
+import { randomUUID as randomUUID3 } from "node:crypto";
+
+// src/rules/engine.ts
+var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
+var IMPORT_LINES = [
+  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
+  /^\s*using\s+[\w.]+\s*;\s*$/,
+  /^\s*package\s+[\w.]+\s*;?\s*$/,
+  /^\s*from\s+[\w.]+\s+import\s.+$/,
+  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
+];
+function isCodeLine(line) {
+  if (line.trim() === "") return false;
+  if (COMMENT.test(line)) return false;
+  return !IMPORT_LINES.some((re) => re.test(line));
+}
+function extensionOf(filePath) {
+  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
+  const dot = name2.lastIndexOf(".");
+  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
+}
+function checkFlags(rule) {
+  for (const re of [rule.pattern, rule.unless]) {
+    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
+  }
+}
+function ruleMatches(rule, filePath, line) {
+  checkFlags(rule);
+  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
+  if (!isCodeLine(line)) return false;
+  if (!rule.pattern.test(line)) return false;
+  return !(rule.unless && rule.unless.test(line));
+}
+function matchLine(rules, filePath, line) {
+  return rules.filter((rule) => ruleMatches(rule, filePath, line));
+}
+
+// src/coach/signals.ts
+var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
+var WEB = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"];
+var ts = (line) => ({ file: "src/pay.ts", line });
+var py = (line) => ({ file: "app/pay.py", line });
+var go = (line) => ({ file: "pay/pay.go", line });
+var java = (line) => ({ file: "src/Pay.java", line });
+var tsx = (line) => ({ file: "web/Orders.tsx", line });
+var SIGNALS = [
+  {
+    id: "err.empty-catch",
+    meaning: "an error is caught and then ignored",
+    pattern: /\bcatch\s*(\([^)]*\))?\s*\{\s*\}|^\s*except\b[^:]*:\s*pass\s*$|\bif\s+err\s*!=\s*nil\s*\{\s*\}/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("} catch (e) {}"), ts("try { save(); } catch {}"), py("except Exception: pass"), go("if err != nil {}"), java("} catch (IOException e) { }")],
+      miss: [ts("} catch (e) { log.error(e); throw e; }"), py("except ValueError: return None"), ts("promise.catch(() => {})")]
+    }
+  },
+  {
+    id: "err.timeout-set",
+    meaning: "a time limit is set on a call to something outside",
+    pattern: /AbortSignal\.timeout\(|\btimeout\s*[:=]\s*\d|context\.WithTimeout\(|\.timeout\(\s*Duration|\b(connect|read|request|socket)Timeout\s*[:=(]\s*\d|\.Timeout\s*=\s*TimeSpan/i,
+    unless: /\btimeout\s*[:=]\s*0\b/i,
+    extensions: CODE,
+    examples: {
+      hit: [
+        ts("const res = await fetch(url, { signal: AbortSignal.timeout(5000) });"),
+        ts("const client = axios.create({ timeout: 3000 });"),
+        py("r = requests.post(url, json=body, timeout=5)"),
+        go("ctx, cancel := context.WithTimeout(ctx, 5*time.Second)")
+      ],
+      miss: [ts("// timeout: 5000"), ts("const res = await fetch(url);"), ts("axios.create({ timeout: 0 })")]
+    }
+  },
+  {
+    id: "err.retry-backoff",
+    meaning: "a failed call is retried with backoff or jitter",
+    pattern: /(retr(y|ies|yable)|attempt)\w*.*(backoff|jitter|exponential)|(backoff|jitter|exponential)\w*.*(retr(y|ies)|attempt)/i,
+    extensions: CODE,
+    examples: {
+      hit: [
+        ts('await retry(charge, { retries: 3, backoff: "exponential" });'),
+        java("@Retryable(maxAttempts = 3, backoff = @Backoff(delay = 200))"),
+        py("@retry(wait=wait_exponential(min=1), stop=stop_after_attempt(3))")
+      ],
+      miss: [ts("retries++;"), ts("const backoffMs = 200;"), ts("for (let attempt = 0; attempt < 3; attempt++) {")]
+    }
+  },
+  {
+    id: "err.error-cause",
+    meaning: "a new error keeps the error that caused it",
+    pattern: /\{\s*cause\s*:|\{\s*cause\s*\}|\braise\s+\w+(\(.*\))?\s+from\s+\w+|fmt\.Errorf\(.*%w|new\s+\w*(Exception|Error)\([^)]*,\s*(e|err|ex|error|cause)\s*\)/,
+    extensions: CODE,
+    examples: {
+      hit: [
+        ts('throw new PaymentError("charge failed", { cause: err });'),
+        py('raise ChargeError("failed") from exc'),
+        go('return fmt.Errorf("charge: %w", err)'),
+        java('throw new RuntimeException("charge failed", e);')
+      ],
+      miss: [ts('throw new Error("charge failed");'), py('raise ChargeError("failed")')]
+    }
+  },
+  {
+    id: "err.rethrow-message-only",
+    meaning: "an error is thrown again with only its message, so its cause and stack are lost",
+    pattern: /throw\s+new\s+Error\(\s*(e|err|error|ex)(\.message)?\s*\)|throw\s+new\s+\w*Exception\(\s*\w+\.getMessage\(\)\s*\)/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("throw new Error(e.message);"), ts("throw new Error(err)"), java("throw new RuntimeException(e.getMessage());")],
+      miss: [ts('throw new Error("bad input");'), ts("throw new Error(err.message, { cause: err });")]
+    }
+  },
+  {
+    id: "err.error-leak",
+    meaning: "raw error details are sent to the client",
+    pattern: /\.(json|send)\(\s*(err|error|e|ex)(\.stack)?\s*\)|\.send\(\s*\w+\.stack\s*\)/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("res.status(500).json(err);"), ts("res.send(err.stack);"), ts("return res.status(500).send(error)")],
+      miss: [ts('res.status(500).json({ error: "Something went wrong" });'), ts("res.json(result);")]
+    }
+  },
+  {
+    id: "fetch.console-only",
+    meaning: "a failed request is only logged or ignored, so the user sees nothing",
+    pattern: /\.catch\(\s*(console\.\w+\s*\)|\(\s*\w*\s*\)\s*=>\s*(\{\s*\}|console\.\w+\(\s*\w*\s*\)\s*\)))/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("fetch(url).then((r) => r.json()).catch(console.error);"), tsx("load().catch(() => {});"), tsx("load().catch((e) => console.log(e));")],
+      miss: [tsx("load().catch((e) => setError(e));"), tsx("load().catch(handleError);")]
+    }
+  },
+  {
+    id: "fetch.res-ok-check",
+    meaning: "the response status is checked before the data is used",
+    pattern: /!\s*(res|response|resp|r)\.ok\b|\b(res|response|resp|r)\.ok\s*(\)|&&|\?)|\.status\s*>=\s*400|\.status\s*<\s*200/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("if (!res.ok) throw new Error(`HTTP ${res.status}`);"), tsx("if (response.status >= 400) {"), tsx("return r.ok ? r.json() : null;")],
+      miss: [tsx("const data = await res.json();"), tsx("setState({ ok: true });")]
+    }
+  },
+  {
+    id: "fetch.abort-controller",
+    meaning: "a request can be cancelled when it is no longer needed",
+    pattern: /new\s+AbortController\(\)|\bsignal\s*:\s*\w+(\.signal)?/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("const controller = new AbortController();"), tsx("fetch(url, { signal: controller.signal })")],
+      miss: [tsx("const signals = [];"), tsx('emitter.on("signal", onSignal);')]
+    }
+  },
+  {
+    id: "fetch.loading-state",
+    meaning: "the screen shows that data is still loading",
+    pattern: /\b(isLoading|isPending|isFetching)\b|\bsetLoading\(|\bstatus\s*===?\s*['"](loading|pending)['"]/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("const { data, isLoading } = useQuery({ queryKey: ['orders'], queryFn });"), tsx("setLoading(true);"), tsx('if (status === "loading") return <Spinner />;')],
+      miss: [tsx("const loaded = true;"), tsx("loadUser();")]
+    }
+  },
+  {
+    id: "fetch.error-boundary",
+    meaning: "a broken part of the screen is caught and replaced with a fallback",
+    pattern: /\bErrorBoundary\b|\bcomponentDidCatch\b|\bgetDerivedStateFromError\b/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("<ErrorBoundary fallback={<Oops />}>"), tsx("componentDidCatch(error, info) {")],
+      miss: [tsx("<Boundary>"), tsx('import { ErrorBoundary } from "react-error-boundary";')]
+    }
+  }
+];
+var BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
+function signalById(id2) {
+  return BY_ID.get(id2);
+}
+
+// src/coach/capture.ts
+function isGeneratedPath(path) {
+  const p = path.replaceAll("\\", "/").toLowerCase();
+  const name2 = p.split("/").pop() ?? "";
+  if (["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "npm-shrinkwrap.json"].includes(name2) || name2.endsWith(".lock")) return true;
+  if (/(^|\/)(dist|build|vendor|node_modules|__generated__)\//.test(p)) return true;
+  return /\.min\.[a-z0-9]+$/.test(name2) || /\.generated\.[a-z0-9]+$/.test(name2);
+}
+var MAX_ADDED_LINES = 3e3;
+function isoWeek(isoDate) {
+  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
+  const date5 = new Date(Date.UTC(y, m - 1, d));
+  const day = (date5.getUTCDay() + 6) % 7;
+  date5.setUTCDate(date5.getUTCDate() - day + 3);
+  const year = date5.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(year, 0, 4));
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - (firstThursday.getUTCDay() + 6) % 7 + 3);
+  const week = 1 + Math.round((date5.getTime() - firstThursday.getTime()) / (7 * 864e5));
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+function ticketForCommit(c, ctx) {
+  const key = /\b[A-Z][A-Z0-9]+-\d+\b/.exec(c.subject);
+  if (key) return key[0];
+  if (!ctx.onDefault && ctx.branch) return ctx.branch;
+  return `week:${isoWeek(c.authorDate)}`;
+}
+async function showFile(root, rev, path, exec) {
+  const result = await exec("git", ["show", `${rev}:${path}`], root);
+  return result.code === 0 ? result.stdout : null;
+}
+function targetsBySignal(ladders) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const l of ladders) {
+    for (const area of l.ladder.areas) {
+      for (const level of LEVELS) {
+        for (const item of area.levels[level]) {
+          for (const ref of item.signals) {
+            const list = map2.get(ref.id) ?? [];
+            list.push({ ladder_id: l.ladder_id, item_id: item.id, ref });
+            map2.set(ref.id, list);
+          }
+        }
+      }
+    }
+  }
+  return map2;
+}
+async function symbolsFor(path, source, lines) {
+  const out2 = /* @__PURE__ */ new Map();
+  for (const line of lines) {
+    out2.set(line, source !== null && isSupported(path) ? (await symbolAtLine(path, source, line))?.name ?? null : null);
+  }
+  return out2;
+}
+async function readCommit(db2, top, sha, diff, targets, exec) {
+  const rows2 = /* @__PURE__ */ new Map();
+  const fixes = /* @__PURE__ */ new Map();
+  for (const file2 of diff) {
+    if (file2.binary || isGeneratedPath(file2.path) || file2.added.length > MAX_ADDED_LINES) continue;
+    const hits = [];
+    for (const added of file2.added) {
+      for (const rule of matchLine(SIGNALS, file2.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+    }
+    if (hits.length > 0) {
+      const ai = aiHashesFor(db2, top, file2.path);
+      const source = await showFile(top, sha, file2.path, exec);
+      const symbols = await symbolsFor(file2.path, source, [...new Set(hits.map((h) => h.line))]);
+      for (const hit of hits) {
+        const normalized = normalizeLine(hit.text);
+        const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
+        const symbol2 = symbols.get(hit.line) ?? null;
+        for (const t of targets.get(hit.signal) ?? []) {
+          const key = [t.ladder_id, t.item_id, hit.signal, file2.path, symbol2 ?? "", author].join("\0");
+          if (!rows2.has(key)) {
+            rows2.set(key, {
+              ladder_id: t.ladder_id,
+              item_id: t.item_id,
+              polarity: t.ref.polarity,
+              author,
+              regresses: t.ref.regresses === true,
+              file_path: file2.path,
+              symbol: symbol2,
+              signal_id: hit.signal
+            });
+          }
+        }
+      }
+    }
+    const removedHits = [];
+    for (const removed of file2.removed) {
+      for (const rule of matchLine(SIGNALS, file2.path, removed.text)) {
+        if ((targets.get(rule.id) ?? []).some((t) => t.ref.polarity === "negative")) removedHits.push({ line: removed.line, signal: rule.id });
+      }
+    }
+    if (removedHits.length > 0) {
+      const oldPath = file2.oldPath ?? file2.path;
+      const source = await showFile(top, `${sha}^`, oldPath, exec);
+      const symbols = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
+      for (const hit of removedHits) {
+        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols.get(hit.line) ?? null };
+        fixes.set([fix.signal_id, fix.file_path, fix.symbol ?? ""].join("\0"), fix);
+      }
+    }
+  }
+  return { rows: [...rows2.values()], fixes: [...fixes.values()] };
+}
+async function catchUp(db2, opts) {
+  const exec = opts.exec ?? run2;
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const t = opts.ladders[0]?.thresholds ?? DEFAULT_THRESHOLDS;
+  const nothing = (note) => ({
+    started: note === void 0,
+    ...note === void 0 ? {} : { note },
+    commits_read: 0,
+    evidence_added: 0,
+    faults_fixed: 0,
+    more_left: false
+  });
+  pruneAiLines(db2, t.hash_keep_days, now);
+  const top = await repoTopLevel(opts.root, exec);
+  if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
+  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
+  const since = firstHashAt(db2, top);
+  if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
+  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top).map((r) => r.sha));
+  const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
+  const batch = unseen.slice(0, t.catchup_max);
+  if (batch.length === 0) return nothing();
+  const onDefault = await defaultBranchCommits(top, exec);
+  const branch = await currentBranch(top, exec);
+  const targets = targetsBySignal(opts.ladders);
+  const sameChange = db2.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
+  const markSeen = db2.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
+  const insert = db2.prepare(`
+    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at)
+    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const fix = db2.prepare(`
+    UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ?
+    WHERE repo_root = ? AND polarity = 'negative' AND fixed_at IS NULL AND signal_id = ? AND file_path = ? AND symbol IS ? AND at < ?`);
+  let evidenceAdded = 0;
+  let faultsFixed = 0;
+  for (const c of batch) {
+    const diff = await commitDiff(top, c.sha, exec);
+    const id2 = changeId(diff);
+    if (sameChange.get(top, id2)) {
+      markSeen.run(top, c.sha, id2);
+      continue;
+    }
+    const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
+    const { rows: rows2, fixes } = await readCommit(db2, top, c.sha, diff, targets, exec);
+    transaction(db2, () => {
+      for (const r of rows2) {
+        insert.run(randomUUID3(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        evidenceAdded++;
+      }
+      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
+      markSeen.run(top, c.sha, id2);
+    });
+  }
+  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
+}
+
+// src/coach/facts.ts
+function toIso(value) {
+  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+}
+function factsForItem(db2, ladderId2, itemId2) {
+  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map(
+    (r) => ({
+      id: r.id,
+      kind: r.kind,
+      polarity: r.polarity,
+      author: r.author,
+      decided_by: r.decided_by,
+      history: r.history === 1,
+      regresses: r.regresses === 1,
+      signal_id: r.signal_id,
+      file: r.file_path,
+      symbol: r.symbol,
+      ticket: r.ticket,
+      at: toIso(r.at),
+      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
+      fixed_ticket: r.fixed_ticket,
+      disagreed: r.disagreed_at !== null
+    })
+  );
+  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId2, itemId2).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
+  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
+  return { evidence, answers, drills };
+}
+
+// src/coach/ladder/load.ts
+import { createHash as createHash3 } from "node:crypto";
+import { existsSync as existsSync3, readFileSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join7 } from "node:path";
+
+// src/coach/ladder/builtin/backend.json
+var backend_default = {
+  track: "backend",
+  areas: [
+    {
+      id: "ERR",
+      name: "Errors and failure",
+      levels: {
+        junior: [
+          {
+            id: "BE.ERR.J1",
+            title: "Never hides an error",
+            good_looks_like: [
+              "Every caught error is handled, logged with context, or thrown again. Nothing is caught and silently dropped."
+            ],
+            signals: [{ id: "err.empty-catch", polarity: "negative", regresses: true }],
+            explain_angles: [
+              "What happens to the user when this error is caught here?",
+              "Who finds out that this failed, and how?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A teammate wraps a database save in try/catch with an empty catch block 'so the request never crashes'. What goes wrong, and what would you do instead?",
+                key_points: [
+                  { id: "k1", text: "The failure becomes invisible: data is lost and nobody knows" },
+                  { id: "k2", text: "The caller wrongly believes the save worked" },
+                  { id: "k3", text: "Either handle it on purpose, or log with context and let it fail to the caller" }
+                ],
+                red_flags: [{ id: "r1", text: "Says an empty catch is fine as long as nothing crashes" }]
+              },
+              {
+                id: "d2",
+                prompt: "When is it right to catch an error and NOT throw it again? Give an example and say what you must still do.",
+                key_points: [
+                  { id: "k1", text: "When there is a real fallback or the failure does not matter to the result" },
+                  { id: "k2", text: "A concrete example such as an optional cache or a best-effort metric" },
+                  { id: "k3", text: "Still log or count it so the failure is visible" }
+                ],
+                red_flags: [{ id: "r1", text: "Says it is fine to catch any error and move on" }]
+              }
+            ],
+            study: ["error handling basics in your language", "what 'fail loudly' means", "logging an error with context"],
+            stack_notes: {
+              express: { note: "Pass errors to next(err) and keep one error-handling middleware; never end a request from an empty catch.", link: "https://expressjs.com/en/guide/error-handling.html" },
+              nestjs: { note: "Throw an HttpException or a custom one and let an exception filter shape the reply; do not swallow it in the service.", link: "https://docs.nestjs.com/exception-filters" },
+              spring: { note: "Let exceptions reach a @ControllerAdvice handler; do not catch and ignore them in the service.", link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html" }
+            }
+          },
+          {
+            id: "BE.ERR.J2",
+            title: "Checks the result of calls that can fail",
+            good_looks_like: [
+              "Checks for missing rows, null results and failed status codes before using the result."
+            ],
+            signals: [],
+            explain_angles: ["What happens here if the call returns nothing?", "Why check it here and not later?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your endpoint loads an order by id and then reads order.customer.email. What can go wrong, and how do you handle each case?",
+                key_points: [
+                  { id: "k1", text: "The order may not exist: return a clear 404" },
+                  { id: "k2", text: "The customer or email may be missing: decide what the caller gets" },
+                  { id: "k3", text: "Check before use instead of letting a null error become a 500" }
+                ],
+                red_flags: [{ id: "r1", text: "Lets a null reference error reach the user as a 500" }]
+              },
+              {
+                id: "d2",
+                prompt: "An outside API returns HTTP 200 with a body like { ok: false, error: 'quota' }. How should your code treat it?",
+                key_points: [
+                  { id: "k1", text: "A 200 status does not mean success; read the body's own status" },
+                  { id: "k2", text: "Turn it into a real error in your code" },
+                  { id: "k3", text: "Decide whether it is worth retrying or should be shown to the caller" }
+                ],
+                red_flags: [{ id: "r1", text: "Treats any 200 as success" }]
+              }
+            ],
+            study: ["null and undefined checks", "HTTP status codes 4xx vs 5xx", "guard clauses"],
+            stack_notes: {
+              express: { note: "Return 404 for a missing resource with a short JSON body; check results before using them.", link: "https://expressjs.com/en/guide/error-handling.html" },
+              nestjs: { note: "Throw NotFoundException when a lookup finds nothing.", link: "https://docs.nestjs.com/exception-filters" },
+              spring: { note: "Use Optional from repositories and orElseThrow a not-found exception.", link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html" }
+            }
+          }
+        ],
+        mid: [
+          {
+            id: "BE.ERR.M1",
+            title: "Validates input at the edge",
+            good_looks_like: [
+              "Checks request input once, where it enters the system, and rejects bad input with a clear 400 that says what is wrong."
+            ],
+            signals: [],
+            explain_angles: ["Why validate here and not deeper in the code?", "What does the caller see for bad input?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A create-user endpoint takes name, email and age. Where and how do you validate them, and what does a client get back for bad input?",
+                key_points: [
+                  { id: "k1", text: "Validate at the entry point with a schema" },
+                  { id: "k2", text: "Return 400 with which fields are wrong and why" },
+                  { id: "k3", text: "Inner code can then trust its input instead of checking again everywhere" }
+                ],
+                red_flags: [{ id: "r1", text: "Relies on the frontend to validate" }]
+              },
+              {
+                id: "d2",
+                prompt: "Why is checking input only in the browser not enough? Give one attack or bug it lets through.",
+                key_points: [
+                  { id: "k1", text: "Anyone can call the API directly and skip the browser" },
+                  { id: "k2", text: "A concrete example: a negative quantity, a huge string, a wrong type" },
+                  { id: "k3", text: "The server is the only place the rule is enforced" }
+                ],
+                red_flags: [{ id: "r1", text: "Says browser checks are enough" }]
+              }
+            ],
+            study: ["schema validation (zod, class-validator, Bean Validation)", "trust boundaries", "400 vs 422 responses"],
+            stack_notes: {
+              express: { note: "Validate req.body with a schema library in a middleware and reply 400 with field errors.", link: "https://express-validator.github.io/docs/" },
+              nestjs: { note: "Use DTOs with class-validator and the global ValidationPipe.", link: "https://docs.nestjs.com/techniques/validation" },
+              spring: { note: "Use @Valid on request bodies with Bean Validation annotations.", link: "https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html" }
+            }
+          },
+          {
+            id: "BE.ERR.M2",
+            title: "Handles the failure of an outside call on purpose",
+            good_looks_like: [
+              "Sets a time limit on every call to another service.",
+              "Retries only when it is safe, with backoff, and gives the caller a clear error when it still fails."
+            ],
+            signals: [
+              { id: "err.timeout-set", polarity: "positive" },
+              { id: "err.retry-backoff", polarity: "positive" },
+              { id: "err.empty-catch", polarity: "negative" }
+            ],
+            explain_angles: [
+              "Why this time limit, and what happens when it runs out?",
+              "Is it safe to retry this call? Why?",
+              "What does the caller see when the outside service is down?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your service calls a payment provider that sometimes takes 30 seconds to answer. How do you design the call? What can go wrong with retries?",
+                key_points: [
+                  { id: "k1", text: "Set a time limit shorter than your own caller's" },
+                  { id: "k2", text: "Retry only with an idempotency key, or not at all, so a charge is never made twice" },
+                  { id: "k3", text: "Backoff with jitter and a small retry cap" },
+                  { id: "k4", text: "A clear error or 'pending' state for the caller when it still fails" }
+                ],
+                red_flags: [
+                  { id: "r1", text: "Retries a payment with no idempotency key" },
+                  { id: "r2", text: "No time limit at all" }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "A downstream service is down for 10 minutes. Your service retries every failed call 5 times right away. What happens, and what would you change?",
+                key_points: [
+                  { id: "k1", text: "Retries multiply the load and slow down your own service" },
+                  { id: "k2", text: "Use backoff with jitter and a retry cap" },
+                  { id: "k3", text: "Fail fast or use a circuit breaker while it is down" }
+                ],
+                red_flags: [{ id: "r1", text: "Says more retries fix it" }]
+              }
+            ],
+            study: ["time limits on outside calls", "retry with backoff and jitter", "idempotency keys", "circuit breakers"],
+            stack_notes: {
+              express: { note: "Pass AbortSignal.timeout(ms) to fetch; retry only idempotent calls, with backoff.", link: "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static" },
+              nestjs: { note: "Set a timeout on HttpModule and use rxjs timeout and retry with a delay function.", link: "https://docs.nestjs.com/techniques/http-module" },
+              spring: { note: "Set connect and read timeouts on the client; use Resilience4j for retry and circuit breaker.", link: "https://resilience4j.readme.io/docs/getting-started" }
+            }
+          },
+          {
+            id: "BE.ERR.M3",
+            title: "Errors carry useful context without leaking data",
+            good_looks_like: [
+              "A new error keeps its cause and says what was being done.",
+              "The client gets a safe message; stack traces and internal details stay in the logs."
+            ],
+            signals: [
+              { id: "err.error-cause", polarity: "positive" },
+              { id: "err.rethrow-message-only", polarity: "negative" },
+              { id: "err.error-leak", polarity: "negative", regresses: true }
+            ],
+            explain_angles: ["What will the person debugging this see in the logs?", "What does the client see, and why not more?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A user reports 'it failed' and your log says only 'Error: undefined'. How should errors be written so this never happens again, and what should the user see?",
+                key_points: [
+                  { id: "k1", text: "Wrap errors with what was being done and keep the original cause" },
+                  { id: "k2", text: "Log with an id that links the request and the error" },
+                  { id: "k3", text: "The user gets a safe message plus the id, never the stack trace" }
+                ],
+                red_flags: [{ id: "r1", text: "Sends the stack trace to the client" }]
+              },
+              {
+                id: "d2",
+                prompt: "Why is res.status(500).json(err) a problem? What would you send instead?",
+                key_points: [
+                  { id: "k1", text: "It can leak internals: stack, SQL, file paths, secrets" },
+                  { id: "k2", text: "Send a stable error shape with a safe message and a code" },
+                  { id: "k3", text: "Keep full details in the server logs" }
+                ],
+                red_flags: [{ id: "r1", text: "Says the raw error helps the client debug" }]
+              }
+            ],
+            study: ["error cause chains", "correlation ids", "safe error responses (RFC 9457 problem details)"],
+            stack_notes: {
+              express: { note: "Throw new Error(msg, { cause }) and map errors to safe JSON in one error middleware.", link: "https://expressjs.com/en/guide/error-handling.html" },
+              nestjs: { note: "Use an exception filter to return a safe shape and log the full error.", link: "https://docs.nestjs.com/exception-filters" },
+              spring: { note: "Return ProblemDetail from @ExceptionHandler and keep the cause in the log.", link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html" }
+            }
+          }
+        ],
+        senior: [
+          {
+            id: "BE.ERR.S1",
+            title: "Designs for partial failure",
+            good_looks_like: [
+              "When one step of a multi-step change fails, the system ends in a known state: retried safely, compensated, or clearly marked for follow-up."
+            ],
+            signals: [],
+            explain_angles: ["What state is the data in if the second step fails?", "How does this recover without a person?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "An order flow charges the card, then reserves stock, then sends an email. Stock reservation fails after the charge. How do you design this?",
+                key_points: [
+                  { id: "k1", text: "Name the bad state: money taken, no stock" },
+                  { id: "k2", text: "Compensate (refund) or retry the step, with idempotent steps" },
+                  { id: "k3", text: "Record progress so a crash mid-flow can resume (outbox, saga, or state machine)" },
+                  { id: "k4", text: "Side effects like email only after the important steps succeed" }
+                ],
+                red_flags: [{ id: "r1", text: "Assumes all steps succeed or fail together without a transaction that covers them" }]
+              },
+              {
+                id: "d2",
+                prompt: "You must save a row and publish an event about it. What can go wrong, and how do you make sure both happen?",
+                key_points: [
+                  { id: "k1", text: "The save can succeed and the publish fail, or the other way round" },
+                  { id: "k2", text: "Use a transactional outbox or similar" },
+                  { id: "k3", text: "Consumers must handle duplicates" }
+                ],
+                red_flags: [{ id: "r1", text: "Publishes before the save commits and calls it done" }]
+              }
+            ],
+            study: ["saga pattern", "transactional outbox", "idempotent consumers", "compensating actions"],
+            stack_notes: {
+              express: { note: "Keep each step idempotent and record progress in the database before side effects.", link: "https://microservices.io/patterns/data/transactional-outbox.html" },
+              nestjs: { note: "Use a queue (for example BullMQ) for steps after the main transaction, with retries.", link: "https://docs.nestjs.com/techniques/queues" },
+              spring: { note: "Use @TransactionalEventListener or an outbox table to publish after commit.", link: "https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html" }
+            }
+          },
+          {
+            id: "BE.ERR.S2",
+            title: "Makes failures observable",
+            good_looks_like: [
+              "Failures show up as structured logs, metrics and alerts that tell someone what broke, before users report it."
+            ],
+            signals: [],
+            explain_angles: ["How would you know this is failing in production?", "Who gets alerted, and on what?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your checkout fails for 2% of users and nobody noticed for a week. What would you add so this is caught in minutes?",
+                key_points: [
+                  { id: "k1", text: "An error-rate metric on the checkout path" },
+                  { id: "k2", text: "An alert on that rate with a sensible threshold" },
+                  { id: "k3", text: "Structured logs with a request id to find the cause" }
+                ],
+                red_flags: [{ id: "r1", text: "Relies on users or support tickets to notice" }]
+              },
+              {
+                id: "d2",
+                prompt: "What makes a log line useful during an incident? Compare a good and a bad one.",
+                key_points: [
+                  { id: "k1", text: "Structured fields, not free text" },
+                  { id: "k2", text: "Request or trace id, and what was being done" },
+                  { id: "k3", text: "No secrets or personal data" }
+                ],
+                red_flags: [{ id: "r1", text: "Logs full request bodies with personal data" }]
+              }
+            ],
+            study: ["structured logging", "RED metrics (rate, errors, duration)", "alerting on symptoms", "distributed tracing"],
+            stack_notes: {
+              express: { note: "Use a structured logger (for example pino) with a request id per request.", link: "https://expressjs.com/en/advanced/best-practice-performance.html" },
+              nestjs: { note: "Replace the default logger with a structured one and add an interceptor for request ids.", link: "https://docs.nestjs.com/techniques/logger" },
+              spring: { note: "Use Actuator and Micrometer for metrics, and MDC for request ids in logs.", link: "https://docs.spring.io/spring-boot/reference/actuator/index.html" }
+            }
+          }
+        ],
+        staff: [
+          {
+            id: "BE.ERR.X1",
+            title: "Sets the error-handling standard for a system",
+            good_looks_like: [
+              "Defines one error contract, retry and timeout rules, and error budgets that every team follows, and makes the easy path the right one."
+            ],
+            signals: [],
+            explain_angles: ["Why should every service follow this rule?", "How do you make the right way the easy way?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Ten services each handle errors their own way, and incidents are hard to trace. What standard would you set, and how would you roll it out?",
+                key_points: [
+                  { id: "k1", text: "One error shape and code list across services" },
+                  { id: "k2", text: "Shared defaults for time limits, retries and tracing, in a library or template" },
+                  { id: "k3", text: "Roll out step by step with checks in CI or review" },
+                  { id: "k4", text: "Measure success with error budgets or incident data" }
+                ],
+                red_flags: [{ id: "r1", text: "Only writes a document and expects people to follow it" }]
+              },
+              {
+                id: "d2",
+                prompt: "How would you choose time limits and retry budgets across a chain of four services calling each other?",
+                key_points: [
+                  { id: "k1", text: "Time limits shrink down the chain so the caller's budget is respected" },
+                  { id: "k2", text: "Retry at one layer only to avoid retry storms" },
+                  { id: "k3", text: "Pass the deadline along with the request" }
+                ],
+                red_flags: [{ id: "r1", text: "Every layer retries 3 times" }]
+              }
+            ],
+            study: ["error budgets and SLOs", "deadline propagation", "API error contracts", "paved-road libraries"],
+            stack_notes: {
+              express: { note: "Ship a shared middleware package for errors, timeouts and request ids.", link: "https://expressjs.com/en/guide/writing-middleware.html" },
+              nestjs: { note: "Ship a shared module with a global filter, interceptor and HTTP client defaults.", link: "https://docs.nestjs.com/modules" },
+              spring: { note: "Ship a starter with ProblemDetail handling, Resilience4j defaults and tracing.", link: "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" }
+            }
+          }
+        ]
+      }
+    },
+    { id: "DATA", name: "Data and storage", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "API", name: "API design", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "SEC", name: "Security", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "PERF", name: "Performance", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "TEST", name: "Testing", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "STRUCT", name: "Code structure", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "REQ", name: "Requirements and scope", levels: { junior: [], mid: [], senior: [], staff: [] } }
+  ]
+};
+
+// src/coach/ladder/builtin/frontend.json
+var frontend_default = {
+  track: "frontend",
+  areas: [
+    {
+      id: "FETCH",
+      name: "Data fetching and errors",
+      levels: {
+        junior: [
+          {
+            id: "FE.FETCH.J1",
+            title: "Shows loading and error states",
+            good_looks_like: [
+              "Every screen that loads data shows a loading state, an error state with a way to retry, and an empty state."
+            ],
+            signals: [{ id: "fetch.loading-state", polarity: "positive" }],
+            explain_angles: ["What does the user see while this loads?", "What does the user see if it fails?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A list page fetches orders. Describe every state the page can be in and what the user sees in each.",
+                key_points: [
+                  { id: "k1", text: "Loading: a spinner or skeleton" },
+                  { id: "k2", text: "Error: a message and a retry action" },
+                  { id: "k3", text: "Empty: a clear 'no orders yet' state" },
+                  { id: "k4", text: "Success: the list" }
+                ],
+                red_flags: [{ id: "r1", text: "Only handles the success case" }]
+              },
+              {
+                id: "d2",
+                prompt: "Users say a page 'goes blank' on slow networks. What is probably missing, and how do you fix it?",
+                key_points: [
+                  { id: "k1", text: "No loading state while data is on its way" },
+                  { id: "k2", text: "Possibly no error state when the request fails" },
+                  { id: "k3", text: "Add explicit states and test with a slow network in dev tools" }
+                ],
+                red_flags: [{ id: "r1", text: "Blames the network and changes nothing" }]
+              }
+            ],
+            study: ["loading, error and empty states", "skeleton screens", "testing with network throttling"],
+            stack_notes: {
+              react: { note: "Model loading, error and data as explicit state, or use a data library that gives isLoading and error.", link: "https://react.dev/reference/react/Suspense" },
+              nextjs: { note: "Add loading.js and error.js next to the route for loading and error states.", link: "https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming" },
+              angular: { note: "Track loading and error in the component or a signal, and show them in the template.", link: "https://angular.dev/guide/http/making-requests" }
+            }
+          },
+          {
+            id: "FE.FETCH.J2",
+            title: "Never swallows a failed request",
+            good_looks_like: [
+              "A failed request is shown to the user or handled on purpose; it is never only logged to the console."
+            ],
+            signals: [
+              { id: "fetch.console-only", polarity: "negative", regresses: true },
+              { id: "err.empty-catch", polarity: "negative" }
+            ],
+            explain_angles: ["What does the user see when this request fails?", "Why is a console message not enough here?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A save button calls the API with .catch(console.error). What does the user experience when the save fails, and what would you do?",
+                key_points: [
+                  { id: "k1", text: "The user thinks it saved; their change is silently lost" },
+                  { id: "k2", text: "Show an error and keep their input so they can retry" },
+                  { id: "k3", text: "Report the error to monitoring, not only the console" }
+                ],
+                red_flags: [{ id: "r1", text: "Says console.error is enough" }]
+              },
+              {
+                id: "d2",
+                prompt: "When is it fine to ignore a failed request in the UI? Give an example.",
+                key_points: [
+                  { id: "k1", text: "When the data is optional and the page works without it" },
+                  { id: "k2", text: "A concrete example such as a non-critical recommendation widget" },
+                  { id: "k3", text: "Still report it so the team knows it fails" }
+                ],
+                red_flags: [{ id: "r1", text: "Any request can be ignored" }]
+              }
+            ],
+            study: ["promise error handling", "user feedback on failure", "frontend error monitoring"],
+            stack_notes: {
+              react: { note: "Put the error in state and render it; do not end a promise chain with console.error.", link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects" },
+              nextjs: { note: "Let errors reach an error.js boundary or show them in the form state.", link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
+              angular: { note: "Handle errors in the subscribe error callback or catchError and show them to the user.", link: "https://angular.dev/guide/http/making-requests" }
+            }
+          }
+        ],
+        mid: [
+          {
+            id: "FE.FETCH.M1",
+            title: "Checks the response before using it",
+            good_looks_like: [
+              "Checks the HTTP status before reading the body, and turns a failed status into a real error."
+            ],
+            signals: [{ id: "fetch.res-ok-check", polarity: "positive" }],
+            explain_angles: ["What happens here if the server answers 500?", "Why check the status before reading the body?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "fetch() resolved, so the code calls res.json() and renders it. The server answered 500 with an HTML page. What happens, and how should the code be written?",
+                key_points: [
+                  { id: "k1", text: "fetch only rejects on network errors, not on 4xx or 5xx" },
+                  { id: "k2", text: "res.json() fails on HTML or the app renders an error body as data" },
+                  { id: "k3", text: "Check res.ok or the status first and throw a real error" }
+                ],
+                red_flags: [{ id: "r1", text: "Believes fetch rejects on HTTP errors" }]
+              },
+              {
+                id: "d2",
+                prompt: "Where would you put response checking so every screen gets it, and what would it return?",
+                key_points: [
+                  { id: "k1", text: "In one shared API client or wrapper" },
+                  { id: "k2", text: "It throws a typed error with status and message" },
+                  { id: "k3", text: "Screens then handle one error shape" }
+                ],
+                red_flags: [{ id: "r1", text: "Copies the check into every component" }]
+              }
+            ],
+            study: ["fetch vs axios error behaviour", "a typed API client", "HTTP status classes"],
+            stack_notes: {
+              react: { note: "Wrap fetch in one client function that checks res.ok and throws a typed error.", link: "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok" },
+              nextjs: { note: "Check res.ok in server fetches too, and call notFound() or throw for error.js.", link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
+              angular: { note: "HttpClient errors on non-2xx; use an interceptor to map them to one error type.", link: "https://angular.dev/guide/http/interceptors" }
+            }
+          },
+          {
+            id: "FE.FETCH.M2",
+            title: "Cancels stale requests",
+            good_looks_like: [
+              "When the user moves on or types again, old requests are cancelled or ignored so a slow old answer never overwrites a new one."
+            ],
+            signals: [{ id: "fetch.abort-controller", polarity: "positive" }],
+            explain_angles: ["What happens if the user types fast here?", "What happens if they leave the page before it loads?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A search box fetches results on each key press. Sometimes old results appear after new ones. Why, and how do you fix it?",
+                key_points: [
+                  { id: "k1", text: "Responses can arrive out of order: a race" },
+                  { id: "k2", text: "Cancel the previous request (AbortController, switchMap) or ignore stale answers" },
+                  { id: "k3", text: "Debounce the input to send fewer requests" }
+                ],
+                red_flags: [{ id: "r1", text: "Says requests always come back in order" }]
+              },
+              {
+                id: "d2",
+                prompt: "A component starts a fetch and the user navigates away before it finishes. What can go wrong, and what do you do?",
+                key_points: [
+                  { id: "k1", text: "State updates on a gone component, or wasted work" },
+                  { id: "k2", text: "Abort in the effect cleanup or unsubscribe on destroy" },
+                  { id: "k3", text: "Ignore AbortError so it is not shown as a failure" }
+                ],
+                red_flags: [{ id: "r1", text: "Shows the abort as an error to the user" }]
+              }
+            ],
+            study: ["race conditions in UI fetching", "AbortController", "debouncing", "effect cleanup"],
+            stack_notes: {
+              react: { note: "Create an AbortController in the effect and abort it in the cleanup function.", link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects" },
+              nextjs: { note: "On the client, the same effect cleanup applies; prefer a data library that cancels for you.", link: "https://nextjs.org/docs/app/building-your-application/data-fetching" },
+              angular: { note: "Use switchMap so a new search cancels the old request.", link: "https://rxjs.dev/api/operators/switchMap" }
+            }
+          },
+          {
+            id: "FE.FETCH.M3",
+            title: "Caches and dedupes server data on purpose",
+            good_looks_like: [
+              "Chooses how long data can be stale, avoids fetching the same data twice, and refreshes it after a change."
+            ],
+            signals: [],
+            explain_angles: ["How fresh must this data be?", "When is this cache refreshed?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Three components on one page each fetch the current user. What problems does that cause, and how do you fix it?",
+                key_points: [
+                  { id: "k1", text: "Three requests for the same data: waste and possible mismatch" },
+                  { id: "k2", text: "Share one cached query or lift the fetch up" },
+                  { id: "k3", text: "Decide when the cached user is refreshed" }
+                ],
+                red_flags: [{ id: "r1", text: "Caches forever with no way to refresh" }]
+              },
+              {
+                id: "d2",
+                prompt: "After a user edits their profile, the header still shows the old name. Why, and what is the right fix?",
+                key_points: [
+                  { id: "k1", text: "A cache holds the old data" },
+                  { id: "k2", text: "Invalidate or update the cached data after the change" },
+                  { id: "k3", text: "Optionally update it right away and roll back on failure" }
+                ],
+                red_flags: [{ id: "r1", text: "Forces a full page reload" }]
+              }
+            ],
+            study: ["stale-while-revalidate", "query keys and invalidation", "request deduping"],
+            stack_notes: {
+              react: { note: "Use a server-state library (for example TanStack Query) with query keys and invalidation.", link: "https://tanstack.com/query/latest/docs/framework/react/overview" },
+              nextjs: { note: "Know the fetch cache and revalidate after a change with revalidatePath or revalidateTag.", link: "https://nextjs.org/docs/app/building-your-application/caching" },
+              angular: { note: "Share one observable with shareReplay or a store, and refresh it after writes.", link: "https://rxjs.dev/api/operators/shareReplay" }
+            }
+          }
+        ],
+        senior: [
+          {
+            id: "FE.FETCH.S1",
+            title: "Designs for slow and flaky networks",
+            good_looks_like: [
+              "The app stays usable on slow or dropping connections: safe retries, optimistic updates with rollback, and clear offline states."
+            ],
+            signals: [],
+            explain_angles: ["What does this screen do on a train with a weak signal?", "What happens to the user's change if the request fails?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Users on mobile complain that 'liking' a post feels slow and sometimes gets lost. How would you redesign it?",
+                key_points: [
+                  { id: "k1", text: "Optimistic update: show the like at once" },
+                  { id: "k2", text: "Roll back and tell the user if the request finally fails" },
+                  { id: "k3", text: "Retry safely; the server action must be idempotent" }
+                ],
+                red_flags: [{ id: "r1", text: "Shows success with no rollback when it fails" }]
+              },
+              {
+                id: "d2",
+                prompt: "Which requests should the frontend retry automatically, and which never? Why?",
+                key_points: [
+                  { id: "k1", text: "Retry safe reads and idempotent writes" },
+                  { id: "k2", text: "Never auto-retry non-idempotent writes like a payment without a key" },
+                  { id: "k3", text: "Use backoff and a cap" }
+                ],
+                red_flags: [{ id: "r1", text: "Retries every failed request" }]
+              }
+            ],
+            study: ["optimistic UI with rollback", "idempotent writes", "offline-first basics", "retry policies"],
+            stack_notes: {
+              react: { note: "Use optimistic updates with rollback (useOptimistic or your data library's onMutate).", link: "https://react.dev/reference/react/useOptimistic" },
+              nextjs: { note: "Combine server actions with useOptimistic and show pending state.", link: "https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations" },
+              angular: { note: "Use rxjs retry with a delay for safe calls, and update state optimistically with rollback.", link: "https://rxjs.dev/api/operators/retry" }
+            }
+          },
+          {
+            id: "FE.FETCH.S2",
+            title: "Recovers from errors with boundaries",
+            good_looks_like: [
+              "A crash in one part of the screen is caught and replaced with a fallback, so the rest of the app keeps working, and the error is reported."
+            ],
+            signals: [{ id: "fetch.error-boundary", polarity: "positive" }],
+            explain_angles: ["Why put the boundary here and not higher?", "What does the user see when this part breaks?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A bug in a sidebar widget makes the whole dashboard go white. How do you stop one widget from taking down the page?",
+                key_points: [
+                  { id: "k1", text: "Wrap the widget in its own error boundary" },
+                  { id: "k2", text: "Show a small fallback with a retry" },
+                  { id: "k3", text: "Report the error to monitoring" }
+                ],
+                red_flags: [{ id: "r1", text: "One boundary around the whole app only" }]
+              },
+              {
+                id: "d2",
+                prompt: "Which errors does an error boundary NOT catch, and how do you handle those?",
+                key_points: [
+                  { id: "k1", text: "Errors in event handlers and async code" },
+                  { id: "k2", text: "Handle them in the handler or put them in state so they render" },
+                  { id: "k3", text: "Global handlers for unhandled rejections, for reporting" }
+                ],
+                red_flags: [{ id: "r1", text: "Says a boundary catches every error" }]
+              }
+            ],
+            study: ["error boundaries", "fallback UI design", "frontend error reporting"],
+            stack_notes: {
+              react: { note: "Place error boundaries around independent parts of the screen.", link: "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary" },
+              nextjs: { note: "Add error.js at route segments so one segment fails alone.", link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
+              angular: { note: "Provide a custom ErrorHandler for reporting and show fallbacks per component.", link: "https://angular.dev/api/core/ErrorHandler" }
+            }
+          }
+        ],
+        staff: [
+          {
+            id: "FE.FETCH.X1",
+            title: "Sets the data-fetching standard for an app",
+            good_looks_like: [
+              "Chooses one data-fetching approach, one API client and one error shape for the whole app, and makes them easy to use right."
+            ],
+            signals: [],
+            explain_angles: ["Why should every screen fetch data this way?", "How do new screens get this right by default?"],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your app mixes three ways of fetching data and bugs keep coming from stale data and missing errors. What standard would you set and how would you move the app to it?",
+                key_points: [
+                  { id: "k1", text: "Pick one server-state approach and one API client" },
+                  { id: "k2", text: "One error shape and shared loading and error components" },
+                  { id: "k3", text: "Migrate screen by screen, with lint rules or review checks" },
+                  { id: "k4", text: "Measure it, for example with error reports or bug counts" }
+                ],
+                red_flags: [{ id: "r1", text: "Big-bang rewrite with no measures" }]
+              },
+              {
+                id: "d2",
+                prompt: "How would you decide what data is fetched on the server and what on the client?",
+                key_points: [
+                  { id: "k1", text: "Server for first paint, SEO and secrets" },
+                  { id: "k2", text: "Client for user-specific, fast-changing or interactive data" },
+                  { id: "k3", text: "Consider caching and how fresh each kind must be" }
+                ],
+                red_flags: [{ id: "r1", text: "Everything on the client by habit" }]
+              }
+            ],
+            study: ["server-state vs client-state", "API client design", "migration strategies", "lint rules as guard rails"],
+            stack_notes: {
+              react: { note: "Standardise on one server-state library and a typed API client.", link: "https://react.dev/learn/synchronizing-with-effects#fetching-data" },
+              nextjs: { note: "Decide server vs client fetching per route and document caching rules.", link: "https://nextjs.org/docs/app/building-your-application/data-fetching" },
+              angular: { note: "Use one HttpClient wrapper with interceptors and one state approach.", link: "https://angular.dev/guide/http" }
+            }
+          }
+        ]
+      }
+    },
+    { id: "STATE", name: "State and data flow", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "COMP", name: "Components and structure", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "RENDER", name: "Rendering performance", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "A11Y", name: "Accessibility", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "SEC", name: "Security", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "TEST", name: "Testing", levels: { junior: [], mid: [], senior: [], staff: [] } },
+    { id: "REQ", name: "Requirements and scope", levels: { junior: [], mid: [], senior: [], staff: [] } }
+  ]
+};
+
+// src/coach/ladder/builtin.ts
+var BUILTIN_LADDERS = {
+  backend: backend_default,
+  frontend: frontend_default
+};
+
+// src/coach/ladder/load.ts
+var FILE = join7(".fork-trail-coach", "ladder.json");
+function withThresholds(ladder) {
+  return { ...DEFAULT_THRESHOLDS, ...ladder.thresholds };
+}
+function unknownSignals(ladder) {
+  const missing = /* @__PURE__ */ new Set();
+  for (const area of ladder.areas) {
+    for (const level of LEVELS) for (const item of area.levels[level]) for (const s of item.signals) if (!signalById(s.id)) missing.add(s.id);
+  }
+  return [...missing];
+}
+function readCompanyFile(path, track) {
+  if (!existsSync3(path)) return null;
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err2) {
+    return { error: `${path} is not valid JSON (${err2 instanceof Error ? err2.message : String(err2)})` };
+  }
+  const candidates = Array.isArray(raw) ? raw : [raw];
+  const forTrack = candidates.find((c) => typeof c === "object" && c !== null && c.track === track);
+  if (forTrack === void 0) return null;
+  const parsed = ladderSchema.safeParse(forTrack);
+  if (!parsed.success) return { error: `${path}: ${parsed.error.issues.map((i2) => i2.message).join("; ")}` };
+  const missing = unknownSignals(parsed.data);
+  if (missing.length > 0) return { error: `${path} names signals that do not exist: ${missing.join(", ")}` };
+  return { ladder: parsed.data };
+}
+function loadLadder(track, opts) {
+  const home = opts.home ?? homedir2();
+  const builtin = BUILTIN_LADDERS[track];
+  const tries = [
+    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(opts.repoRoot).digest("hex").slice(0, 8)}/${track}` },
+    { source: "home", path: join7(home, FILE), id: `home/${track}` }
+  ];
+  for (const t of tries) {
+    const found = readCompanyFile(t.path, track);
+    if (found === null) continue;
+    if ("error" in found) {
+      return {
+        ladder_id: `builtin/${track}`,
+        track,
+        source: "builtin",
+        ladder: builtin,
+        thresholds: withThresholds(builtin),
+        warning: `The company ladder.json could not be used, so the built-in ladder is shown. ${found.error}`
+      };
+    }
+    return { ladder_id: t.id, track, source: t.source, ladder: found.ladder, thresholds: withThresholds(found.ladder) };
+  }
+  return { ladder_id: `builtin/${track}`, track, source: "builtin", ladder: builtin, thresholds: withThresholds(builtin) };
+}
+function loadActiveLadders(tracks, opts) {
+  return tracks.map((track) => loadLadder(track, opts));
+}
+function findItem(ladder, itemId2) {
+  for (const area of ladder.areas) {
+    for (const level of LEVELS) {
+      const item = area.levels[level].find((i2) => i2.id === itemId2);
+      if (item) return { area, level, item };
+    }
+  }
+  return null;
+}
+
+// src/coach/stack.ts
+import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
+import { join as join8 } from "node:path";
+var SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "vendor", ".next", "out", "target", "bin", "obj", ".venv", "venv"]);
+var NPM = [
+  { dep: "@nestjs/core", stack_id: "nestjs", track: "backend" },
+  { dep: "express", stack_id: "express", track: "backend" },
+  { dep: "fastify", stack_id: "fastify", track: "backend" },
+  { dep: "koa", stack_id: "koa", track: "backend" },
+  { dep: "next", stack_id: "nextjs", track: "frontend" },
+  { dep: "@angular/core", stack_id: "angular", track: "frontend" },
+  { dep: "react", stack_id: "react", track: "frontend" },
+  { dep: "vue", stack_id: "vue", track: "frontend" },
+  { dep: "svelte", stack_id: "svelte", track: "frontend" }
+];
+var PYTHON = [
+  { word: /\bdjango\b/i, stack_id: "django" },
+  { word: /\bfastapi\b/i, stack_id: "fastapi" },
+  { word: /\bflask\b/i, stack_id: "flask" }
+];
+function read2(path) {
+  try {
+    return readFileSync2(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+function stacksInFolder(abs, folder) {
+  const hits = [];
+  const add = (stack_id, track) => {
+    if (!hits.some((h) => h.track === track)) hits.push({ stack_id, track, folder });
+  };
+  const pkgText = read2(join8(abs, "package.json"));
+  if (pkgText !== null) {
+    try {
+      const pkg = JSON.parse(pkgText);
+      const deps = { ...pkg.devDependencies, ...pkg.dependencies };
+      for (const n of NPM) if (n.dep in deps) add(n.stack_id, n.track);
+    } catch {
+    }
+  }
+  for (const file2 of ["pom.xml", "build.gradle", "build.gradle.kts"]) {
+    const text2 = read2(join8(abs, file2));
+    if (text2 !== null && /spring/i.test(text2)) add("spring", "backend");
+  }
+  if (existsSync4(join8(abs, "go.mod"))) add("go", "backend");
+  for (const file2 of ["requirements.txt", "pyproject.toml"]) {
+    const text2 = read2(join8(abs, file2));
+    if (text2 === null) continue;
+    const found = PYTHON.find((p) => p.word.test(text2));
+    if (found) add(found.stack_id, "backend");
+  }
+  try {
+    if (readdirSync(abs).some((name2) => name2.endsWith(".csproj"))) add("dotnet", "backend");
+  } catch {
+  }
+  return hits;
+}
+function detectStacks(root) {
+  const hits = [];
+  const walk = (abs, folder, depth) => {
+    hits.push(...stacksInFolder(abs, folder));
+    if (depth >= 2) return;
+    let names;
+    try {
+      names = readdirSync(abs);
+    } catch {
+      return;
+    }
+    for (const name2 of names) {
+      if (SKIP.has(name2) || name2.startsWith(".")) continue;
+      const child = join8(abs, name2);
+      try {
+        if (!statSync(child).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      walk(child, folder === "" ? name2 : `${folder}/${name2}`, depth + 1);
+    }
+  };
+  walk(root, "", 0);
+  return hits;
+}
+
+// src/coach/state.ts
+var DAY = 864e5;
+var ms = (iso) => Date.parse(iso);
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var baseName = (path) => path.replaceAll("\\", "/").split("/").pop() ?? path;
+function isCredit(e) {
+  return e.polarity === "positive" && (e.author === "dev" || e.decided_by === "dev");
+}
+function isFault(e) {
+  return e.polarity === "negative" && !(e.fixed_ticket !== null && e.fixed_ticket === e.ticket);
+}
+function snapshot(input2, credits, faults, regressedAt, at, t) {
+  const counts = (iso) => (regressedAt === null || ms(iso) > regressedAt) && ms(iso) <= at;
+  const windowStart = at - t.window_days * DAY;
+  const groups = /* @__PURE__ */ new Map();
+  for (const e of credits) {
+    if (!counts(e.at) || ms(e.at) < windowStart) continue;
+    const key = [e.signal_id ?? e.id, e.file ?? "", e.symbol ?? ""].join("\0");
+    const prev = groups.get(key);
+    if (!prev || ms(e.at) < ms(prev.at)) groups.set(key, e);
+  }
+  const hasSignals = input2.item.signals.length > 0;
+  let judged = 0;
+  let fromHistory = 0;
+  const kept = [];
+  for (const e of [...groups.values()].sort((a, b) => ms(a.at) - ms(b.at))) {
+    if (e.kind === "judge" && hasSignals) {
+      if (judged >= t.judge_cap) continue;
+      judged++;
+    }
+    if (e.history) {
+      if (fromHistory >= 1) continue;
+      fromHistory++;
+    }
+    kept.push(e);
+  }
+  const proofTickets = new Set(kept.map((e) => e.ticket)).size;
+  const openFaults = faults.filter((f) => ms(f.at) >= windowStart && ms(f.at) <= at && (f.fixed_at === null || ms(f.fixed_at) > at));
+  const clear = input2.answers.filter((a) => a.rating === "clear" && counts(a.at));
+  const clearTickets = new Set(clear.map((a) => a.ticket)).size;
+  const tradeoff = clear.some((a) => a.names_tradeoff);
+  const lastProof = kept.length > 0 ? kept[kept.length - 1].at : null;
+  return {
+    shown: kept.length >= t.proofs && proofTickets >= t.tickets && openFaults.length === 0 && clearTickets >= t.clear_answers && tradeoff,
+    proofs: kept.length,
+    proofTickets,
+    openFaults,
+    clearTickets,
+    tradeoff,
+    lastProofAt: lastProof
+  };
+}
+function itemStatus(input2, now, t) {
+  const valid = input2.evidence.filter((e) => !e.disagreed);
+  const credits = valid.filter(isCredit);
+  const faults = valid.filter(isFault);
+  const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input2.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];
+  const regressedIso = drops.length > 0 ? drops.reduce((a, b) => ms(a) >= ms(b) ? a : b) : null;
+  const regressedAt = regressedIso === null ? null : ms(regressedIso);
+  const current = snapshot(input2, credits, faults, regressedAt, now.getTime(), t);
+  const proven = input2.drills.filter((d) => d.passed && !d.void && (regressedAt === null || ms(d.at) > regressedAt)).sort((a, b) => ms(a.at) - ms(b.at)).find((d) => snapshot(input2, credits, faults, regressedAt, ms(d.at), t).shown);
+  let state;
+  if (proven) state = "proven";
+  else if (current.shown) state = "shown";
+  else if (credits.length > 0 || input2.answers.length > 0 || faults.length > 0 || regressedAt !== null) state = "learning";
+  else state = "not_seen";
+  const needs = [];
+  if (state === "shown") needs.push("pass a drill");
+  else if (state !== "proven") {
+    if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
+    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
+    for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
+    if (current.clearTickets < t.clear_answers) needs.push(`${plural2(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
+    if (!current.tradeoff) needs.push("an answer that names the trade-off");
+  }
+  return {
+    item_id: input2.item.id,
+    state,
+    proofs: current.proofs,
+    proof_tickets: current.proofTickets,
+    clear_answers: current.clearTickets,
+    tradeoff_named: current.tradeoff,
+    open_faults: current.openFaults.length,
+    regressed_at: regressedIso,
+    last_proof_at: current.lastProofAt,
+    proven_at: proven?.at ?? null,
+    needs
+  };
+}
+function areaLevel(area, statuses) {
+  let level = null;
+  for (const lvl of LEVELS) {
+    const items = area.levels[lvl];
+    if (items.length === 0) continue;
+    if (items.every((i2) => statuses.get(i2.id)?.state === "proven")) level = lvl;
+    else return { level, working_toward: lvl };
+  }
+  return { level, working_toward: null };
+}
+
+// src/coach/status.ts
+var capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var shortDate = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+function trackOfItem(itemId2) {
+  return itemId2.startsWith("FE.") ? "frontend" : "backend";
+}
+function computeStatuses(db2, loaded, now) {
+  const statuses = /* @__PURE__ */ new Map();
+  for (const area of loaded.ladder.areas) {
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        statuses.set(item.id, itemStatus({ item, ...factsForItem(db2, loaded.ladder_id, item.id) }, now, loaded.thresholds));
+      }
+    }
+  }
+  return statuses;
+}
+function reasonFor(s) {
+  switch (s.state) {
+    case "proven":
+      return "passed a drill while shown";
+    case "shown":
+      return `${s.proofs} code proofs on ${s.proof_tickets} tickets and ${s.clear_answers} clear answers`;
+    case "learning":
+      return s.regressed_at !== null ? "dropped back after a serious fault or a 'not yet' answer" : "first evidence seen";
+    default:
+      return "its evidence was removed";
+  }
+}
+function recordStateChanges(db2, ladderId2, statuses, reason = reasonFor) {
+  const last = db2.prepare("SELECT to_state FROM item_state_history WHERE ladder_id = ? AND item_id = ? ORDER BY rowid DESC LIMIT 1");
+  const insert = db2.prepare("INSERT INTO item_state_history (id, ladder_id, item_id, from_state, to_state, reason) VALUES (?, ?, ?, ?, ?, ?)");
+  let written = 0;
+  for (const s of statuses) {
+    const from = last.get(ladderId2, s.item_id)?.to_state ?? "not_seen";
+    if (from === s.state) continue;
+    insert.run(randomUUID4(), ladderId2, s.item_id, from, s.state, reason(s));
+    written++;
+  }
+  return written;
+}
+function stateHistory(db2, ladderId2) {
+  const rows2 = ladderId2 === void 0 ? db2.prepare("SELECT ladder_id, item_id, from_state, to_state, reason, at FROM item_state_history ORDER BY rowid").all() : db2.prepare("SELECT ladder_id, item_id, from_state, to_state, reason, at FROM item_state_history WHERE ladder_id = ? ORDER BY rowid").all(ladderId2);
+  return rows2.map((r) => ({ ...r, at: toIso(r.at) }));
+}
+function detail(s, proofsNeeded) {
+  switch (s.state) {
+    case "proven":
+      return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
+    case "shown":
+      return `ready for a drill \u2192 /coach drill ${s.item_id}`;
+    case "learning": {
+      const parts2 = [`${s.proofs} of ${proofsNeeded} code proofs`];
+      if (s.open_faults > 0) parts2.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
+      if (s.needs[0] && !s.needs[0].includes("code proof")) parts2.push(`next: ${s.needs[0]}`);
+      return parts2.join(" \xB7 ");
+    }
+    default:
+      return "";
+  }
+}
+function areaViews(results) {
+  const areas = [];
+  const notWritten = [];
+  for (const { loaded, statuses } of results) {
+    for (const area of loaded.ladder.areas) {
+      const items = LEVELS.flatMap((level2) => area.levels[level2].map((item) => ({ item, level: level2 })));
+      if (items.length === 0) {
+        notWritten.push(`${area.name} (${loaded.track})`);
+        continue;
+      }
+      const { level, working_toward } = areaLevel(area, statuses);
+      areas.push({
+        ladder_id: loaded.ladder_id,
+        area_id: area.id,
+        name: area.name,
+        level,
+        working_toward,
+        items: items.map(({ item, level: itemLevel }) => {
+          const s = statuses.get(item.id);
+          return { item_id: item.id, title: item.title, level: itemLevel, state: s.state, detail: detail(s, loaded.thresholds.proofs) };
+        })
+      });
+    }
+  }
+  return { areas, notWritten };
+}
+function renderProgress(s) {
+  if (s.tracks.length === 0) return "Coach needs to know what you work on: backend, frontend, or both?";
+  const lines = [];
+  for (const area of s.areas) {
+    const track = area.ladder_id.endsWith("/frontend") ? "Frontend" : "Backend";
+    const levelText = area.level ? capital(area.level) : "Starting";
+    lines.push(`${track} \xB7 ${area.name}        Level: ${levelText}${area.working_toward ? `  \xB7  working toward ${capital(area.working_toward)}` : ""}`);
+    const shownLevel = area.working_toward ?? area.level;
+    const nextLevel = shownLevel ? LEVELS[LEVELS.indexOf(shownLevel) + 1] : void 0;
+    const width = Math.max(...area.items.map((i2) => `${i2.item_id} ${i2.title}`.length));
+    const visible = area.items.filter((i2) => i2.level === shownLevel || i2.state === "learning" || i2.state === "shown");
+    for (const item of visible) {
+      const label = `${item.item_id} ${item.title}`.padEnd(width + 2);
+      lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(10)}${item.detail}`);
+    }
+    const next = nextLevel ? area.items.find((i2) => i2.level === nextLevel) : void 0;
+    if (next) lines.push(`  Next for ${capital(nextLevel)}: ${next.item_id} ${next.title}    ${next.state.toUpperCase().replace("_", " ")}`);
+    lines.push("");
+  }
+  const stacks = s.stacks.filter((h) => s.tracks.includes(h.track));
+  lines.push(`Your stack: ${stacks.length > 0 ? stacks.map((h) => h.folder ? `${h.stack_id} (${h.folder})` : h.stack_id).join(", ") : "not found in this repo"}`);
+  const study = [...new Set(s.focus.flatMap((f) => f.study))].slice(0, 3);
+  if (study.length > 0) lines.push(`Study next: ${study.join(" \xB7 ")}`);
+  if (s.not_written.length > 0) lines.push(`Not written yet: ${s.not_written.join(", ")}`);
+  return lines.join("\n");
+}
+async function coachStatus(db2, opts) {
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const tracks = getTracks(db2);
+  const base = {
+    tracks,
+    ladders: [],
+    stacks: [],
+    catch_up: { started: false, note: "Pick your tracks first.", commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false },
+    areas: [],
+    not_written: [],
+    focus: [],
+    questions: [],
+    drills_ready: []
+  };
+  if (tracks.length === 0) return { ...base, text: renderProgress(base) };
+  const top = await repoTopLevel(opts.root, opts.exec ?? run2) ?? opts.root;
+  const ladders = loadActiveLadders(tracks, { repoRoot: top, ...opts.home ? { home: opts.home } : {} });
+  const stacks = detectStacks(top);
+  const catch_up = await catchUp(db2, { root: opts.root, ladders, extraEmails: getExtraEmails(db2), now, ...opts.exec ? { exec: opts.exec } : {} });
+  const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db2, loaded, now) }));
+  for (const r of results) recordStateChanges(db2, r.loaded.ladder_id, [...r.statuses.values()]);
+  const { areas, notWritten } = areaViews(results);
+  const status = {
+    ...base,
+    ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...l.warning ? { warning: l.warning } : {} })),
+    stacks,
+    catch_up,
+    areas,
+    not_written: notWritten
+  };
+  return { ...status, text: renderProgress(status) };
+}
+function ladderForItem(root, itemId2, opts = {}) {
+  const loaded = loadLadder(trackOfItem(itemId2), { repoRoot: root, ...opts.home ? { home: opts.home } : {} });
+  if (opts.ladderId !== void 0 && opts.ladderId !== loaded.ladder_id) {
+    throw new StoreError(`Ladder '${opts.ladderId}' is not the active ladder here (that is '${loaded.ladder_id}')`);
+  }
+  const found = findItem(loaded.ladder, itemId2);
+  if (!found) throw new StoreError(`Unknown ladder item '${itemId2}'. Item ids look like BE.ERR.M2`);
+  return { loaded, item: found.item };
+}
+function itemDetail(db2, loaded, item, now = /* @__PURE__ */ new Date()) {
+  const facts = factsForItem(db2, loaded.ladder_id, item.id);
+  const status = itemStatus({ item, ...facts }, now, loaded.thresholds);
+  const evidence = db2.prepare(
+    "SELECT id, kind, polarity, author, decided_by, file_path, symbol, ticket, signal_id, note, at, fixed_at, fixed_ticket, disagreed_at, disagree_reason FROM skill_evidence WHERE ladder_id = ? AND item_id = ? ORDER BY at"
+  ).all(loaded.ladder_id, item.id).map((r) => ({ ...r }));
+  const answers = db2.prepare("SELECT id, kind, question, answer, rating, names_tradeoff, ticket, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND answered_at IS NOT NULL ORDER BY answered_at").all(loaded.ladder_id, item.id).map((r) => ({ ...r }));
+  const drills = db2.prepare("SELECT id, drill_id, hits, red_flags, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ? ORDER BY created_at").all(loaded.ladder_id, item.id).map((r) => ({ ...r }));
+  return { ladder_id: loaded.ladder_id, item: { id: item.id, title: item.title, good_looks_like: item.good_looks_like, study: item.study }, status, evidence, answers, drills };
+}
+async function proposeEvidence(db2, root, input2, exec = run2) {
+  const top = await repoTopLevel(root, exec);
+  if (top === null) throw new StoreError("This folder is not a git repo");
+  const { loaded } = ladderForItem(top, input2.item_id, input2.ladder_id === void 0 ? {} : { ladderId: input2.ladder_id });
+  if (input2.line_end < input2.line_start) throw new StoreError("line_end must not be before line_start");
+  const info2 = await exec("git", ["show", "-s", "--format=%H%x1f%ae%x1f%aI%x1f%s", input2.commit], top);
+  if (info2.code !== 0) throw new StoreError(`Commit '${input2.commit}' was not found`);
+  const [sha = "", email3 = "", authorDate = "", subject = ""] = info2.stdout.trim().split("");
+  const emails = await developerEmails(top, getExtraEmails(db2), exec);
+  if (!emails.includes(email3.toLowerCase())) throw new StoreError("That commit is not the developer's, so it cannot count as their evidence");
+  const file2 = (await commitDiff(top, sha, exec)).find((f) => f.path === input2.file.replaceAll("\\", "/"));
+  const lines = (file2?.added ?? []).filter((l) => l.line >= input2.line_start && l.line <= input2.line_end);
+  if (lines.length === 0) throw new StoreError(`Lines ${input2.line_start}-${input2.line_end} of ${input2.file} were not added in that commit`);
+  const ai = aiHashesFor(db2, top, file2.path);
+  const devLine = lines.find((l) => {
+    const n = normalizeLine(l.text);
+    return n !== null && !ai.has(lineHash(n));
+  });
+  if (!devLine) throw new StoreError("Claude wrote those lines, so they cannot count as the developer's evidence");
+  const source = await exec("git", ["show", `${sha}:${file2.path}`], top);
+  const symbol2 = source.code === 0 && isSupported(file2.path) ? (await symbolAtLine(file2.path, source.stdout, devLine.line))?.name ?? null : null;
+  const ticket = ticketForCommit({ sha, authorEmail: email3, authorDate, subject }, { onDefault: (await defaultBranchCommits(top, exec)).has(sha), branch: await currentBranch(top, exec) });
+  const id2 = randomUUID4();
+  db2.prepare(
+    "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)"
+  ).run(id2, loaded.ladder_id, input2.item_id, top, sha, file2.path, symbol2, ticket, input2.why, authorDate);
+  return { evidence_id: id2 };
+}
+function disagree(db2, input2) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (db2.prepare("UPDATE skill_evidence SET disagreed_at = ?, disagree_reason = ? WHERE id = ?").run(now, input2.reason, input2.target_id).changes > 0) {
+    return { target: "evidence", effect: "This evidence no longer counts. Your reason is kept and shown with the item." };
+  }
+  if (db2.prepare("UPDATE drill_attempts SET void = 1 WHERE id = ?").run(input2.target_id).changes > 0) {
+    return { target: "drill", effect: "This drill score is void. You can take the drill again with a different question." };
+  }
+  throw new StoreError("You can disagree with evidence or a drill score. To change an answer, ask for a new question.");
+}
+
 // src/privacy/denylist.ts
-import { readFileSync } from "node:fs";
-import { dirname as dirname4, join as join7 } from "node:path";
+import { readFileSync as readFileSync3 } from "node:fs";
+import { dirname as dirname4, join as join9 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join7(dirname4(defaultDbPath()), "denylist.txt");
+  return process.env.FTC_DENYLIST_PATH ?? join9(dirname4(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
   try {
-    for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    for (const line of readFileSync3(path, "utf8").split(/\r?\n/)) {
       const name2 = line.trim();
       if (name2 && !name2.startsWith("#")) names.push(name2);
     }
@@ -42355,21 +44109,21 @@ var LOOKALIKES = {
 };
 var LEET_I = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", $: "s", "!": "i" };
 var LEET_L = { ...LEET_I, "1": "l" };
-function squash(text, leet) {
+function squash(text2, leet) {
   let out2 = "";
-  for (const ch of text.normalize("NFKD").toLowerCase()) {
+  for (const ch of text2.normalize("NFKD").toLowerCase()) {
     const mapped = LOOKALIKES[ch] ?? leet?.[ch] ?? ch;
     if (/[a-z0-9]/.test(mapped)) out2 += mapped;
   }
   return out2;
 }
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegExp(text2) {
+  return text2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function containsBlockedName(text, names) {
+function containsBlockedName(text2, names) {
   if (names.length === 0) return false;
-  const variants = [squash(text), squash(text, LEET_I), squash(text, LEET_L)];
-  const lower = text.normalize("NFKC").toLowerCase();
+  const variants = [squash(text2), squash(text2, LEET_I), squash(text2, LEET_L)];
+  const lower = text2.normalize("NFKC").toLowerCase();
   for (const name2 of names) {
     const key = squash(name2);
     if (key.length >= 4) {
@@ -42382,12 +44136,12 @@ function containsBlockedName(text, names) {
 }
 
 // src/privacy/overlap.ts
-import { readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
-import { extname as extname3, join as join8 } from "node:path";
+import { readdirSync as readdirSync2, readFileSync as readFileSync4, statSync as statSync2 } from "node:fs";
+import { extname as extname3, join as join10 } from "node:path";
 
 // src/privacy/rules.ts
-function cleanText(text) {
-  return text.normalize("NFKC").replace(/[​-‍⁠﻿­]/g, "");
+function cleanText(text2) {
+  return text2.normalize("NFKC").replace(/[​-‍⁠﻿­]/g, "");
 }
 var SECRET_RULES = [
   ["private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
@@ -42421,22 +44175,22 @@ var CODE_RULES = [
   ["encoded-blob", /[A-Za-z0-9+/_-]{80,}={0,2}|\b[0-9a-fA-F]{64,}\b/]
 ];
 var CODE_SYMBOLS = /[{}[\]();=<>|&]/g;
-function symbolDense(text) {
-  if (text.length < 40) return false;
-  const count = text.match(CODE_SYMBOLS)?.length ?? 0;
-  return count >= 8 && count / text.length > 0.1;
+function symbolDense(text2) {
+  if (text2.length < 40) return false;
+  const count = text2.match(CODE_SYMBOLS)?.length ?? 0;
+  return count >= 8 && count / text2.length > 0.1;
 }
-function looksLikeCodeBlock(text) {
-  const lines = text.split(/\r?\n/);
+function looksLikeCodeBlock(text2) {
+  const lines = text2.split(/\r?\n/);
   if (lines.length < 3) return false;
   return lines.filter((line) => /[{};,)]\s*$/.test(line) && /[(){}=]/.test(line)).length >= 2;
 }
 function findRuleHit(rawText) {
-  const text = cleanText(rawText);
-  for (const [rule, pattern] of SECRET_RULES) if (pattern.test(text)) return { rule, kind: "secret" };
-  for (const [rule, pattern] of CODE_RULES) if (pattern.test(text)) return { rule, kind: "code" };
-  if (symbolDense(text)) return { rule: "symbol-density", kind: "code" };
-  if (looksLikeCodeBlock(text)) return { rule: "code-block-shape", kind: "code" };
+  const text2 = cleanText(rawText);
+  for (const [rule, pattern] of SECRET_RULES) if (pattern.test(text2)) return { rule, kind: "secret" };
+  for (const [rule, pattern] of CODE_RULES) if (pattern.test(text2)) return { rule, kind: "code" };
+  if (symbolDense(text2)) return { rule: "symbol-density", kind: "code" };
+  if (looksLikeCodeBlock(text2)) return { rule: "code-block-shape", kind: "code" };
   return null;
 }
 
@@ -42491,8 +44245,8 @@ var MAX_TOTAL_BYTES = 30 * 1024 * 1024;
 var REFRESH_MS = 3e4;
 var TOKEN = /[A-Za-z_$][\w$]*|\d+(?:\.\d+)?|[^\s\w]/g;
 var STRING_LITERAL = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\\n]|\\.)*`/g;
-function tokenize(text) {
-  return cleanText(text).replace(STRING_LITERAL, "  ").match(TOKEN) ?? [];
+function tokenize(text2) {
+  return cleanText(text2).replace(STRING_LITERAL, "  ").match(TOKEN) ?? [];
 }
 function* codeWindows(tokens) {
   for (let i2 = 0; i2 + WINDOW <= tokens.length; i2++) {
@@ -42506,13 +44260,13 @@ function* codeFiles(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = readdirSync2(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue;
-      const full = join8(dir, entry.name);
+      const full = join10(dir, entry.name);
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) stack.push(full);
       } else if (entry.isFile() && CODE_EXTENSIONS.has(extname3(entry.name).toLowerCase())) {
@@ -42538,9 +44292,9 @@ var RepoCodeIndex = class {
     for (const file2 of codeFiles(this.root)) {
       if (files >= MAX_FILES || bytes >= MAX_TOTAL_BYTES) break;
       try {
-        const size = statSync(file2).size;
+        const size = statSync2(file2).size;
         if (size > MAX_FILE_BYTES) continue;
-        for (const w of codeWindows(tokenize(readFileSync2(file2, "utf8")))) windows.add(w);
+        for (const w of codeWindows(tokenize(readFileSync4(file2, "utf8")))) windows.add(w);
         files++;
         bytes += size;
       } catch {
@@ -42550,8 +44304,8 @@ var RepoCodeIndex = class {
     this.builtAt = this.now();
   }
   /** True when the text contains a run of code that also appears in a repo source file. */
-  overlaps(text) {
-    const tokens = tokenize(text);
+  overlaps(text2) {
+    const tokens = tokenize(text2);
     if (tokens.length < WINDOW) return false;
     this.refresh();
     if (this.windows.size === 0) return false;
@@ -42610,17 +44364,17 @@ var PrivacyGuard = class {
       for (const [k, v] of Object.entries(value)) this.walk(v, path ? `${path}.${k}` : k, k, names);
     }
   }
-  checkString(text, field, isReference, names) {
-    if (containsBlockedName(text, names)) throw blockedName(field);
+  checkString(text2, field, isReference, names) {
+    if (containsBlockedName(text2, names)) throw blockedName(field);
     if (isReference) return;
-    const hit = findRuleHit(text);
+    const hit = findRuleHit(text2);
     if (hit?.kind === "secret") {
       throw new PrivacyError(field, hit.rule, "looks like it holds a secret or credential. Remove it");
     }
     if (hit) {
       throw new PrivacyError(field, hit.rule, "looks like code. Describe the choice in plain words instead");
     }
-    if (this.index.overlaps(text)) {
+    if (this.index.overlaps(text2)) {
       throw new PrivacyError(field, "code-overlap", "copies code from this repository. Describe it in plain words instead");
     }
   }
@@ -42667,6 +44421,7 @@ var pointerInput = external_exports.strictObject({
   pr_number: external_exports.number().int().positive().optional(),
   commit: external_exports.string().regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA").optional()
 });
+var itemId = external_exports.string().trim().regex(/^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/, "item ids look like BE.ERR.M2").describe("A ladder item id, for example BE.ERR.M2");
 var logDecisionInput = external_exports.strictObject({
   ticket_id: id,
   session_id: id,
@@ -42674,7 +44429,8 @@ var logDecisionInput = external_exports.strictObject({
   alternatives: external_exports.array(shortText).max(10).default([]).describe("Other options that were considered"),
   origin: external_exports.enum(DECISION_ORIGINS).describe("ai = Claude chose, dev = developer chose, dev_changed_ai = developer overrode Claude"),
   pointer: pointerInput.optional().describe("Where the decision lives in the code. A reference only, never the code."),
-  related_files: external_exports.array(external_exports.string().trim().min(1).max(500)).max(20).default([]).describe("Other files this same decision covers, for example its test file. Paths only.")
+  related_files: external_exports.array(external_exports.string().trim().min(1).max(500)).max(20).default([]).describe("Other files this same decision covers, for example its test file. Paths only."),
+  item_id: itemId.optional().describe("The ladder item this decision is about, if one fits. For example BE.ERR.M2")
 });
 var startTrailInput = external_exports.strictObject({
   ticket_id: id,
@@ -42724,6 +44480,32 @@ var saveGrowthPlanInput = external_exports.strictObject({
     })
   ).min(1).max(3)
 });
+var coachStatusInput = external_exports.strictObject({});
+var setCoachTracksInput = external_exports.strictObject({
+  tracks: external_exports.array(external_exports.enum(["backend", "frontend"])).min(1).max(2).describe("What the developer works on"),
+  extra_emails: external_exports.array(external_exports.email()).max(5).optional().describe("Other emails the developer commits with")
+});
+var ladderId = external_exports.string().trim().min(1).max(200);
+var coachItemInput = external_exports.strictObject({
+  item_id: itemId,
+  ladder_id: ladderId.optional().describe("Leave out to use the active ladder")
+});
+var coachHistoryInput = external_exports.strictObject({
+  ladder_id: ladderId.optional()
+});
+var proposeEvidenceInput = external_exports.strictObject({
+  item_id: itemId,
+  ladder_id: ladderId.optional(),
+  commit: external_exports.string().regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA"),
+  file: external_exports.string().trim().min(1).max(500).describe("Repo-relative path"),
+  line_start: external_exports.number().int().positive(),
+  line_end: external_exports.number().int().positive(),
+  why: shortText.describe("Why these lines show the item, in plain words. No code.")
+});
+var disagreeInput = external_exports.strictObject({
+  target_id: id.describe("The id of a piece of evidence or a drill attempt"),
+  reason: external_exports.string().trim().min(8).max(500).describe("The developer's reason, in their own words")
+});
 
 // src/mcp/server.ts
 var SERVER_NAME = "fork-trail-coach";
@@ -42743,11 +44525,12 @@ function createServer2(db2, tickets2, options = {}) {
   const server2 = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   const report = new ReportServer({ db: db2, guard, ...options.report });
   server2.server.onclose = () => report.close();
-  const write = (input2, save) => reply(() => {
+  const write2 = (input2, save) => reply(() => {
     guard.check(input2);
     return save(input2);
   });
   const ticket = (ticketId) => ensureTicket(db2, tickets2, ticketId, guard);
+  const home = options.coachHome === void 0 ? {} : { home: options.coachHome };
   server2.registerTool(
     "get_ticket",
     {
@@ -42757,7 +44540,7 @@ function createServer2(db2, tickets2, options = {}) {
       annotations: { readOnlyHint: true }
     },
     // Reading a ticket also saves a local copy, so it is guarded like a write.
-    (input2) => write(input2, (i2) => ticket(i2.ticket_id))
+    (input2) => write2(input2, (i2) => ticket(i2.ticket_id))
   );
   server2.registerTool(
     "import_ticket",
@@ -42778,7 +44561,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Save the assumption list for a ticket after Fork. Each item is 'answered_by_po' (with the answer) or 'assumed_by_dev'. Replaces the ticket's previous list. Words only: text that looks like code, a secret, or a client name is rejected.",
       inputSchema: saveAssumptionsInput
     },
-    (input2) => write(input2, async (i2) => {
+    (input2) => write2(input2, async (i2) => {
       await ticket(i2.ticket_id);
       return saveAssumptions(db2, i2);
     })
@@ -42794,7 +44577,8 @@ function createServer2(db2, tickets2, options = {}) {
       const decision = input2.pointer ? { ...input2, pointer: await enrichPointer(input2.pointer, root) } : input2;
       guard.check(decision);
       await ticket(decision.ticket_id);
-      return logDecision(db2, decision, root);
+      const ladderId2 = decision.item_id === void 0 ? null : ladderForItem(root, decision.item_id, home).loaded.ladder_id;
+      return logDecision(db2, decision, root, ladderId2);
     })
   );
   server2.registerTool(
@@ -42804,7 +44588,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Move a ticket's pointers to one commit and check that each still finds its code. Run it after the pull request is opened, and again after it is merged: after a squash merge the pointers move to the merge commit. Returns the pointers that no longer resolve, with the reason.",
       inputSchema: resolvePointersInput
     },
-    (input2) => write(input2, (i2) => resolvePointers(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, commit: i2.commit }))
+    (input2) => write2(input2, (i2) => resolvePointers(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, commit: i2.commit }))
   );
   server2.registerTool(
     "update_pr_decisions",
@@ -42813,7 +44597,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explain-backs, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
       inputSchema: updatePrDecisionsInput
     },
-    (input2) => write(input2, (i2) => updatePrDecisions(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, dryRun: i2.dry_run }))
+    (input2) => write2(input2, (i2) => updatePrDecisions(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, dryRun: i2.dry_run }))
   );
   server2.registerTool(
     "open_report",
@@ -42831,7 +44615,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Start tracking a coding session for a ticket. From then on the plugin records which files the session edits (paths only). Returns the ticket and its saved assumptions.",
       inputSchema: startTrailInput
     },
-    (input2) => write(input2, async (i2) => {
+    (input2) => write2(input2, async (i2) => {
       await ticket(i2.ticket_id);
       return startTrail(db2, i2);
     })
@@ -42863,7 +44647,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Save the developer's own explanation of a logged decision, with a rating of how clear it was. Words only: code, secrets and client names are rejected.",
       inputSchema: recordExplainBackInput
     },
-    (input2) => write(input2, (i2) => recordExplainBack(db2, i2))
+    (input2) => write2(input2, (i2) => recordExplainBack(db2, i2))
   );
   server2.registerTool(
     "save_observation",
@@ -42872,7 +44656,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Save one observation about a developer skill. It must cite the decisions or explain-backs it is based on. Words only: code, secrets and client names are rejected.",
       inputSchema: saveObservationInput
     },
-    (input2) => write(input2, (i2) => saveObservation(db2, i2))
+    (input2) => write2(input2, (i2) => saveObservation(db2, i2))
   );
   server2.registerTool(
     "list_observations",
@@ -42891,7 +44675,70 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Save a growth plan with 1 to 3 focus areas. Each claim must cite observation ids. The server marks a claim 'tentative' when it rests on a single observation. Words only: code, secrets and client names are rejected.",
       inputSchema: saveGrowthPlanInput
     },
-    (input2) => write(input2, (i2) => saveGrowthPlan(db2, i2))
+    (input2) => write2(input2, (i2) => saveGrowthPlan(db2, i2))
+  );
+  server2.registerTool(
+    "coach_status",
+    {
+      title: "Coach status",
+      description: "Read the developer's new commits, then return each ladder item's state (not seen, learning, shown, proven), each area's level, the stack, focus items, pending questions, and drills that are ready. Plain code decides every state and level; you never set one. 'text' is the progress view: show it as it is.",
+      inputSchema: coachStatusInput
+    },
+    () => reply(() => coachStatus(db2, { root, ...home }))
+  );
+  server2.registerTool(
+    "set_coach_tracks",
+    {
+      title: "Set coach tracks",
+      description: "Save what the developer works on: backend, frontend, or both. Optionally, other emails they commit with.",
+      inputSchema: setCoachTracksInput
+    },
+    (input2) => reply(() => {
+      setTracks(db2, input2.tracks);
+      if (input2.extra_emails) setExtraEmails(db2, input2.extra_emails);
+      return { tracks: input2.tracks };
+    })
+  );
+  server2.registerTool(
+    "coach_item",
+    {
+      title: "Coach item",
+      description: "Everything stored about one ladder item: its state, what it still needs, and every piece of evidence, answer and drill, each with an id the developer can disagree with.",
+      inputSchema: coachItemInput,
+      annotations: { readOnlyHint: true }
+    },
+    (input2) => reply(() => {
+      const { loaded, item } = ladderForItem(root, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+      return itemDetail(db2, loaded, item);
+    })
+  );
+  server2.registerTool(
+    "coach_history",
+    {
+      title: "Coach history",
+      description: "Every change of an item's state over time, with the reason, oldest first.",
+      inputSchema: coachHistoryInput,
+      annotations: { readOnlyHint: true }
+    },
+    (input2) => reply(() => stateHistory(db2, input2.ladder_id))
+  );
+  server2.registerTool(
+    "propose_evidence",
+    {
+      title: "Propose evidence",
+      description: "Add positive evidence for a ladder item that the fixed rules cannot see, citing exact lines. Accepted only if the lines were added in that commit, the commit is the developer's, and at least one line is developer-written. It never sets a state.",
+      inputSchema: proposeEvidenceInput
+    },
+    (input2) => write2(input2, (i2) => proposeEvidence(db2, root, i2))
+  );
+  server2.registerTool(
+    "disagree",
+    {
+      title: "Disagree",
+      description: "Record that the developer disagrees with a piece of evidence (it stops counting) or a drill score (it becomes void). This can only lower a state, never raise it. Answers cannot be disagreed with.",
+      inputSchema: disagreeInput
+    },
+    (input2) => write2(input2, (i2) => disagree(db2, i2))
   );
   return server2;
 }
@@ -42899,10 +44746,10 @@ function createServer2(db2, tickets2, options = {}) {
 // src/mcp/stdio.ts
 var db = openDb();
 migrate(db);
-var projectTickets = process.env.FTC_TICKETS_DIR ?? join9(process.cwd(), "tickets");
-var demoTickets = join9(dirname5(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
+var projectTickets = process.env.FTC_TICKETS_DIR ?? join11(process.cwd(), "tickets");
+var demoTickets = join11(dirname5(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
 var tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
-var webDir = join9(dirname5(fileURLToPath2(import.meta.url)), "..", "web");
+var webDir = join11(dirname5(fileURLToPath2(import.meta.url)), "..", "web");
 var port = process.env.FTC_PORT ? Number(process.env.FTC_PORT) : void 0;
 var server = createServer2(db, tickets, { report: { webDir, port } });
 await server.connect(new StdioServerTransport());

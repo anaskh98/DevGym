@@ -55,6 +55,12 @@ export const pointerInput = z.strictObject({
     .optional(),
 });
 
+export const itemId = z
+  .string()
+  .trim()
+  .regex(/^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/, "item ids look like BE.ERR.M2")
+  .describe("A ladder item id, for example BE.ERR.M2");
+
 export const logDecisionInput = z.strictObject({
   ticket_id: id,
   session_id: id,
@@ -67,6 +73,7 @@ export const logDecisionInput = z.strictObject({
     .max(20)
     .default([])
     .describe("Other files this same decision covers, for example its test file. Paths only."),
+  item_id: itemId.optional().describe("The ladder item this decision is about, if one fits. For example BE.ERR.M2"),
 });
 
 export const startTrailInput = z.strictObject({
@@ -135,6 +142,39 @@ export const saveGrowthPlanInput = z.strictObject({
     )
     .min(1)
     .max(3),
+});
+
+export const coachStatusInput = z.strictObject({});
+
+export const setCoachTracksInput = z.strictObject({
+  tracks: z.array(z.enum(["backend", "frontend"])).min(1).max(2).describe("What the developer works on"),
+  extra_emails: z.array(z.email()).max(5).optional().describe("Other emails the developer commits with"),
+});
+
+const ladderId = z.string().trim().min(1).max(200);
+
+export const coachItemInput = z.strictObject({
+  item_id: itemId,
+  ladder_id: ladderId.optional().describe("Leave out to use the active ladder"),
+});
+
+export const coachHistoryInput = z.strictObject({
+  ladder_id: ladderId.optional(),
+});
+
+export const proposeEvidenceInput = z.strictObject({
+  item_id: itemId,
+  ladder_id: ladderId.optional(),
+  commit: z.string().regex(/^[0-9a-f]{7,40}$/i, "commit must be a git SHA"),
+  file: z.string().trim().min(1).max(500).describe("Repo-relative path"),
+  line_start: z.number().int().positive(),
+  line_end: z.number().int().positive(),
+  why: shortText.describe("Why these lines show the item, in plain words. No code."),
+});
+
+export const disagreeInput = z.strictObject({
+  target_id: id.describe("The id of a piece of evidence or a drill attempt"),
+  reason: z.string().trim().min(8).max(500).describe("The developer's reason, in their own words"),
 });
 
 export type ImportTicketInput = z.infer<typeof importTicketInput>;

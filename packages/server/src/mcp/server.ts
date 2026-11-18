@@ -5,10 +5,18 @@ import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
+import { setExtraEmails, setTracks } from "../coach/settings.js";
+import { coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
 import {
+  coachHistoryInput,
+  coachItemInput,
+  coachStatusInput,
+  disagreeInput,
+  proposeEvidenceInput,
+  setCoachTracksInput,
   getTicketInput,
   getTrailInput,
   importTicketInput,
@@ -47,6 +55,8 @@ export interface ServerOptions {
   guard?: PrivacyGuard;
   /** Settings for the local report server that open_report starts. */
   report?: Pick<ReportOptions, "port" | "webDir" | "openUrl" | "allowedOrigins">;
+  /** Folder that holds the developer's home-level ladder file. Defaults to the real home folder (tests change it). */
+  coachHome?: string;
 }
 
 export function createServer(db: Db, tickets: TicketAdapter, options: ServerOptions = {}): McpServer {
@@ -64,6 +74,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       return save(input);
     });
   const ticket = (ticketId: string) => store.ensureTicket(db, tickets, ticketId, guard);
+  const home = options.coachHome === undefined ? {} : { home: options.coachHome };
 
   server.registerTool(
     "get_ticket",
@@ -123,7 +134,9 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         const decision = input.pointer ? { ...input, pointer: await enrichPointer(input.pointer, root) } : input;
         guard.check(decision);
         await ticket(decision.ticket_id);
-        return store.logDecision(db, decision, root);
+        // An item id must be in the active ladder; the server finds which ladder that is.
+        const ladderId = decision.item_id === undefined ? null : ladderForItem(root, decision.item_id, home).loaded.ladder_id;
+        return store.logDecision(db, decision, root, ladderId);
       }),
   );
 
@@ -244,6 +257,81 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: saveGrowthPlanInput,
     },
     (input) => write(input, (i) => store.saveGrowthPlan(db, i)),
+  );
+
+  server.registerTool(
+    "coach_status",
+    {
+      title: "Coach status",
+      description:
+        "Read the developer's new commits, then return each ladder item's state (not seen, learning, shown, proven), each area's level, the stack, focus items, pending questions, and drills that are ready. Plain code decides every state and level; you never set one. 'text' is the progress view: show it as it is.",
+      inputSchema: coachStatusInput,
+    },
+    () => reply(() => coachStatus(db, { root, ...home })),
+  );
+
+  server.registerTool(
+    "set_coach_tracks",
+    {
+      title: "Set coach tracks",
+      description: "Save what the developer works on: backend, frontend, or both. Optionally, other emails they commit with.",
+      inputSchema: setCoachTracksInput,
+    },
+    (input) =>
+      reply(() => {
+        setTracks(db, input.tracks);
+        if (input.extra_emails) setExtraEmails(db, input.extra_emails);
+        return { tracks: input.tracks };
+      }),
+  );
+
+  server.registerTool(
+    "coach_item",
+    {
+      title: "Coach item",
+      description:
+        "Everything stored about one ladder item: its state, what it still needs, and every piece of evidence, answer and drill, each with an id the developer can disagree with.",
+      inputSchema: coachItemInput,
+      annotations: { readOnlyHint: true },
+    },
+    (input) =>
+      reply(() => {
+        const { loaded, item } = ladderForItem(root, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
+        return itemDetail(db, loaded, item);
+      }),
+  );
+
+  server.registerTool(
+    "coach_history",
+    {
+      title: "Coach history",
+      description: "Every change of an item's state over time, with the reason, oldest first.",
+      inputSchema: coachHistoryInput,
+      annotations: { readOnlyHint: true },
+    },
+    (input) => reply(() => stateHistory(db, input.ladder_id)),
+  );
+
+  server.registerTool(
+    "propose_evidence",
+    {
+      title: "Propose evidence",
+      description:
+        "Add positive evidence for a ladder item that the fixed rules cannot see, citing exact lines. Accepted only if the lines were added in that commit, the commit is the developer's, and at least one line is developer-written. It never sets a state.",
+      inputSchema: proposeEvidenceInput,
+    },
+    (input) => write(input, (i) => proposeEvidence(db, root, i)),
+  );
+
+  server.registerTool(
+    "disagree",
+    {
+      title: "Disagree",
+      description:
+        "Record that the developer disagrees with a piece of evidence (it stops counting) or a drill score (it becomes void). This can only lower a state, never raise it. Answers cannot be disagreed with.",
+      inputSchema: disagreeInput,
+    },
+    (input) => write(input, (i) => disagree(db, i)),
   );
 
   return server;

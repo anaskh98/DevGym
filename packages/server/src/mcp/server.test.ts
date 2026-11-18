@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { defaultTicketsDir } from "../db/seed.js";
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,7 +31,7 @@ beforeEach(async () => {
   const guard = new PrivacyGuard({ root: repo, denylist: () => ["Globex"] });
   const tickets = new MarkdownTicketAdapter([defaultTicketsDir(), repo]);
   opened = [];
-  await createServer(db, tickets, { root: repo, guard, report: { port: 0, openUrl: (url) => opened.push(url) } }).connect(serverSide);
+  await createServer(db, tickets, { root: repo, guard, coachHome: repo, report: { port: 0, openUrl: (url) => opened.push(url) } }).connect(serverSide);
   client = new Client({ name: "test", version: "0.0.0" });
   await client.connect(clientSide);
 });
@@ -78,6 +80,10 @@ describe("tool list", () => {
   it("offers exactly the expected tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
+      "coach_history",
+      "coach_item",
+      "coach_status",
+      "disagree",
       "get_ticket",
       "get_trail",
       "import_ticket",
@@ -85,11 +91,13 @@ describe("tool list", () => {
       "list_observations",
       "log_decision",
       "open_report",
+      "propose_evidence",
       "record_explain_back",
       "resolve_pointers",
       "save_assumptions",
       "save_growth_plan",
       "save_observation",
+      "set_coach_tracks",
       "start_trail",
       "update_pr_decisions",
     ]);
@@ -475,5 +483,59 @@ describe("save_growth_plan", () => {
       /not an observation/,
     );
     expect(count("growth_plans")).toBe(0);
+  });
+});
+
+describe("coach tools", () => {
+  const evidence = (id: string, itemId = "BE.ERR.M2") =>
+    db
+      .prepare(
+        "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES (?, 'builtin/backend', ?, 'rule', 'positive', 'dev', 'T-1', 'err.timeout-set', 'src/pay.ts', 'charge', ?)",
+      )
+      .run(id, itemId, new Date(Date.now() - 86_400_000).toISOString());
+
+  it("sets tracks and reports them in the status", async () => {
+    await ok("set_coach_tracks", { tracks: ["backend"] });
+    const status = await ok("coach_status", {});
+    expect(status.tracks).toEqual(["backend"]);
+  });
+
+  it("lowers an item when the developer disagrees with its evidence", async () => {
+    const id = randomUUID();
+    evidence(id);
+    expect((await ok("coach_item", { item_id: "BE.ERR.M2" })).status.proofs).toBe(1);
+    const out = await ok("disagree", { target_id: id, reason: "That timeout was copied from the old service" });
+    expect(out.target).toBe("evidence");
+    expect((await ok("coach_item", { item_id: "BE.ERR.M2" })).status.proofs).toBe(0);
+  });
+
+  it("does not let an answer be disagreed away", async () => {
+    const id = randomUUID();
+    db.prepare(
+      "INSERT INTO pending_questions (id, kind, ladder_id, item_id, ticket, answer, answered_at, rating) VALUES (?, 'why', 'builtin/backend', 'BE.ERR.M2', 'T-1', 'a', '2026-11-10T10:00:00Z', 'not_yet')",
+    ).run(id);
+    expect(await rejected("disagree", { target_id: id, reason: "I did know the answer really" })).toMatch(/ask for a new question/);
+  });
+
+  it("checks the item id on log_decision", async () => {
+    expect(await rejected("log_decision", decision({ item_id: "BE.NOPE.M1" }))).toMatch(/Unknown ladder item/);
+    const { decision_id } = await ok("log_decision", decision({ item_id: "BE.ERR.M2" }));
+    expect(db.prepare("SELECT ladder_id, item_id FROM decisions WHERE id = ?").get(decision_id)).toEqual({ ladder_id: "builtin/backend", item_id: "BE.ERR.M2" });
+  });
+
+  it("rejects proposed evidence for lines the commit did not add", async () => {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+    git(["init", "-q"]);
+    git(["config", "user.email", "dev@example.com"]);
+    git(["config", "user.name", "Dev"]);
+    git(["config", "commit.gpgsign", "false"]);
+    writeFileSync(join(repo, "pay.ts"), "export function charge() {\n  return 1;\n}\n");
+    git(["add", "pay.ts"]);
+    git(["commit", "-q", "-m", "PAY-1 charge"]);
+    const sha = git(["rev-parse", "HEAD"]);
+    const base = { item_id: "BE.ERR.S1", commit: sha, file: "pay.ts", why: "Shows a design for partial failure" };
+    expect(await rejected("propose_evidence", { ...base, line_start: 50, line_end: 60 })).toMatch(/were not added/);
+    const out = await ok("propose_evidence", { ...base, line_start: 1, line_end: 3 });
+    expect(db.prepare("SELECT kind, author, symbol, ticket FROM skill_evidence WHERE id = ?").get(out.evidence_id)).toEqual({ kind: "judge", author: "dev", symbol: "charge", ticket: "PAY-1" });
   });
 });

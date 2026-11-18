@@ -111,6 +111,7 @@ export function logDecision(
   db: Db,
   input: LogDecisionInput,
   root: string = process.cwd(),
+  ladderId: string | null = null,
 ): { decision_id: string; pointer_id: string | null } {
   requireRow(db, "tickets", "Ticket", input.ticket_id);
   const decisionId = randomUUID();
@@ -125,7 +126,7 @@ export function logDecision(
       ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
     }
     db.prepare(
-      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files, ladder_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).run(
       decisionId,
       input.ticket_id,
@@ -135,6 +136,8 @@ export function logDecision(
       input.origin,
       pointerId,
       JSON.stringify(relatedFiles),
+      ladderId,
+      input.item_id ?? null,
     );
   });
   return { decision_id: decisionId, pointer_id: pointerId };
