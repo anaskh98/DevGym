@@ -44345,7 +44345,7 @@ function renderProgress(s) {
     const shownLevel = area.working_toward ?? area.level;
     const nextLevel = shownLevel ? LEVELS[LEVELS.indexOf(shownLevel) + 1] : void 0;
     const width = Math.max(...area.items.map((i2) => `${i2.item_id} ${i2.title}`.length));
-    const visible = area.items.filter((i2) => i2.level === shownLevel || i2.state === "learning" || i2.state === "shown");
+    const visible = area.items.filter((i2) => i2.level === shownLevel || i2.state !== "not_seen");
     for (const item of visible) {
       const label = `${item.item_id} ${item.title}`.padEnd(width + 2);
       lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(10)}${item.detail}`);

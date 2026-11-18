@@ -166,8 +166,8 @@ export function renderProgress(s: Omit<CoachStatus, "text">): string {
     const shownLevel = area.working_toward ?? area.level;
     const nextLevel = shownLevel ? LEVELS[LEVELS.indexOf(shownLevel) + 1] : undefined;
     const width = Math.max(...area.items.map((i) => `${i.item_id} ${i.title}`.length));
-    // The level being worked on, plus any item above it that already has evidence.
-    const visible = area.items.filter((i) => i.level === shownLevel || i.state === "learning" || i.state === "shown");
+    // The level being worked on, plus any other item that already has evidence or is proven.
+    const visible = area.items.filter((i) => i.level === shownLevel || i.state !== "not_seen");
     for (const item of visible) {
       const label = `${item.item_id} ${item.title}`.padEnd(width + 2);
       lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(10)}${item.detail}`);

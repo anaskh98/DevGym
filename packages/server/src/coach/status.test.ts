@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { setTracks } from "./settings.js";
-import { coachStatus, stateHistory } from "./status.js";
+import { coachStatus, renderProgress, stateHistory } from "./status.js";
 
 let db: Db;
 let dir: string;
@@ -102,5 +102,17 @@ describe("coachStatus", () => {
     addEvidence("BE.ERR.M9", "PAY-1", "z");
     const s = await coachStatus(db, { root: repo, now: NOW, home: dir });
     expect(s.areas.flatMap((a) => a.items.map((i) => i.item_id))).not.toContain("BE.ERR.M9");
+  });
+});
+
+describe("renderProgress", () => {
+  it("shows a proven item above the level being worked on", async () => {
+    setTracks(db, ["backend"]);
+    const s = await coachStatus(db, { root: repo, now: NOW, home: dir });
+    const area = s.areas.find((a) => a.area_id === "ERR")!;
+    const m3 = area.items.find((i) => i.item_id === "BE.ERR.M3")!;
+    m3.state = "proven";
+    m3.detail = "drill passed 15 Nov";
+    expect(renderProgress({ ...s, areas: [area] })).toContain("BE.ERR.M3");
   });
 });
