@@ -243,3 +243,21 @@ product owner).
 after large moves. Old commits give no line hashes, so their credit is capped. The history scan does not check for an
 AI trailer in old commit messages. The ticket check relies on the AI to find findings; the quote and line checks make
 them traceable, not complete.
+
+## Measured results (stages 2 to 4)
+
+**Automated tests:** the full check passes (server 468, eval 5, web 28), and the plugin validates.
+
+**Real headless runs** (Sonnet, scratch repos):
+
+- **Dashboard API** on real data from an earlier run: `GET /api/coach` returned BE.ERR.M2 as Shown by drills with
+  exposure low, two items Not assessed with a drill available, and the history of state changes. The built page was
+  served. The page itself was **not** looked at in a browser: it is covered by type checks and helper tests only.
+- **Ticket check**, on a ticket with 4 needs and a branch where Claude wrote two stub functions: 5 findings (3
+  missing, 1 different, 1 extra), each with a ticket quote the server found in the ticket and, for code, lines the
+  server found in the change. The Claude-written code was marked **owned**. When I said, in my own words, to keep
+  the extra function, the server found my words in the saved message and recorded only that decision; the other 4
+  stayed open. My setup first put the ticket in the wrong folder (tickets must be in `tickets/`).
+
+**Covered by automated tests only (not in a real run):** the background worker and the daily nudge (tests run the built
+hook and worker), the history scan, shipped bugs and repeats, `propose_fault`, quote-checked decision origins.
