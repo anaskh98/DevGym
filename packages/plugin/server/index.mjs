@@ -43087,7 +43087,7 @@ var backend_default = {
             signals: [
               { id: "err.timeout-set", polarity: "positive" },
               { id: "err.retry-backoff", polarity: "positive" },
-              { id: "err.empty-catch", polarity: "negative" }
+              { id: "err.empty-catch", polarity: "negative", regresses: true }
             ],
             explain_angles: [
               "Why this time limit, and what happens when it runs out?",
