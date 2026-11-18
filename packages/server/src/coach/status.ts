@@ -36,6 +36,8 @@ export interface CoachStatus {
   ladders: { ladder_id: string; track: Track; source: string; warning?: string }[];
   stacks: StackHit[];
   catch_up: CatchUpResult;
+  /** Progress of the one-time read of older commits. */
+  history_scan: CatchUpResult;
   areas: AreaView[];
   /** Areas the ladder has not written yet, by name. */
   not_written: string[];
@@ -227,6 +229,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     ladders: [] as CoachStatus["ladders"],
     stacks: [] as StackHit[],
     catch_up: { started: false, note: "Pick your tracks first.", commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false } as CatchUpResult,
+    history_scan: { started: false, commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false } as CatchUpResult,
     areas: [] as AreaView[],
     not_written: [] as string[],
     focus: [] as FocusFrame[],
@@ -239,6 +242,8 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
   const ladders = loadActiveLadders(tracks, { repoRoot: top, ...(opts.home ? { home: opts.home } : {}) });
   const stacks = detectStacks(top);
   const catch_up = await catchUp(db, { root: opts.root, ladders, extraEmails: getExtraEmails(db), now, ...(opts.exec ? { exec: opts.exec } : {}) });
+  // The developer's older commits, one batch per run: faults count fully, credit is capped (spec 6.4.1).
+  const history_scan = await catchUp(db, { root: opts.root, ladders, extraEmails: getExtraEmails(db), now, history: true, ...(opts.exec ? { exec: opts.exec } : {}) });
   const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db, loaded, now) }));
   for (const r of results) recordStateChanges(db, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
@@ -249,6 +254,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...(l.warning ? { warning: l.warning } : {}) })),
     stacks,
     catch_up,
+    history_scan,
     areas,
     not_written: notWritten,
     focus,

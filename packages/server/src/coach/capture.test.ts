@@ -303,3 +303,39 @@ describe("exposure capture", () => {
     expect(exposure().some((e) => e.item_id === "BE.ERR.M2")).toBe(true);
   });
 });
+
+describe("stage 2: history scan", () => {
+  const BAD = "export async function save() {\n  try { await write(); } catch (e) {}\n}\n";
+  const history = (o: { max?: number } = {}) => {
+    const l = o.max ? ladders.map((x) => ({ ...x, thresholds: { ...x.thresholds, catchup_max: o.max! } })) : ladders;
+    return catchUp(db, { root: repo, ladders: l, now: NOW, history: true });
+  };
+
+  it("reads commits from before Claude's first edit, marked as history, and counts their faults", async () => {
+    commit({ "src/a.ts": BAD }, "PAY-1 save", "2026-09-10T10:00:00Z");
+    commit({ "src/b.ts": PAY(TIMEOUT_LINE) }, "PAY-2 time limit", "2026-09-11T10:00:00Z");
+    startCapture();
+    const result = await history();
+    expect(result).toMatchObject({ started: true, commits_read: 2, more_left: false });
+    const rows = db.prepare("SELECT item_id, polarity, history FROM skill_evidence ORDER BY item_id").all().map((r) => ({ ...r }));
+    expect(rows).toContainEqual({ item_id: "BE.ERR.J1", polarity: "negative", history: 1 });
+    expect(rows.every((r) => r.history === 1)).toBe(true);
+    expect(db.prepare("SELECT count(*) AS n FROM commits_seen WHERE history = 1").get()).toEqual({ n: 2 });
+  });
+
+  it("resumes after a stop and never reads a commit twice (Review Focus 3)", async () => {
+    for (let i = 1; i <= 5; i++) commit({ [`src/f${i}.ts`]: PAY(TIMEOUT_LINE.replace("5000", String(4000 + i))) }, `PAY-${i} change`, `2026-09-0${i}T10:00:00Z`);
+    startCapture();
+    const first = await history({ max: 2 });
+    expect(first).toMatchObject({ commits_read: 2, more_left: true, remaining: 3 });
+    expect((await history({ max: 2 })).commits_read).toBe(2);
+    expect(await history({ max: 2 })).toMatchObject({ commits_read: 1, more_left: false });
+    expect((await history()).commits_read).toBe(0);
+  });
+
+  it("does not touch commits that are newer than capture start", async () => {
+    startCapture();
+    commit({ "src/new.ts": PAY(TIMEOUT_LINE) }, "PAY-9 new", "2026-11-10T10:00:00Z");
+    expect((await history()).commits_read).toBe(0);
+  });
+});

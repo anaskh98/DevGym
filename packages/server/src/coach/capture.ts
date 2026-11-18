@@ -21,6 +21,8 @@ export interface CatchUpResult {
   evidence_added: number;
   faults_fixed: number;
   more_left: boolean;
+  /** Commits still to read after this batch. */
+  remaining?: number;
 }
 
 export interface CatchUpOptions {
@@ -29,6 +31,8 @@ export interface CatchUpOptions {
   extraEmails?: string[];
   now?: Date;
   exec?: Run;
+  /** Read the developer's older commits (before capture start), one batch per call. Rule hits are marked history. */
+  history?: boolean;
 }
 
 /** Files that are built, vendored or generated: they say nothing about the developer's skill. */
@@ -253,6 +257,7 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
     evidence_added: 0,
     faults_fixed: 0,
     more_left: false,
+    remaining: 0,
   });
 
   const identity = await repoIdentity(opts.root, exec);
@@ -264,10 +269,14 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
   // Where capture starts in this repo is remembered, so cleaning up old hashes never stops it.
   const since = captureStart(db, key);
   pruneAiLines(db, t.hash_keep_days, now);
-  if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
+  const history = opts.history === true;
+  if (since === null && !history) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
 
   const seen = new Set((db.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key) as { sha: string }[]).map((r) => r.sha));
-  const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
+  // History mode reads what came before capture start; the normal mode reads from capture start on.
+  const listed = await listCommits(top, { authorEmails: emails, ...(history || since === null ? {} : { sinceIso: since }), exec });
+  const wanted = history && since !== null ? listed.filter((c) => Date.parse(c.authorDate) < Date.parse(since)) : listed;
+  const unseen = wanted.filter((c) => !seen.has(c.sha));
   const batch = unseen.slice(0, t.catchup_max);
   if (batch.length === 0) return nothing();
 
@@ -279,10 +288,11 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
     "INSERT INTO skill_exposure (id, ladder_id, item_id, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const sameChange = db.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
-  const markSeen = db.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
+  const markSeenStmt = db.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id, history) VALUES (?, ?, ?, ?)");
+  const markSeen = { run: (k: string, sha: string, id: string) => markSeenStmt.run(k, sha, id, history ? 1 : 0) };
   const insert = db.prepare(`
-    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at)
-    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at, history)
+    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const fix = db.prepare(`
     UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ?
     WHERE repo_root = ? AND polarity = 'negative' AND fixed_at IS NULL AND signal_id = ? AND file_path = ? AND symbol IS ? AND at < ?`);
@@ -314,7 +324,7 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
     const { rows, fixes, exposure } = found;
     transaction(db, () => {
       for (const r of rows) {
-        insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
         evidenceAdded++;
       }
       for (const x of exposure) insertExposure.run(randomUUID(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
@@ -322,5 +332,5 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
       markSeen.run(key, c.sha, id);
     });
   }
-  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
+  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
 }
