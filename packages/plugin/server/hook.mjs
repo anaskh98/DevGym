@@ -2,7 +2,48 @@ import { createRequire as __ftcCreateRequire } from 'node:module';
 const require = __ftcCreateRequire(import.meta.url);
 
 // src/hook/post-tool-use.ts
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+
+// src/coach/attribution.ts
+import { createHash } from "node:crypto";
+function normalizeLine(line) {
+  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
+  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
+  return s.length >= 4 ? s : null;
+}
+function lineHash(normalized) {
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+function linesOf(value) {
+  return typeof value === "string" ? value.split(/\r?\n/) : [];
+}
+function linesFromToolInput(toolName, toolInput) {
+  if (typeof toolInput !== "object" || toolInput === null) return [];
+  const input = toolInput;
+  switch (toolName) {
+    case "Edit":
+      return linesOf(input.new_string);
+    case "Write":
+      return linesOf(input.content);
+    case "NotebookEdit":
+      return linesOf(input.new_source);
+    case "MultiEdit":
+      return Array.isArray(input.edits) ? input.edits.flatMap((e) => typeof e === "object" && e !== null ? linesOf(e.new_string) : []) : [];
+    default:
+      return [];
+  }
+}
+function saveAiLines(db, repoRoot, filePath, sessionId, lines) {
+  const insert = db.prepare("INSERT OR IGNORE INTO ai_line_hashes (repo_root, file_path, hash, session_id) VALUES (?, ?, ?, ?)");
+  let stored = 0;
+  for (const line of lines) {
+    const normalized = normalizeLine(line);
+    if (normalized === null) continue;
+    stored += Number(insert.run(repoRoot, filePath, lineHash(normalized), sessionId).changes);
+  }
+  return stored;
+}
 
 // src/db/connection.ts
 import { mkdirSync } from "node:fs";
@@ -154,6 +195,136 @@ var migrations = [
       ALTER TABLE pointers ADD COLUMN resolved_at TEXT;
       ALTER TABLE pointers ADD COLUMN resolve_note TEXT;
     `
+  },
+  {
+    // Ids 4 to 6 are left free on purpose: other branches of this project use them, and two different
+    // migrations must never share an id.
+    id: 7,
+    name: "coach_levels",
+    sql: `
+      -- A hash of each line Claude wrote, so a commit line can be told apart as AI-written. Never the line.
+      CREATE TABLE ai_line_hashes (
+        repo_root  TEXT NOT NULL,
+        file_path  TEXT NOT NULL,
+        hash       TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (repo_root, file_path, hash)
+      );
+      CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
+
+      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      CREATE TABLE commits_seen (
+        repo_root    TEXT NOT NULL,
+        sha          TEXT NOT NULL,
+        change_id    TEXT NOT NULL,
+        history      INTEGER NOT NULL DEFAULT 0 CHECK (history IN (0, 1)),
+        processed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (repo_root, sha)
+      );
+      CREATE INDEX idx_commits_seen_change ON commits_seen(repo_root, change_id);
+
+      -- One piece of evidence for or against one ladder item. Paths, symbols and rule ids only, no code.
+      CREATE TABLE skill_evidence (
+        id              TEXT PRIMARY KEY,
+        ladder_id       TEXT NOT NULL,
+        item_id         TEXT NOT NULL,
+        kind            TEXT NOT NULL CHECK (kind IN ('rule', 'judge', 'decision', 'review', 'ticket_check')),
+        polarity        TEXT NOT NULL CHECK (polarity IN ('positive', 'negative')),
+        author          TEXT NOT NULL CHECK (author IN ('ai', 'dev', 'unknown')),
+        decided_by      TEXT CHECK (decided_by IS NULL OR decided_by IN ('ai', 'dev')),
+        owned           INTEGER NOT NULL DEFAULT 0 CHECK (owned IN (0, 1)),
+        regresses       INTEGER NOT NULL DEFAULT 0 CHECK (regresses IN (0, 1)),
+        history         INTEGER NOT NULL DEFAULT 0 CHECK (history IN (0, 1)),
+        repo_root       TEXT,
+        commit_sha      TEXT,
+        file_path       TEXT,
+        symbol          TEXT,
+        ticket          TEXT NOT NULL,
+        signal_id       TEXT,
+        note            TEXT,
+        at              TEXT NOT NULL,
+        fixed_at        TEXT,
+        fixed_ticket    TEXT,
+        disagreed_at    TEXT,
+        disagree_reason TEXT,
+        created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
+
+      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      CREATE TABLE pending_questions (
+        id             TEXT PRIMARY KEY,
+        kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
+        ladder_id      TEXT NOT NULL,
+        item_id        TEXT NOT NULL,
+        target_ref     TEXT,
+        decision_id    TEXT REFERENCES decisions(id) ON DELETE SET NULL,
+        ticket         TEXT NOT NULL,
+        question       TEXT,
+        created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+        opened_at      TEXT,
+        open_session   TEXT,
+        answer         TEXT,
+        answered_at    TEXT,
+        closed_reason  TEXT CHECK (closed_reason IS NULL OR closed_reason IN ('answered', 'later', 'timeout')),
+        rating         TEXT CHECK (rating IS NULL OR rating IN ('clear', 'partial', 'not_yet')),
+        names_tradeoff INTEGER NOT NULL DEFAULT 0 CHECK (names_tradeoff IN (0, 1)),
+        tradeoff_quote TEXT,
+        rated_at       TEXT
+      );
+      CREATE INDEX idx_pending_questions_session ON pending_questions(open_session);
+
+      -- One try at a drill. hits and red_flags are JSON lists of key point ids, never the answer.
+      CREATE TABLE drill_attempts (
+        id          TEXT PRIMARY KEY,
+        ladder_id   TEXT NOT NULL,
+        item_id     TEXT NOT NULL,
+        drill_id    TEXT NOT NULL,
+        question_id TEXT NOT NULL REFERENCES pending_questions(id) ON DELETE CASCADE,
+        hits        TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(hits)),
+        red_flags   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(red_flags)),
+        passed      INTEGER NOT NULL CHECK (passed IN (0, 1)),
+        void        INTEGER NOT NULL DEFAULT 0 CHECK (void IN (0, 1)),
+        created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_drill_attempts_item ON drill_attempts(ladder_id, item_id);
+
+      -- Every change of an item's state, so the developer can see growth over time.
+      CREATE TABLE item_state_history (
+        id         TEXT PRIMARY KEY,
+        ladder_id  TEXT NOT NULL,
+        item_id    TEXT NOT NULL,
+        from_state TEXT NOT NULL,
+        to_state   TEXT NOT NULL,
+        reason     TEXT NOT NULL,
+        at         TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
+
+      -- Coach choices of the developer, for example which tracks to follow.
+      CREATE TABLE coach_settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL CHECK (json_valid(value))
+      );
+
+      -- Best-practice notes the AI wrote once for a stack the ladder does not cover.
+      CREATE TABLE stack_notes_local (
+        ladder_id  TEXT NOT NULL,
+        item_id    TEXT NOT NULL,
+        stack_id   TEXT NOT NULL,
+        note       TEXT NOT NULL,
+        link       TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (ladder_id, item_id, stack_id)
+      );
+
+      -- The ladder item a decision or an explain-back is about.
+      ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
+      ALTER TABLE decisions ADD COLUMN item_id TEXT;
+      ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
+      ALTER TABLE explain_backs ADD COLUMN item_id TEXT;
+    `
   }
 ];
 function migrate(db, list = migrations) {
@@ -284,19 +455,34 @@ async function readStdin() {
   for await (const chunk of process.stdin) data += chunk;
   return data;
 }
+function repoTopLevel(cwd) {
+  try {
+    const out = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8", timeout: 3e3, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    return out.trim() || null;
+  } catch {
+    return null;
+  }
+}
 async function main() {
   const input = JSON.parse(await readStdin());
   const sessionId = input.session_id;
   const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
   if (typeof sessionId !== "string" || typeof file !== "string") return;
-  if (!existsSync(defaultDbPath())) return;
+  const repoRoot = repoTopLevel(cwd);
+  if (repoRoot === null && !existsSync(defaultDbPath())) return;
   const repoPath = toRepoPath(file, cwd);
   if (repoPath === null) return;
-  if (containsBlockedName(repoPath, loadDenylist())) return;
+  const denylist = loadDenylist();
+  if (containsBlockedName(repoPath, denylist)) return;
   const db = openDb();
   try {
     migrate(db);
+    if (repoRoot !== null) {
+      const pathInRepo = toRepoPath(file, repoRoot);
+      const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
+      if (pathInRepo !== null) saveAiLines(db, repoRoot, pathInRepo, sessionId, linesFromToolInput(toolName, input.tool_input));
+    }
     const { tracked, first } = recordFileEdit(db, sessionId, repoPath);
     if (tracked && first) {
       const note = `Paper Trail: first edit to ${repoPath} in this session. If this edit involved a real choice between options, call log_decision with pointer.file_path "${repoPath}". If an earlier decision already covers it, no action is needed now; get_trail lists files with no decision.`;

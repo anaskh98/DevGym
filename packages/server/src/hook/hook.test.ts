@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -99,6 +99,45 @@ describe.skipIf(!built)("edit hook", () => {
     expect(runHook("not json")).toEqual({ status: 0, stdout: "" });
     expect(runHook("{}")).toEqual({ status: 0, stdout: "" });
     expect(runHook(JSON.stringify({ session_id: "s1", cwd: project, tool_input: {} }))).toEqual({ status: 0, stdout: "" });
+  });
+});
+
+describe.skipIf(!built)("edit hook: who wrote the line", () => {
+  function gitInit() {
+    execFileSync("git", ["init", "-q"], { cwd: project });
+  }
+  function hashes() {
+    const db = openDb(dbPath);
+    try {
+      return db.prepare("SELECT file_path, session_id FROM ai_line_hashes ORDER BY hash").all().map((r) => ({ ...r }));
+    } finally {
+      db.close();
+    }
+  }
+  const edit = (sessionId: string, file: string, newString: string) =>
+    JSON.stringify({ session_id: sessionId, cwd: project, hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: { file_path: file, new_string: newString } });
+
+  it("saves a hash per line Claude wrote, for any session in a git repo, and creates the database", () => {
+    gitInit();
+    const result = runHook(edit("untracked", join(project, "src", "pay.ts"), "const timeout = 5000;\n}\nawait charge(card);"));
+    expect(result).toEqual({ status: 0, stdout: "" });
+    expect(hashes()).toEqual([
+      { file_path: "src/pay.ts", session_id: "untracked" },
+      { file_path: "src/pay.ts", session_id: "untracked" },
+    ]);
+  });
+
+  it("stays silent and exits 0 when the database cannot be opened", () => {
+    gitInit();
+    const blocker = join(dir, "blocker");
+    writeFileSync(blocker, "a file, so a folder cannot be made here");
+    const result = spawnSync(process.execPath, [start, "hook"], {
+      input: edit("s1", join(project, "a.ts"), "const timeout = 5000;"),
+      encoding: "utf8",
+      env: { ...process.env, FTC_DB_PATH: join(blocker, "sub", "db.sqlite") },
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe("");
   });
 });
 
