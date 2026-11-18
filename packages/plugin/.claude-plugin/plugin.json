@@ -1,6 +1,6 @@
 {
   "name": "fork-trail-coach",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Fork (ticket questions), Paper Trail (decision log) and Coach (your level on a BE/FE ladder, from your own code, with drills, a dashboard and a personal plan). Profiles stay on your machine.",
   "author": { "name": "Plugin team" }
 }

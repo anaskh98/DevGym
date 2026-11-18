@@ -19,34 +19,36 @@ export function DecisionItem({ decision, highlighted = false }: { decision: Deci
         {formatTime(decision.created_at)}
       </time>
       <div className="decision__body">
-        <p className="decision__origin">
-          <OriginBadge origin={decision.origin} />
-          {highlighted && <span className="decision__linked">Linked from your growth plan</span>}
-        </p>
-        <h3 className="decision__summary">{decision.summary}</h3>
+        <div className="decision__card">
+          <p className="decision__origin">
+            <OriginBadge origin={decision.origin} />
+            {highlighted && <span className="decision__linked">Linked from your growth plan</span>}
+          </p>
+          <h3 className="decision__summary">{decision.summary}</h3>
 
-        {decision.alternatives.length > 0 && (
-          <ul className="decision__alternatives" aria-label="Not taken">
-            {decision.alternatives.map((alternative, index) => (
-              <li key={index}>
-                <span className="decision__not">Not taken:</span>
-                {alternative}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <p className="decision__where">
-          {decision.pointer ? (
-            <PointerLink pointer={decision.pointer} />
-          ) : (
-            <span className="pointer pointer--none">No place in the code recorded</span>
+          {decision.alternatives.length > 0 && (
+            <ul className="decision__alternatives" aria-label="Not taken">
+              {decision.alternatives.map((alternative, index) => (
+                <li key={index}>
+                  <span className="decision__not">Not taken:</span>
+                  {alternative}
+                </li>
+              ))}
+            </ul>
           )}
-        </p>
 
-        {decision.explain_backs.map((explainBack) => (
-          <ExplainBackPanel key={explainBack.id} explainBack={explainBack} />
-        ))}
+          <p className="decision__where">
+            {decision.pointer ? (
+              <PointerLink pointer={decision.pointer} />
+            ) : (
+              <span className="pointer pointer--none">No place in the code recorded</span>
+            )}
+          </p>
+
+          {decision.explain_backs.map((explainBack) => (
+            <ExplainBackPanel key={explainBack.id} explainBack={explainBack} />
+          ))}
+        </div>
       </div>
     </li>
   );

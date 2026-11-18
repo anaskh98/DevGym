@@ -1,4 +1,4 @@
-import "@fontsource-variable/atkinson-hyperlegible-next";
+import "@fontsource-variable/plus-jakarta-sans";
 import "./styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

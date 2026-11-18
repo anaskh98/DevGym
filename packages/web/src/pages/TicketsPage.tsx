@@ -2,6 +2,7 @@ import { Link, Navigate } from "react-router";
 import type { TicketSummary } from "@ftc/shared";
 import { api } from "../api/client";
 import { useApi } from "../api/useApi";
+import { Icon } from "../components/Icon";
 import { EmptyState, ErrorState, Loading } from "../components/States";
 import { plural } from "../lib/fork";
 import { useTitle } from "../lib/useTitle";
@@ -56,6 +57,9 @@ export function TicketsPage({ section }: { section: Section }) {
               <span className="ticket-list__id">{ticket.id}</span>
               <span className="ticket-list__title">{ticket.title}</span>
               <span className="ticket-list__runs">{meta(ticket)}</span>
+              <span className="arrow">
+                <Icon name="arrow" />
+              </span>
             </Link>
           </li>
         ))}

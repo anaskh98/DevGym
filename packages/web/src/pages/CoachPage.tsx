@@ -150,7 +150,7 @@ function Report({ plan, labels }: { plan: GrowthPlan | null; labels: Labels }) {
   const tentative = plan.focus_areas.filter((area) => area.tentative).length;
   return (
     <>
-      <p className="summary__line">
+      <p className="summary__line coach__summary">
         Your plan from {formatDay(plan.created_at)} has {plural(plan.focus_areas.length, "focus area")}
         {tentative > 0 ? `, ${tentative} of them tentative` : ""}. Every claim links to the decisions it is based on.
         If one is wrong, say so: your notes are kept with the plan.

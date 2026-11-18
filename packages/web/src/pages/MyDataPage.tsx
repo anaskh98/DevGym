@@ -4,6 +4,7 @@ import { api, ApiError } from "../api/client";
 import { apiConfig } from "../api/config";
 import { useApi } from "../api/useApi";
 import { TableSection } from "../components/DataCards";
+import { Icon } from "../components/Icon";
 import { ErrorState, Loading } from "../components/States";
 import { plural } from "../lib/fork";
 import { useTitle } from "../lib/useTitle";
@@ -51,19 +52,13 @@ function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: 
   return (
     <>
       <section className="data__summary" aria-label="Summary">
-        <div className="data__total">
-          <p>
-            <span className="data__total-number">{total}</span>{" "}
-            <span className="data__total-label">{total === 1 ? "record stored" : "records stored"}</span>
-          </p>
-          <p className="data__where">
-            {total === 0
-              ? "Nothing is stored about you."
-              : "All in one SQLite file on this computer, outside any repository."}
-          </p>
-        </div>
+        <p className="data__where">
+          {total === 0
+            ? "Nothing is stored about you."
+            : "All in one SQLite file on this computer, outside any repository."}
+        </p>
         <div className="data__actions">
-          <button type="button" className="button" onClick={exportJson}>
+          <button type="button" className="button button--primary" onClick={exportJson}>
             Export as JSON
           </button>
           <button
@@ -107,6 +102,16 @@ function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: 
 
       <h2 className="data__heading">What is stored</h2>
       <ul className="tiles">
+        <li className="tile tile--hero">
+          <span className="tile__top">
+            <span className="tile__label">All records</span>
+            <span className="arrow">
+              <Icon name="shield" />
+            </span>
+          </span>
+          <span className="tile__count">{total}</span>
+          <span className="tile__note">Stored on this computer only</span>
+        </li>
         {tables.map((table) => {
           const count = response.data[table]?.length ?? 0;
           return (
@@ -119,8 +124,13 @@ function Stored({ response, onDeleted }: { response: ExportResponse; onDeleted: 
                   document.getElementById(`store-${table}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
                 }
               >
+                <span className="tile__top">
+                  <span className="tile__label">{(TABLE_INFO[table] ?? { label: table }).label}</span>
+                  <span className="arrow">
+                    <Icon name="arrow" />
+                  </span>
+                </span>
                 <span className="tile__count">{count}</span>
-                <span className="tile__label">{(TABLE_INFO[table] ?? { label: table }).label}</span>
               </button>
             </li>
           );

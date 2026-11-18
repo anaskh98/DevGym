@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { EvalResults, EvalScore } from "@ftc/shared";
 import { api } from "../api/client";
 import { apiConfig } from "../api/config";
@@ -28,11 +29,24 @@ function ScoreCells({ score }: { score: EvalScore }) {
   );
 }
 
+/** A ring that fills to the share that passed. The words beside it carry the same number. */
+function Gauge({ passed, total, className = "gauge" }: { passed: number; total: number; className?: string }) {
+  const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
+  return (
+    <div className={className} style={{ "--pct": pct } as CSSProperties} aria-hidden="true">
+      <span>{pct}%</span>
+    </div>
+  );
+}
+
 function ScoreRow({ score }: { score: EvalScore }) {
   const measured = isMeasured(score);
   return (
     <li className={measured ? "score" : "score score--not-run"}>
-      <h3 className="score__label">{score.label}</h3>
+      <div className="score__top">
+        <h3 className="score__label">{score.label}</h3>
+        {measured && <Gauge passed={score.passed} total={score.total} />}
+      </div>
       <p className="score__value">{scoreText(score)}</p>
       <div className="score__detail">
         <p className="score__measures">
@@ -54,6 +68,10 @@ function Results({ results }: { results: EvalResults }) {
   const scores = orderedScores(results);
   const failures = sortedFailures(results.failures);
   const totalMissed = scores.reduce((sum, score) => sum + missed(score), 0);
+  const overall = scores.filter(isMeasured).reduce(
+    (sum, score) => ({ passed: sum.passed + score.passed, total: sum.total + score.total }),
+    { passed: 0, total: 0 },
+  );
 
   return (
     <>
@@ -62,10 +80,19 @@ function Results({ results }: { results: EvalResults }) {
           These numbers are made up to show the page. They are not from a real evaluation run.
         </p>
       )}
-      <p className="summary__line">
-        Run on {formatDayTime(results.run_at)}, on ticket {results.ticket_id}. Fork was run{" "}
-        {plural(results.fork_runs, "time")}.
-      </p>
+      <section className="eval__hero" aria-label="Overall">
+        <div>
+          <p className="eval__hero-label">Overall</p>
+          <p className="eval__hero-value">
+            {overall.total > 0 ? `${overall.passed} of ${overall.total} passed` : "Nothing measured yet"}
+          </p>
+          <p className="summary__line">
+            Run on {formatDayTime(results.run_at)}, on ticket {results.ticket_id}. Fork was run{" "}
+            {plural(results.fork_runs, "time")}.
+          </p>
+        </div>
+        {overall.total > 0 && <Gauge passed={overall.passed} total={overall.total} className="gauge gauge--hero" />}
+      </section>
 
       <section aria-labelledby="scores-heading">
         <h2 id="scores-heading" className="eval__heading">
