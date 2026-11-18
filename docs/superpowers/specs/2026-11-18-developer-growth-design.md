@@ -506,3 +506,109 @@ Then fill in the rest of the ladder content.
 - `git blame` can point at the wrong origin after big moves or reformats. The AI's cited reading of the fix and
   "I disagree" soften this.
 - The first history scan on a large repo may take minutes. It runs once and can resume.
+
+## 11. Update after stage 1: the "evidence-based growth system" requirements
+
+Stage 1 is built (PR #1). The user then gave a fuller product brief. This section maps each of its points to what is
+built, and adds what is missing. Where the brief and this design disagree, **the brief wins**, and the change is
+written here.
+
+### 11.1 What already matches
+
+| Brief | Where it is |
+|---|---|
+| Evidence from real work, every finding traceable | Stage 1 capture: `skill_evidence` rows with commit, file, function, ticket. `/coach why` lists them. |
+| Practical drills, fixed keys, new situations | Stage 1 drills: fixed key, quote-checked scoring, key shown only after the answer. |
+| AI suggests, code decides | State engine in plain code. The AI can only propose evidence (checked), rate with quotes, and word things. |
+| Proven needs both work evidence and a drill | 6.6. |
+| Questions at PR time, at most 3, can be postponed, nothing blocks | 6.7 and stage 1. |
+| Personal plan: real spot, project stack, evidence | 6.10 and stage 1 (focus frames, plan check). |
+| History of every change | `item_state_history`. |
+| Local only, no expensive AI per commit | Stage 1. |
+| Company ladders, more stacks | Ladder file and stack notes. |
+
+### 11.2 What is missing, and the change
+
+**A. Exposure, kept apart from proficiency** (brief section 4). *Missing.*
+- New per-item field in the ladder: `exposure_signals`: rule ids that show the developer **had the chance** to use
+  the skill, for example any call to an outside service for BE.ERR.M2, whether or not it had a time limit.
+- Capture stores exposure hits like evidence, as `kind: "exposure"` (no credit, no fault).
+- Code computes an exposure level per item and per area: **None, Low, Medium, High**, from distinct functions and
+  tickets in the last 90 days. The thresholds go in the ladder `thresholds`.
+- Exposure is shown next to proficiency everywhere: the view, `/coach why`, the dashboard.
+
+**B. A "Not assessed" state, and Learning only for real gaps** (brief section 5). *Missing; changes 6.6.*
+
+| State | New rule |
+|---|---|
+| Not seen | No evidence and no exposure. |
+| **Not assessed** (new) | Some exposure or some positive evidence, but not enough to judge, and no sign of a gap. |
+| Learning | A sign of a gap: an open fault, a `partial` or `not_yet` answer, a failed drill, or a regression. **Positive proofs alone no longer make an item Learning.** |
+| Shown | As 6.6. |
+| Proven | As 6.6. |
+
+This reverses stage 1 ruling "any proof or answer makes an item Learning".
+
+**C. No downgrade for lack of recent use** (brief section 4). *Conflicts with 6.6.*
+- Today Shown needs proofs in the last 60 days, so a Shown item falls back when the developer works on other things.
+- Change: once an item is Shown, it **stays Shown** until a regression (serious fault or `not_yet` answer). The 60-day
+  window applies only to reaching Shown. Proven already never expires.
+- A developer is never penalised for work that does not need a skill. Only real faults and weak answers lower a state.
+
+**D. A drill when exposure is too low** (brief section 4). *Missing; needs the user's decision* (11.4, question 1).
+
+**E. Automatic capture without commands** (brief section 3). *Partly missing.*
+- Today capture runs only when `/coach`, `/pr-decisions` or a drill runs.
+- Change: a Claude Code **SessionStart** hook and a **Stop** hook start a background catch-up. It is rules only (no AI),
+  throttled to at most once every 10 minutes per repo, and never blocks or prints anything.
+- The edit hook already records who wrote each line, for every session.
+
+**F. Gentle contextual prompts** (brief sections 3 and 7). *Missing.*
+- At SessionStart, if questions are waiting or a drill is ready, add one short line for Claude to mention at a
+  natural pause, at most once a day. Never a block, never more than one line.
+
+**G. "Why it matters" and exercise kinds** (brief section 6). *Missing.*
+- Ladder items get `why_it_matters` (one or two plain sentences).
+- Plan items get an `exercise_kind`: `implement`, `debug`, `review`, `design_tradeoff`, `architecture`, `explain`. The
+  ladder lists the kinds that suit each item. The server checks the kind is one of them.
+- Study topics are shown only when the item is Learning or a drill was failed, not for every item.
+
+**H. Growth dashboard** (brief section 8). *Mostly missing.*
+- New local API endpoints (read only): levels per area with exposure, item detail with evidence, state history,
+  open faults, repeats, drills ready, drill results, and the latest plan.
+- The Coach page of the web app shows them. Every state links to its evidence.
+- The web app is the teammate's area; the API contract goes in `docs/api.md` and `@ftc/shared` first.
+
+**I. Recurring weaknesses, PR activity, ownership** (brief sections 2, 3, 8). *Planned as stage 2.*
+- Repeats, shipped bugs, the history scan, owned AI faults and the PR-time fault review are already designed (6.4.1,
+  6.5) and not built yet.
+
+### 11.3 Conflicts with current behaviour
+
+1. **Learning meaning** changes (11.2 B). Existing items with only positive proofs become "Not assessed". Old rows
+   are kept; only the computed state changes.
+2. **The 60-day window** no longer lowers a Shown item (11.2 C). The docs and tests that expect the decay change.
+3. **Background hooks** add two more hook runs per session (11.2 E). Each must stay quiet and fast.
+4. **The dashboard** is in the teammate's web app (11.2 H). The API comes first, so the backend never waits for the UI.
+
+### 11.4 Open questions for the user
+
+1. **Drill-only path (11.2 D).** When exposure is None or Low, may a passed drill move the item?
+   - (a) *Recommended:* 2 passed drills on different prompts, plus 1 clear answer, make it **Shown (by drill)**, marked
+     as such. Proven still needs work evidence.
+   - (b) A drill result is only recorded and shown. The state stays Not assessed until work evidence comes.
+2. **Dashboard owner (11.2 H).** Build the Coach page here too, or only the API and leave the page to the teammate?
+
+## 12. Roadmap after stage 1
+
+Each stage gets its own plan file (writing-plans) and the same build loop: tests first, full check, real run, review.
+
+| Stage | Contents | Depends on |
+|---|---|---|
+| **1.5 Assessment model** | Exposure (11.2 A), Not assessed and the new Learning rule (B), no decay (C), drill when exposure is low (D, after the decision), why it matters and exercise kinds (G) | Stage 1 |
+| **2 Ownership and history** | 6.2 decision origin, 6.3 ownership, 6.4.1 history scan, shipped bugs, repeats, 6.5 PR-time fault review | 1.5 (exposure counts past commits too) |
+| **2.5 Automatic and gentle** | Background catch-up hooks (E), contextual prompt (F) | 2 (the history scan runs in the background) |
+| **3 Dashboard** | API endpoints, `@ftc/shared` schemas, `docs/api.md`, Coach page (H) | 1.5 and 2 (it shows exposure and repeats) |
+| **4 Ticket check** | 6.8 | 2 |
+
+The stage 1 deferred minors are fixed inside the stage that touches the same code.
