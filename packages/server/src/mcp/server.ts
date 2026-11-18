@@ -7,7 +7,7 @@ import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer } from "../coach/questions.js";
-import { scoreDrill, startDrill } from "../coach/drills.js";
+import { drillKey, scoreDrill, startDrill } from "../coach/drills.js";
 import { checkItemArea, saveStackNote } from "../coach/plan.js";
 import { catchUpHere, coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
@@ -17,6 +17,7 @@ import {
   askQuestionInput,
   saveStackNoteInput,
   scoreDrillInput,
+  drillKeyInput,
   startDrillInput,
   rateAnswerInput,
   coachHistoryInput,
@@ -395,6 +396,25 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         await catchUpHere(db, { root, ...home });
         const ctx = ladderForItem(root, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
         return startDrill(db, ctx, { session_id: input.session_id });
+      }),
+  );
+
+  server.registerTool(
+    "drill_key",
+    {
+      title: "Drill key",
+      description:
+        "The fixed answer key of a drill (key points and red flags with their ids, and how many key points pass). Given only after the developer's answer is saved. Use it to score with score_drill; do not show it before the answer.",
+      inputSchema: drillKeyInput,
+      annotations: { readOnlyHint: true },
+    },
+    (input) =>
+      reply(() => {
+        const row = db.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input.question_id) as
+          | { item_id: string; ladder_id: string }
+          | undefined;
+        if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
+        return drillKey(db, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input.question_id);
       }),
   );
 

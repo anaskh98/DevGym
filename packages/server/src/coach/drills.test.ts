@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
-import { drillGate, drillsReady, pickDrill, scoreDrill, startDrill } from "./drills.js";
+import { drillGate, drillKey, drillsReady, pickDrill, scoreDrill, startDrill } from "./drills.js";
 import { factsForItem } from "./facts.js";
 import { findItem, loadLadder } from "./ladder/load.js";
 import { DEFAULT_THRESHOLDS as T } from "./ladder/schema.js";
@@ -158,5 +158,18 @@ describe("startDrill and scoreDrill", () => {
     expect(drillsReady(db, [{ loaded, statuses: new Map([["BE.ERR.M2", status()]]) }], NOW)).toEqual([]);
     makeShown();
     expect(drillsReady(db, [{ loaded, statuses: new Map([["BE.ERR.M2", status()]]) }], NOW)).toEqual(["BE.ERR.M2"]);
+  });
+});
+
+describe("drillKey", () => {
+  it("gives the key only after the answer is saved", () => {
+    makeShown();
+    const { question_id } = startDrill(db, ctx, { session_id: "s1" }, NOW);
+    expect(() => drillKey(db, ctx, question_id)).toThrow(/after the developer answers/);
+    captureAnswer(db, "s1", GOOD, new Date(NOW.getTime() + 60_000));
+    const key = drillKey(db, ctx, question_id);
+    expect(key.key_points.map((k) => k.id)).toEqual(["k1", "k2", "k3", "k4"]);
+    expect(key.red_flags.map((f) => f.id)).toEqual(["r1", "r2"]);
+    expect(key.pass).toBe(3);
   });
 });

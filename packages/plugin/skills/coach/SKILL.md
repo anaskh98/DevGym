@@ -88,9 +88,11 @@ One question at a time:
    they must wait after a failed drill) and stop.
 2. Ask the returned `prompt` exactly as it is. Say it is an interview-style question about a new situation.
 3. Wait for the answer. It is saved by the hook.
-4. Call `score_drill`. For each key point and red flag the answer really shows, give its id and the **exact words**
+4. Call `drill_key` with the drill's `question_id`. It returns the key points and red flags with their ids. It works
+   only after the answer is saved, so you never see the key while asking.
+5. Call `score_drill`. For each key point and red flag the answer really shows, give its id and the **exact words**
    from the answer. Do not stretch: a point the answer does not make is missed.
-5. Show the result: passed or not; each key point as hit or missed, using the key's own wording; any red flag; then
+6. Show the result: passed or not; each key point as hit or missed, using the key's own wording; any red flag; then
    the study topics for the missed points. If passed, say the item is now Proven.
 
 ## `why <item-id>`

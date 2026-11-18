@@ -42890,6 +42890,14 @@ function startDrill(db2, ctx, input2, now = /* @__PURE__ */ new Date()) {
   ).run(id2, ctx.loaded.ladder_id, ctx.item.id, `${DRILL_REF}${drill.id}`, drill.prompt, now.toISOString(), input2.session_id);
   return { question_id: id2, drill_id: drill.id, prompt: drill.prompt };
 }
+function drillKey(db2, ctx, questionId) {
+  const row = db2.prepare("SELECT kind, item_id, target_ref, answered_at FROM pending_questions WHERE id = ?").get(questionId);
+  if (!row || row.kind !== "drill" || row.item_id !== ctx.item.id) throw new StoreError(`Question '${questionId}' is not a drill for ${ctx.item.id}`);
+  if (row.answered_at === null) throw new StoreError("The key is shown only after the developer answers the drill");
+  const drill = ctx.item.drills.find((d) => `${DRILL_REF}${d.id}` === row.target_ref);
+  if (!drill) throw new StoreError("The drill this question came from is no longer in the ladder");
+  return { drill_id: drill.id, key_points: drill.key_points, red_flags: drill.red_flags, pass: passCount(drill) };
+}
 function scoreDrill(db2, ctx, input2) {
   const row = db2.prepare("SELECT kind, item_id, target_ref, answer, answered_at FROM pending_questions WHERE id = ?").get(input2.question_id);
   if (!row || row.kind !== "drill" || row.item_id !== ctx.item.id) throw new StoreError(`Question '${input2.question_id}' is not a drill for ${ctx.item.id}`);
@@ -44940,6 +44948,9 @@ var scoredPoint = external_exports.strictObject({
   id: external_exports.string().trim().min(1).max(50).describe("A key point or red flag id from the drill"),
   quote: external_exports.string().trim().min(12).max(500).describe("The exact words from the answer that show it")
 });
+var drillKeyInput = external_exports.strictObject({
+  question_id: id.describe("The drill's question id, from start_drill")
+});
 var scoreDrillInput = external_exports.strictObject({
   question_id: id,
   hits: external_exports.array(scoredPoint).max(10).describe("Key points the answer hits"),
@@ -45229,6 +45240,20 @@ function createServer2(db2, tickets2, options = {}) {
       await catchUpHere(db2, { root, ...home });
       const ctx = ladderForItem(root, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
       return startDrill(db2, ctx, { session_id: input2.session_id });
+    })
+  );
+  server2.registerTool(
+    "drill_key",
+    {
+      title: "Drill key",
+      description: "The fixed answer key of a drill (key points and red flags with their ids, and how many key points pass). Given only after the developer's answer is saved. Use it to score with score_drill; do not show it before the answer.",
+      inputSchema: drillKeyInput,
+      annotations: { readOnlyHint: true }
+    },
+    (input2) => reply(() => {
+      const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
+      if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
+      return drillKey(db2, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input2.question_id);
     })
   );
   server2.registerTool(

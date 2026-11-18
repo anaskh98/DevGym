@@ -72,6 +72,25 @@ export function startDrill(db: Db, ctx: DrillContext, input: { session_id: strin
   return { question_id: id, drill_id: drill.id, prompt: drill.prompt };
 }
 
+/**
+ * The drill's fixed key, for scoring. Given only after the developer's answer is saved, so the key can never
+ * leak into the question as a hint.
+ */
+export function drillKey(
+  db: Db,
+  ctx: DrillContext,
+  questionId: string,
+): { drill_id: string; key_points: { id: string; text: string }[]; red_flags: { id: string; text: string }[]; pass: number } {
+  const row = db.prepare("SELECT kind, item_id, target_ref, answered_at FROM pending_questions WHERE id = ?").get(questionId) as
+    | { kind: string; item_id: string; target_ref: string | null; answered_at: string | null }
+    | undefined;
+  if (!row || row.kind !== "drill" || row.item_id !== ctx.item.id) throw new StoreError(`Question '${questionId}' is not a drill for ${ctx.item.id}`);
+  if (row.answered_at === null) throw new StoreError("The key is shown only after the developer answers the drill");
+  const drill = ctx.item.drills.find((d) => `${DRILL_REF}${d.id}` === row.target_ref);
+  if (!drill) throw new StoreError("The drill this question came from is no longer in the ladder");
+  return { drill_id: drill.id, key_points: drill.key_points, red_flags: drill.red_flags, pass: passCount(drill) };
+}
+
 export interface ScoreDrillInput {
   question_id: string;
   hits: { id: string; quote: string }[];

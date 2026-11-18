@@ -215,6 +215,10 @@ const scoredPoint = z.strictObject({
   quote: z.string().trim().min(12).max(500).describe("The exact words from the answer that show it"),
 });
 
+export const drillKeyInput = z.strictObject({
+  question_id: id.describe("The drill's question id, from start_drill"),
+});
+
 export const scoreDrillInput = z.strictObject({
   question_id: id,
   hits: z.array(scoredPoint).max(10).describe("Key points the answer hits"),

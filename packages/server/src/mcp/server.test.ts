@@ -86,6 +86,7 @@ describe("tool list", () => {
       "coach_item",
       "coach_status",
       "disagree",
+      "drill_key",
       "get_ticket",
       "get_trail",
       "import_ticket",
