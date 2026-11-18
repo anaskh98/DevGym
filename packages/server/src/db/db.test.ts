@@ -3,19 +3,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "./connection.js";
-import { migrate } from "./migrations.js";
+import { randomUUID } from "node:crypto";
+import { migrate, migrations } from "./migrations.js";
 import { parseTicketMarkdown } from "../tickets/markdown.js";
 import { seed } from "./seed.js";
 
 const TABLES = [
+  "ai_line_hashes",
   "annotations",
   "assumptions",
+  "coach_settings",
+  "commits_seen",
   "decisions",
+  "drill_attempts",
   "explain_backs",
   "file_edits",
   "growth_plans",
+  "item_state_history",
   "observations",
+  "pending_questions",
   "pointers",
+  "skill_evidence",
+  "stack_notes_local",
   "tickets",
   "trail_sessions",
 ];
@@ -40,6 +49,26 @@ describe("migrate", () => {
       .filter((n) => n !== "schema_migrations")
       .sort();
     expect(names).toEqual(TABLES);
+  });
+
+  it("creates the coach level tables (migration 7)", () => {
+    expect(db.prepare("SELECT name FROM schema_migrations WHERE id = 7").get()).toEqual({ name: "coach_levels" });
+  });
+
+  it("leaves migration ids 4, 5 and 6 unused", () => {
+    expect(migrations.some((m) => m.id === 4 || m.id === 5 || m.id === 6)).toBe(false);
+  });
+
+  it("rejects an unknown evidence kind and polarity", () => {
+    const insert = (kind: string, polarity: string) =>
+      db
+        .prepare(
+          "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, at) VALUES (?, 'builtin/backend', 'BE.ERR.M2', ?, ?, 'dev', 'T-1', '2026-11-01')",
+        )
+        .run(randomUUID(), kind, polarity);
+    expect(() => insert("rule", "positive")).not.toThrow();
+    expect(() => insert("guess", "positive")).toThrow();
+    expect(() => insert("rule", "maybe")).toThrow();
   });
 
   it("does nothing on a second run", () => {
