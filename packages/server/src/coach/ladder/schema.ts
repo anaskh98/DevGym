@@ -9,7 +9,7 @@ export type Level = (typeof LEVELS)[number];
 
 /** The level letter in an item id: BE.ERR.M2 is a mid item. X is staff. */
 export const LEVEL_LETTER: Record<Level, string> = { junior: "J", mid: "M", senior: "S", staff: "X" };
-export const ITEM_ID = /^(BE|FE)\.[A-Z]{2,8}\.[JMSX]\d{1,2}$/;
+export const ITEM_ID = /^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/;
 
 export interface SignalRef {
   id: string;
@@ -125,7 +125,7 @@ export const ladderSchema = z
     areas: z
       .array(
         z.strictObject({
-          id: z.string().regex(/^[A-Z]{2,8}$/, "area ids are 2 to 8 capital letters"),
+          id: z.string().regex(/^[A-Z][A-Z0-9]{1,7}$/, "area ids are 2 to 8 capital letters or digits, starting with a letter"),
           name: text,
           levels: z.strictObject({ junior: z.array(itemSchema), mid: z.array(itemSchema), senior: z.array(itemSchema), staff: z.array(itemSchema) }),
         }),

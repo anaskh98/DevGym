@@ -1,0 +1,345 @@
+{
+  "track": "backend",
+  "areas": [
+    {
+      "id": "ERR",
+      "name": "Errors and failure",
+      "levels": {
+        "junior": [
+          {
+            "id": "BE.ERR.J1",
+            "title": "Never hides an error",
+            "good_looks_like": [
+              "Every caught error is handled, logged with context, or thrown again. Nothing is caught and silently dropped."
+            ],
+            "signals": [{ "id": "err.empty-catch", "polarity": "negative", "regresses": true }],
+            "explain_angles": [
+              "What happens to the user when this error is caught here?",
+              "Who finds out that this failed, and how?"
+            ],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "A teammate wraps a database save in try/catch with an empty catch block 'so the request never crashes'. What goes wrong, and what would you do instead?",
+                "key_points": [
+                  { "id": "k1", "text": "The failure becomes invisible: data is lost and nobody knows" },
+                  { "id": "k2", "text": "The caller wrongly believes the save worked" },
+                  { "id": "k3", "text": "Either handle it on purpose, or log with context and let it fail to the caller" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Says an empty catch is fine as long as nothing crashes" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "When is it right to catch an error and NOT throw it again? Give an example and say what you must still do.",
+                "key_points": [
+                  { "id": "k1", "text": "When there is a real fallback or the failure does not matter to the result" },
+                  { "id": "k2", "text": "A concrete example such as an optional cache or a best-effort metric" },
+                  { "id": "k3", "text": "Still log or count it so the failure is visible" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Says it is fine to catch any error and move on" }]
+              }
+            ],
+            "study": ["error handling basics in your language", "what 'fail loudly' means", "logging an error with context"],
+            "stack_notes": {
+              "express": { "note": "Pass errors to next(err) and keep one error-handling middleware; never end a request from an empty catch.", "link": "https://expressjs.com/en/guide/error-handling.html" },
+              "nestjs": { "note": "Throw an HttpException or a custom one and let an exception filter shape the reply; do not swallow it in the service.", "link": "https://docs.nestjs.com/exception-filters" },
+              "spring": { "note": "Let exceptions reach a @ControllerAdvice handler; do not catch and ignore them in the service.", "link": "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html" }
+            }
+          },
+          {
+            "id": "BE.ERR.J2",
+            "title": "Checks the result of calls that can fail",
+            "good_looks_like": [
+              "Checks for missing rows, null results and failed status codes before using the result."
+            ],
+            "signals": [],
+            "explain_angles": ["What happens here if the call returns nothing?", "Why check it here and not later?"],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "Your endpoint loads an order by id and then reads order.customer.email. What can go wrong, and how do you handle each case?",
+                "key_points": [
+                  { "id": "k1", "text": "The order may not exist: return a clear 404" },
+                  { "id": "k2", "text": "The customer or email may be missing: decide what the caller gets" },
+                  { "id": "k3", "text": "Check before use instead of letting a null error become a 500" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Lets a null reference error reach the user as a 500" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "An outside API returns HTTP 200 with a body like { ok: false, error: 'quota' }. How should your code treat it?",
+                "key_points": [
+                  { "id": "k1", "text": "A 200 status does not mean success; read the body's own status" },
+                  { "id": "k2", "text": "Turn it into a real error in your code" },
+                  { "id": "k3", "text": "Decide whether it is worth retrying or should be shown to the caller" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Treats any 200 as success" }]
+              }
+            ],
+            "study": ["null and undefined checks", "HTTP status codes 4xx vs 5xx", "guard clauses"],
+            "stack_notes": {
+              "express": { "note": "Return 404 for a missing resource with a short JSON body; check results before using them.", "link": "https://expressjs.com/en/guide/error-handling.html" },
+              "nestjs": { "note": "Throw NotFoundException when a lookup finds nothing.", "link": "https://docs.nestjs.com/exception-filters" },
+              "spring": { "note": "Use Optional from repositories and orElseThrow a not-found exception.", "link": "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html" }
+            }
+          }
+        ],
+        "mid": [
+          {
+            "id": "BE.ERR.M1",
+            "title": "Validates input at the edge",
+            "good_looks_like": [
+              "Checks request input once, where it enters the system, and rejects bad input with a clear 400 that says what is wrong."
+            ],
+            "signals": [],
+            "explain_angles": ["Why validate here and not deeper in the code?", "What does the caller see for bad input?"],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "A create-user endpoint takes name, email and age. Where and how do you validate them, and what does a client get back for bad input?",
+                "key_points": [
+                  { "id": "k1", "text": "Validate at the entry point with a schema" },
+                  { "id": "k2", "text": "Return 400 with which fields are wrong and why" },
+                  { "id": "k3", "text": "Inner code can then trust its input instead of checking again everywhere" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Relies on the frontend to validate" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "Why is checking input only in the browser not enough? Give one attack or bug it lets through.",
+                "key_points": [
+                  { "id": "k1", "text": "Anyone can call the API directly and skip the browser" },
+                  { "id": "k2", "text": "A concrete example: a negative quantity, a huge string, a wrong type" },
+                  { "id": "k3", "text": "The server is the only place the rule is enforced" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Says browser checks are enough" }]
+              }
+            ],
+            "study": ["schema validation (zod, class-validator, Bean Validation)", "trust boundaries", "400 vs 422 responses"],
+            "stack_notes": {
+              "express": { "note": "Validate req.body with a schema library in a middleware and reply 400 with field errors.", "link": "https://express-validator.github.io/docs/" },
+              "nestjs": { "note": "Use DTOs with class-validator and the global ValidationPipe.", "link": "https://docs.nestjs.com/techniques/validation" },
+              "spring": { "note": "Use @Valid on request bodies with Bean Validation annotations.", "link": "https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html" }
+            }
+          },
+          {
+            "id": "BE.ERR.M2",
+            "title": "Handles the failure of an outside call on purpose",
+            "good_looks_like": [
+              "Sets a time limit on every call to another service.",
+              "Retries only when it is safe, with backoff, and gives the caller a clear error when it still fails."
+            ],
+            "signals": [
+              { "id": "err.timeout-set", "polarity": "positive" },
+              { "id": "err.retry-backoff", "polarity": "positive" },
+              { "id": "err.empty-catch", "polarity": "negative" }
+            ],
+            "explain_angles": [
+              "Why this time limit, and what happens when it runs out?",
+              "Is it safe to retry this call? Why?",
+              "What does the caller see when the outside service is down?"
+            ],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "Your service calls a payment provider that sometimes takes 30 seconds to answer. How do you design the call? What can go wrong with retries?",
+                "key_points": [
+                  { "id": "k1", "text": "Set a time limit shorter than your own caller's" },
+                  { "id": "k2", "text": "Retry only with an idempotency key, or not at all, so a charge is never made twice" },
+                  { "id": "k3", "text": "Backoff with jitter and a small retry cap" },
+                  { "id": "k4", "text": "A clear error or 'pending' state for the caller when it still fails" }
+                ],
+                "red_flags": [
+                  { "id": "r1", "text": "Retries a payment with no idempotency key" },
+                  { "id": "r2", "text": "No time limit at all" }
+                ]
+              },
+              {
+                "id": "d2",
+                "prompt": "A downstream service is down for 10 minutes. Your service retries every failed call 5 times right away. What happens, and what would you change?",
+                "key_points": [
+                  { "id": "k1", "text": "Retries multiply the load and slow down your own service" },
+                  { "id": "k2", "text": "Use backoff with jitter and a retry cap" },
+                  { "id": "k3", "text": "Fail fast or use a circuit breaker while it is down" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Says more retries fix it" }]
+              }
+            ],
+            "study": ["time limits on outside calls", "retry with backoff and jitter", "idempotency keys", "circuit breakers"],
+            "stack_notes": {
+              "express": { "note": "Pass AbortSignal.timeout(ms) to fetch; retry only idempotent calls, with backoff.", "link": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static" },
+              "nestjs": { "note": "Set a timeout on HttpModule and use rxjs timeout and retry with a delay function.", "link": "https://docs.nestjs.com/techniques/http-module" },
+              "spring": { "note": "Set connect and read timeouts on the client; use Resilience4j for retry and circuit breaker.", "link": "https://resilience4j.readme.io/docs/getting-started" }
+            }
+          },
+          {
+            "id": "BE.ERR.M3",
+            "title": "Errors carry useful context without leaking data",
+            "good_looks_like": [
+              "A new error keeps its cause and says what was being done.",
+              "The client gets a safe message; stack traces and internal details stay in the logs."
+            ],
+            "signals": [
+              { "id": "err.error-cause", "polarity": "positive" },
+              { "id": "err.rethrow-message-only", "polarity": "negative" },
+              { "id": "err.error-leak", "polarity": "negative", "regresses": true }
+            ],
+            "explain_angles": ["What will the person debugging this see in the logs?", "What does the client see, and why not more?"],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "A user reports 'it failed' and your log says only 'Error: undefined'. How should errors be written so this never happens again, and what should the user see?",
+                "key_points": [
+                  { "id": "k1", "text": "Wrap errors with what was being done and keep the original cause" },
+                  { "id": "k2", "text": "Log with an id that links the request and the error" },
+                  { "id": "k3", "text": "The user gets a safe message plus the id, never the stack trace" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Sends the stack trace to the client" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "Why is res.status(500).json(err) a problem? What would you send instead?",
+                "key_points": [
+                  { "id": "k1", "text": "It can leak internals: stack, SQL, file paths, secrets" },
+                  { "id": "k2", "text": "Send a stable error shape with a safe message and a code" },
+                  { "id": "k3", "text": "Keep full details in the server logs" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Says the raw error helps the client debug" }]
+              }
+            ],
+            "study": ["error cause chains", "correlation ids", "safe error responses (RFC 9457 problem details)"],
+            "stack_notes": {
+              "express": { "note": "Throw new Error(msg, { cause }) and map errors to safe JSON in one error middleware.", "link": "https://expressjs.com/en/guide/error-handling.html" },
+              "nestjs": { "note": "Use an exception filter to return a safe shape and log the full error.", "link": "https://docs.nestjs.com/exception-filters" },
+              "spring": { "note": "Return ProblemDetail from @ExceptionHandler and keep the cause in the log.", "link": "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html" }
+            }
+          }
+        ],
+        "senior": [
+          {
+            "id": "BE.ERR.S1",
+            "title": "Designs for partial failure",
+            "good_looks_like": [
+              "When one step of a multi-step change fails, the system ends in a known state: retried safely, compensated, or clearly marked for follow-up."
+            ],
+            "signals": [],
+            "explain_angles": ["What state is the data in if the second step fails?", "How does this recover without a person?"],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "An order flow charges the card, then reserves stock, then sends an email. Stock reservation fails after the charge. How do you design this?",
+                "key_points": [
+                  { "id": "k1", "text": "Name the bad state: money taken, no stock" },
+                  { "id": "k2", "text": "Compensate (refund) or retry the step, with idempotent steps" },
+                  { "id": "k3", "text": "Record progress so a crash mid-flow can resume (outbox, saga, or state machine)" },
+                  { "id": "k4", "text": "Side effects like email only after the important steps succeed" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Assumes all steps succeed or fail together without a transaction that covers them" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "You must save a row and publish an event about it. What can go wrong, and how do you make sure both happen?",
+                "key_points": [
+                  { "id": "k1", "text": "The save can succeed and the publish fail, or the other way round" },
+                  { "id": "k2", "text": "Use a transactional outbox or similar" },
+                  { "id": "k3", "text": "Consumers must handle duplicates" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Publishes before the save commits and calls it done" }]
+              }
+            ],
+            "study": ["saga pattern", "transactional outbox", "idempotent consumers", "compensating actions"],
+            "stack_notes": {
+              "express": { "note": "Keep each step idempotent and record progress in the database before side effects.", "link": "https://microservices.io/patterns/data/transactional-outbox.html" },
+              "nestjs": { "note": "Use a queue (for example BullMQ) for steps after the main transaction, with retries.", "link": "https://docs.nestjs.com/techniques/queues" },
+              "spring": { "note": "Use @TransactionalEventListener or an outbox table to publish after commit.", "link": "https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html" }
+            }
+          },
+          {
+            "id": "BE.ERR.S2",
+            "title": "Makes failures observable",
+            "good_looks_like": [
+              "Failures show up as structured logs, metrics and alerts that tell someone what broke, before users report it."
+            ],
+            "signals": [],
+            "explain_angles": ["How would you know this is failing in production?", "Who gets alerted, and on what?"],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "Your checkout fails for 2% of users and nobody noticed for a week. What would you add so this is caught in minutes?",
+                "key_points": [
+                  { "id": "k1", "text": "An error-rate metric on the checkout path" },
+                  { "id": "k2", "text": "An alert on that rate with a sensible threshold" },
+                  { "id": "k3", "text": "Structured logs with a request id to find the cause" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Relies on users or support tickets to notice" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "What makes a log line useful during an incident? Compare a good and a bad one.",
+                "key_points": [
+                  { "id": "k1", "text": "Structured fields, not free text" },
+                  { "id": "k2", "text": "Request or trace id, and what was being done" },
+                  { "id": "k3", "text": "No secrets or personal data" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Logs full request bodies with personal data" }]
+              }
+            ],
+            "study": ["structured logging", "RED metrics (rate, errors, duration)", "alerting on symptoms", "distributed tracing"],
+            "stack_notes": {
+              "express": { "note": "Use a structured logger (for example pino) with a request id per request.", "link": "https://expressjs.com/en/advanced/best-practice-performance.html" },
+              "nestjs": { "note": "Replace the default logger with a structured one and add an interceptor for request ids.", "link": "https://docs.nestjs.com/techniques/logger" },
+              "spring": { "note": "Use Actuator and Micrometer for metrics, and MDC for request ids in logs.", "link": "https://docs.spring.io/spring-boot/reference/actuator/index.html" }
+            }
+          }
+        ],
+        "staff": [
+          {
+            "id": "BE.ERR.X1",
+            "title": "Sets the error-handling standard for a system",
+            "good_looks_like": [
+              "Defines one error contract, retry and timeout rules, and error budgets that every team follows, and makes the easy path the right one."
+            ],
+            "signals": [],
+            "explain_angles": ["Why should every service follow this rule?", "How do you make the right way the easy way?"],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "Ten services each handle errors their own way, and incidents are hard to trace. What standard would you set, and how would you roll it out?",
+                "key_points": [
+                  { "id": "k1", "text": "One error shape and code list across services" },
+                  { "id": "k2", "text": "Shared defaults for time limits, retries and tracing, in a library or template" },
+                  { "id": "k3", "text": "Roll out step by step with checks in CI or review" },
+                  { "id": "k4", "text": "Measure success with error budgets or incident data" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Only writes a document and expects people to follow it" }]
+              },
+              {
+                "id": "d2",
+                "prompt": "How would you choose time limits and retry budgets across a chain of four services calling each other?",
+                "key_points": [
+                  { "id": "k1", "text": "Time limits shrink down the chain so the caller's budget is respected" },
+                  { "id": "k2", "text": "Retry at one layer only to avoid retry storms" },
+                  { "id": "k3", "text": "Pass the deadline along with the request" }
+                ],
+                "red_flags": [{ "id": "r1", "text": "Every layer retries 3 times" }]
+              }
+            ],
+            "study": ["error budgets and SLOs", "deadline propagation", "API error contracts", "paved-road libraries"],
+            "stack_notes": {
+              "express": { "note": "Ship a shared middleware package for errors, timeouts and request ids.", "link": "https://expressjs.com/en/guide/writing-middleware.html" },
+              "nestjs": { "note": "Ship a shared module with a global filter, interceptor and HTTP client defaults.", "link": "https://docs.nestjs.com/modules" },
+              "spring": { "note": "Ship a starter with ProblemDetail handling, Resilience4j defaults and tracing.", "link": "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" }
+            }
+          }
+        ]
+      }
+    },
+    { "id": "DATA", "name": "Data and storage", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
+    { "id": "API", "name": "API design", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
+    { "id": "SEC", "name": "Security", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
+    { "id": "PERF", "name": "Performance", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
+    { "id": "TEST", "name": "Testing", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
+    { "id": "STRUCT", "name": "Code structure", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
+    { "id": "REQ", "name": "Requirements and scope", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } }
+  ]
+}
