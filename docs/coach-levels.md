@@ -187,3 +187,20 @@ server checks that an exercise names a real file, but it cannot check every sent
 - The same function proposed by the AI three times counted as three proofs.
 - An answer refused by the privacy check still counted as an answer.
 - A captured message that was not an answer could not be put back.
+
+## Measured results (stage 1.5)
+
+**Automated tests:** the full check passes. Server tests: 423.
+
+**One real headless run** (Sonnet), in a fresh scratch repo with an Express `package.json`:
+
+1. One developer commit added a call with a time limit. `/coach` showed **BE.ERR.M2 NOT ASSESSED**, exposure low,
+   "drill available", and not Learning. J2 and S1 were Not assessed from the exposure of the same call.
+2. The first drill passed. Claude then said a drill alone could not move the item, which was wrong. The cause: the
+   server's "needs" list did not spell out the drill path. Fixed with a test, so `needs` now says how many drills and
+   answers are left.
+3. The second drill (new prompt) passed. Claude asked one follow-up question, and the answer was rated clear with the
+   trade-off checked. M2 became **SHOWN (by drill)** and stayed short of Proven, with "show it in your work, then pass
+   a drill".
+4. The history recorded not seen → not assessed → shown, with the reason "passed 2 drills and gave a clear answer,
+   with little chance in the work".
