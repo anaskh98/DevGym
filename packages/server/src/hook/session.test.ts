@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
 
-const env = () => ({ ...process.env, FTC_DB_PATH: dbPath });
+const env = (background = false) => ({ ...process.env, FTC_DB_PATH: dbPath, ...(background ? {} : { FTC_NO_BACKGROUND: "1" }) });
 function session(event: string) {
   const r = spawnSync(process.execPath, [start, "session"], { input: JSON.stringify({ session_id: "s1", cwd: repo, hook_event_name: event }), encoding: "utf8", env: env() });
   return { status: r.status, stdout: r.stdout.trim() };
@@ -90,7 +90,7 @@ describe.skipIf(!built)("background worker", () => {
     writeFileSync(join(repo, "pay.ts"), "export async function charge(url: string) {\n  return fetch(url, { signal: AbortSignal.timeout(4000) });\n}\n");
     git(["add", "-A"]);
     git(["commit", "-q", "-m", "PAY-1 charge"]);
-    const r = spawnSync(process.execPath, [start, "background", repo], { encoding: "utf8", env: env(), timeout: 60_000 });
+    const r = spawnSync(process.execPath, [start, "background", repo], { encoding: "utf8", env: env(true), timeout: 60_000 });
     expect(r.status).toBe(0);
     const n = withDb((db) => (db.prepare("SELECT count(*) AS n FROM skill_evidence WHERE signal_id = 'err.timeout-set'").get() as { n: number }).n);
     expect(n).toBe(1);

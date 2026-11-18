@@ -15,6 +15,7 @@ import { EmptyState, ErrorState, Loading } from "../components/States";
 import { formatDay, formatDayTime, isoDate } from "../lib/dates";
 import { plural } from "../lib/fork";
 import { useTitle } from "../lib/useTitle";
+import { GrowthSection } from "./GrowthSection";
 
 /** Words for each decision and explain-back the plan cites, read from the tickets they belong to. */
 type Labels = Map<string, string>;
@@ -171,6 +172,8 @@ export function CoachPage() {
   return (
     <article className="coach-page">
       <h1 className="page-title">Coach</h1>
+      <GrowthSection />
+      <h2>Your plan</h2>
       {report.status === "loading" && <Loading what="your growth plan" />}
       {report.status === "error" && <ErrorState error={report.error} what="your growth plan" />}
       {report.status === "ready" && <Report plan={report.data.plan} labels={report.data.labels} />}

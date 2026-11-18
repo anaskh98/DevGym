@@ -204,6 +204,30 @@ export const proposeFaultInput = z.strictObject({
   why: shortText.describe("The fault, in plain words: what is wrong and what it risks. No code."),
 });
 
+export const proposeTicketFindingInput = z
+  .strictObject({
+    ticket_id: id,
+    kind: z.enum(["missing", "extra", "different"]).describe("missing: asked for, not built. extra: works but nobody asked for it. different: does something other than the ticket asks."),
+    ticket_quote: z.string().trim().min(12).max(500).describe("Words copied exactly from the ticket or its assumptions that the finding rests on."),
+    file: z.string().trim().min(1).max(500).optional().describe("Repo-relative path. Required for extra and different."),
+    line_start: z.number().int().positive().optional(),
+    line_end: z.number().int().positive().optional(),
+    base: z.string().regex(/^[0-9a-f]{7,40}$/i, "base must be a git SHA").optional(),
+    why: shortText.describe("What is missing, extra or different, in plain words. No code."),
+  });
+
+export const decideTicketFindingInput = z.strictObject({
+  finding_id: id,
+  session_id: id.describe("The Claude Code session id"),
+  choice: z.enum(["fixed", "kept"]),
+  reason_quote: z.string().trim().min(12).max(500).describe("The developer's own words, copied exactly from their message, saying what they decide and why."),
+});
+
+export const finishTicketCheckInput = z.strictObject({
+  ticket_id: id,
+  needs: z.number().int().min(1).max(100).describe("How many separate needs the ticket states."),
+});
+
 export const disagreeInput = z.strictObject({
   target_id: id.describe("The id of a piece of evidence or a drill attempt"),
   reason: z.string().trim().min(8).max(500).describe("The developer's reason, in their own words"),

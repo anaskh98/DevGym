@@ -7,6 +7,7 @@ import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { repoIdentitySync } from "../git/identity.js";
 import { proposeFault } from "../coach/review.js";
+import { creditSpottedNeeds, decideFinding, finishTicketCheck, proposeFinding } from "../coach/ticketcheck.js";
 import { decisionEvidence, resolveOrigin } from "../coach/messages.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer, releaseAnswer } from "../coach/questions.js";
@@ -30,6 +31,9 @@ import {
   disagreeInput,
   proposeEvidenceInput,
   proposeFaultInput,
+  proposeTicketFindingInput,
+  decideTicketFindingInput,
+  finishTicketCheckInput,
   setCoachTracksInput,
   getTicketInput,
   getTrailInput,
@@ -78,7 +82,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   const guard = options.guard ?? new PrivacyGuard({ root });
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   // Started on the first open_report call. It lives as long as this MCP server, so as long as the session.
-  const report = new ReportServer({ db, guard, ...options.report });
+  const report = new ReportServer({ db, guard, coachRoot: repoIdentitySync(root)?.top ?? root, ...options.report });
   server.server.onclose = () => report.close();
 
   /** Every tool that writes goes through here: the privacy guard runs before anything is saved. */
@@ -131,7 +135,10 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     (input) =>
       write(input, async (i) => {
         await ticket(i.ticket_id);
-        return store.saveAssumptions(db, i);
+        const saved = store.saveAssumptions(db, i);
+        // Asking the product owner before coding is spotting unclear needs: a sign for the requirements-and-scope skill.
+        creditSpottedNeeds(db, coachRoot, i.ticket_id, i.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+        return saved;
       }),
   );
 
@@ -362,6 +369,43 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: proposeFaultInput,
     },
     (input) => write(input, (i) => proposeFault(db, root, i, undefined, options.coachHome)),
+  );
+
+  server.registerTool(
+    "propose_ticket_finding",
+    {
+      title: "Propose ticket finding",
+      description:
+        "Ticket check: name code that is missing, extra (works but nobody asked for it) or different from the ticket. Give words copied exactly from the ticket and, for extra and different, the exact lines in the pull request's change. The server checks both. Shown only to the developer, never to reviewers.",
+      inputSchema: proposeTicketFindingInput,
+    },
+    (input) =>
+      write(input, async (i) => {
+        const t = await ticket(i.ticket_id);
+        return proposeFinding(db, root, t, i, undefined, options.coachHome);
+      }),
+  );
+
+  server.registerTool(
+    "decide_ticket_finding",
+    {
+      title: "Decide ticket finding",
+      description:
+        "Record what the developer decides about a finding: fixed it, or keep it. It needs the developer's own words, copied exactly from a message they sent in this session. You cannot decide for them.",
+      inputSchema: decideTicketFindingInput,
+    },
+    (input) => write(input, (i) => decideFinding(db, i)),
+  );
+
+  server.registerTool(
+    "finish_ticket_check",
+    {
+      title: "Finish ticket check",
+      description:
+        "Close the ticket check. A check with no findings on a ticket with 3 or more needs is a positive sign for building what the ticket asks. Credit is given once per ticket.",
+      inputSchema: finishTicketCheckInput,
+    },
+    (input) => reply(() => finishTicketCheck(db, coachRoot, input, options.coachHome)),
   );
 
   server.registerTool(

@@ -19,7 +19,7 @@ const allowedOrigins = (process.env.FTC_WEB_ORIGIN ?? "http://127.0.0.1:4318,htt
 // The built web app ships in "web" next to this file's folder, when the plugin includes it.
 const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 
-const server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir });
+const server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir, coachRoot: process.cwd() });
 try {
   const actual = await listen(server, port);
   console.log(`fork-trail-coach API listening on http://${API_HOST}:${actual}/api`);

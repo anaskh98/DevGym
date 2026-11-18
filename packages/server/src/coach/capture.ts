@@ -248,7 +248,7 @@ function captureStart(db: Db, repoKey: string): string | null {
 
 /** A review fault has no signal to match, so it is closed when a later commit removes lines from the same function. */
 async function closeReviewFaults(db: Db, top: string, key: string, sha: string, diff: FileDiff[], ticket: string, at: string, exec: Run): Promise<void> {
-  const open = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind = 'review' AND signal_id IS NULL AND polarity = 'negative' AND fixed_at IS NULL AND at < ?");
+  const open = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL AND at < ?");
   const close = db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
   const faults = open.all(key, at) as { id: string; file_path: string; symbol: string | null }[];
   for (const file of diff) {

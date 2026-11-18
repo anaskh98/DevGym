@@ -46,17 +46,17 @@ describe("built-in ladders", () => {
     }
   });
 
-  it("names the other areas, still empty", () => {
+  it("names the other areas", () => {
     expect(backend.areas.map((a) => a.id)).toEqual(["ERR", "DATA", "API", "SEC", "PERF", "TEST", "STRUCT", "REQ"]);
     expect(frontend.areas.map((a) => a.id)).toEqual(["FETCH", "STATE", "COMP", "RENDER", "A11Y", "SEC", "TEST", "REQ"]);
   });
 
   it("has the planned item ids", () => {
     expect(items(backend).map((i) => i.id)).toEqual([
-      "BE.ERR.J1", "BE.ERR.J2", "BE.ERR.M1", "BE.ERR.M2", "BE.ERR.M3", "BE.ERR.S1", "BE.ERR.S2", "BE.ERR.X1",
+      "BE.ERR.J1", "BE.ERR.J2", "BE.ERR.M1", "BE.ERR.M2", "BE.ERR.M3", "BE.ERR.S1", "BE.ERR.S2", "BE.ERR.X1", "BE.REQ.J1", "BE.REQ.M1",
     ]);
     expect(items(frontend).map((i) => i.id)).toEqual([
-      "FE.FETCH.J1", "FE.FETCH.J2", "FE.FETCH.M1", "FE.FETCH.M2", "FE.FETCH.M3", "FE.FETCH.S1", "FE.FETCH.S2", "FE.FETCH.X1",
+      "FE.FETCH.J1", "FE.FETCH.J2", "FE.FETCH.M1", "FE.FETCH.M2", "FE.FETCH.M3", "FE.FETCH.S1", "FE.FETCH.S2", "FE.FETCH.X1", "FE.REQ.J1", "FE.REQ.M1",
     ]);
   });
 
@@ -64,6 +64,8 @@ describe("built-in ladders", () => {
     for (const [l, stacks] of [[backend, ["express", "nestjs", "spring"]], [frontend, ["react", "nextjs", "angular"]]] as const) {
       for (const i of items(l)) {
         expect(i.drills.length, i.id).toBeGreaterThanOrEqual(2);
+        // Requirements-and-scope items are about the ticket, not the stack: they carry no stack notes.
+        if (i.id.includes(".REQ.")) continue;
         expect(Object.keys(i.stack_notes).sort(), i.id).toEqual([...stacks].sort());
       }
     }

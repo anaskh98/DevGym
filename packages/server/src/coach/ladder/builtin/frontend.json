@@ -837,8 +837,160 @@
       "id": "REQ",
       "name": "Requirements and scope",
       "levels": {
-        "junior": [],
-        "mid": [],
+        "junior": [
+          {
+            "id": "FE.REQ.J1",
+            "title": "Builds what the ticket asks, and nothing extra",
+            "good_looks_like": [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            "signals": [],
+            "explain_angles": [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                "key_points": [
+                  {
+                    "id": "k1",
+                    "text": "Build the export the ticket asks for"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                "id": "d2",
+                "prompt": "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                "key_points": [
+                  {
+                    "id": "k1",
+                    "text": "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "If it is kept, say why in the pull request"
+                  }
+                ],
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            "study": [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            "stack_notes": {},
+            "exposure_signals": [],
+            "why_it_matters": "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            "exercise_kinds": [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        "mid": [
+          {
+            "id": "FE.REQ.M1",
+            "title": "Spots unclear needs before coding",
+            "good_looks_like": [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            "signals": [],
+            "explain_angles": [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            "drills": [
+              {
+                "id": "d1",
+                "prompt": "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                "key_points": [
+                  {
+                    "id": "k1",
+                    "text": "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                "id": "d2",
+                "prompt": "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                "key_points": [
+                  {
+                    "id": "k1",
+                    "text": "Write the assumption down where the team can see it"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Build the part that does not depend on it first"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            "study": [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            "stack_notes": {},
+            "exposure_signals": [],
+            "why_it_matters": "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            "exercise_kinds": [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
         "senior": [],
         "staff": []
       }

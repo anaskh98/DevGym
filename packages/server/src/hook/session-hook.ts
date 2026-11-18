@@ -56,7 +56,8 @@ function main(stdin: string): void {
   } finally {
     db.close();
   }
-  if (spawnFor !== null) {
+  // FTC_NO_BACKGROUND=1 turns the background worker off (tests, or a developer who prefers to run Coach by hand).
+  if (spawnFor !== null && process.env.FTC_NO_BACKGROUND !== "1") {
     // Detached: the worker outlives this hook, so the session never waits for it.
     const child = spawn(process.execPath, [process.argv[1]!, "background", spawnFor], { detached: true, stdio: "ignore", windowsHide: true, env: process.env });
     child.unref();

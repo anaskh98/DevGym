@@ -89,8 +89,10 @@ describe("tool list", () => {
       "coach_history",
       "coach_item",
       "coach_status",
+      "decide_ticket_finding",
       "disagree",
       "drill_key",
+      "finish_ticket_check",
       "get_ticket",
       "get_trail",
       "import_ticket",
@@ -100,6 +102,7 @@ describe("tool list", () => {
       "open_report",
       "propose_evidence",
       "propose_fault",
+      "propose_ticket_finding",
       "rate_answer",
       "record_explain_back",
       "release_answer",
@@ -712,5 +715,89 @@ describe("stage 2: propose_fault (PR-time fault review)", () => {
     setup();
     const out = await ok("propose_fault", fault());
     expect(db.prepare("SELECT author, owned FROM skill_evidence WHERE id = ?").get(out.evidence_id)).toMatchObject({ author: "dev", owned: 0 });
+  });
+});
+
+describe("stage 4: the ticket check", () => {
+  function setup() {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+    git(["init", "-q", "-b", "main"]);
+    git(["config", "user.email", "dev@example.com"]);
+    git(["config", "user.name", "Dev"]);
+    git(["config", "commit.gpgsign", "false"]);
+    git(["add", "-A"]);
+    git(["commit", "-q", "-m", "base"]);
+    git(["checkout", "-q", "-b", "SAMPLE-1-export"]);
+    writeFileSync(join(repo, "export.ts"), "export function exportOrders() {\n  return [];\n}\nexport function sendEmailDigest() {\n  return 1;\n}\n");
+    git(["add", "export.ts"]);
+    git(["commit", "-q", "-m", "SAMPLE-1 export orders and an email digest"]);
+    return repoIdentitySync(repo)!.key;
+  }
+  const finding = (extra: Record<string, unknown> = {}) => ({
+    ticket_id: "SAMPLE-1",
+    kind: "extra",
+    ticket_quote: "Add a way for a customer to export their order history",
+    file: "export.ts",
+    line_start: 4,
+    line_end: 6,
+    why: "An email digest nobody asked for: the ticket only asks for an export",
+    ...extra,
+  });
+
+  it("refuses a ticket quote that is not in the ticket (Review Focus: made-up quote)", async () => {
+    setup();
+    expect(await rejected("propose_ticket_finding", finding({ ticket_quote: "The ticket also asks for a weekly email digest" }))).toMatch(/not in the ticket/);
+  });
+
+  it("refuses lines that are not in the final change", async () => {
+    setup();
+    expect(await rejected("propose_ticket_finding", finding({ line_start: 90, line_end: 99 }))).toMatch(/not added in this change/);
+  });
+
+  it("refuses an extra or different finding with no lines", async () => {
+    setup();
+    expect(await rejected("propose_ticket_finding", finding({ file: undefined, line_start: undefined, line_end: undefined }))).toMatch(/needs file/);
+  });
+
+  it("keeps a missing finding with only a ticket quote", async () => {
+    setup();
+    const out = await ok("propose_ticket_finding", { ticket_id: "SAMPLE-1", kind: "missing", ticket_quote: "Only the right people can export.", why: "No check of who may export" });
+    expect(db.prepare("SELECT kind, file_path FROM ticket_findings WHERE id = ?").get(out.finding_id)).toMatchObject({ kind: "missing", file_path: null });
+  });
+
+  it("stores an unneeded-code finding as an owned fault when Claude wrote the lines, until the developer decides", async () => {
+    const key = setup();
+    saveAiLines(db, key, "export.ts", "s1", ["export function sendEmailDigest() {"]);
+    const out = await ok("propose_ticket_finding", finding());
+    const ev = db.prepare("SELECT kind, polarity, author, owned, item_id, fixed_at FROM skill_evidence WHERE id = ?").get(out.evidence_id);
+    expect(ev).toMatchObject({ kind: "ticket_check", polarity: "negative", author: "ai", owned: 1, item_id: "BE.REQ.J1", fixed_at: null });
+    // The developer decides, in their own words. A made-up reason is refused.
+    expect(await rejected("decide_ticket_finding", { finding_id: out.finding_id, session_id: "s1", choice: "kept", reason_quote: "I told you to keep it for a good reason" })).toMatch(/not in a message/);
+    await ok("decide_ticket_finding", { finding_id: out.finding_id, session_id: "s1", choice: "kept", reason_quote: "developer asked for this exact approach" });
+    expect(db.prepare("SELECT choice FROM ticket_findings WHERE id = ?").get(out.finding_id)).toEqual({ choice: "kept" });
+    expect((db.prepare("SELECT fixed_at FROM skill_evidence WHERE id = ?").get(out.evidence_id) as { fixed_at: string | null }).fixed_at).not.toBeNull();
+  }, 30_000);
+
+  it("gives credit for a clean check only on a ticket with 3 or more needs", async () => {
+    setup();
+    await ok("finish_ticket_check", { ticket_id: "SAMPLE-1", needs: 2 });
+    expect(db.prepare("SELECT count(*) AS n FROM skill_evidence WHERE kind = 'ticket_check'").get()).toEqual({ n: 0 });
+    await ok("finish_ticket_check", { ticket_id: "SAMPLE-1", needs: 4 });
+    expect(db.prepare("SELECT polarity, author, symbol FROM skill_evidence WHERE kind = 'ticket_check'").get()).toMatchObject({ polarity: "positive", author: "dev", symbol: "SAMPLE-1" });
+  });
+
+  it("does not give credit for a clean check when a finding was raised", async () => {
+    setup();
+    await ok("propose_ticket_finding", { ticket_id: "SAMPLE-1", kind: "missing", ticket_quote: "Only the right people can export.", why: "No check of who may export" });
+    await ok("finish_ticket_check", { ticket_id: "SAMPLE-1", needs: 4 });
+    expect(db.prepare("SELECT count(*) AS n FROM skill_evidence WHERE polarity = 'positive' AND kind = 'ticket_check'").get()).toEqual({ n: 0 });
+  });
+
+  it("credits spotting unclear needs when Fork saved answered questions", async () => {
+    await ok("set_coach_tracks", { tracks: ["backend"] });
+    await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes, marked as cancelled" }] });
+    expect(db.prepare("SELECT item_id, author FROM skill_evidence WHERE kind = 'ticket_check'").get()).toMatchObject({ item_id: "BE.REQ.M1", author: "dev" });
+    await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes, marked as cancelled" }] });
+    expect(db.prepare("SELECT count(*) AS n FROM skill_evidence WHERE kind = 'ticket_check'").get()).toEqual({ n: 1 });
   });
 });

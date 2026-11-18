@@ -28952,6 +28952,30 @@ var migrations = [
       -- The words of the developer that made a decision theirs. Checked against developer_messages.
       ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
     `
+  },
+  {
+    id: 10,
+    name: "coach_ticket_check",
+    sql: `
+      -- Code that is missing, extra or different from the ticket, shown only to the developer. The ticket quote is a
+      -- quote the server found in the ticket. The choice and reason_quote are the developer's own words.
+      CREATE TABLE ticket_findings (
+        id           TEXT PRIMARY KEY,
+        ticket_id    TEXT NOT NULL,
+        kind         TEXT NOT NULL CHECK (kind IN ('missing', 'extra', 'different')),
+        ticket_quote TEXT NOT NULL,
+        file_path    TEXT,
+        line_start   INTEGER,
+        line_end     INTEGER,
+        why          TEXT NOT NULL,
+        evidence_id  TEXT NOT NULL,
+        choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
+        reason_quote TEXT,
+        decided_at   TEXT,
+        created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_ticket_findings_ticket ON ticket_findings(ticket_id);
+    `
   }
 ];
 function migrate(db2, list = migrations) {
@@ -37080,901 +37104,13 @@ var PrivacyError = class extends StoreError {
 // src/api/server.ts
 import { readFile as readFile3 } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname as dirname2, join as join4 } from "node:path";
+import { dirname as dirname3, join as join7 } from "node:path";
 
-// src/api/data.ts
+// src/coach/bugs.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 
-// src/store.ts
-import { randomUUID } from "node:crypto";
-
-// src/paths.ts
-import { isAbsolute, relative, resolve, sep } from "node:path";
-function toRepoPath(rawPath, root) {
-  const path = sep === "/" ? rawPath.replaceAll("\\", "/") : rawPath;
-  const absolute = isAbsolute(path) ? path : resolve(root, path);
-  const rel = relative(root, absolute);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
-  return rel.split(sep).join("/");
-}
-function tidyPath(path, root) {
-  return toRepoPath(path, root) ?? path.replaceAll("\\", "/");
-}
-function pathKey(path) {
-  return path.replaceAll("\\", "/").toLowerCase();
-}
-
-// src/store.ts
-function localDeveloperId() {
-  return process.env.FTC_DEVELOPER_ID ?? "local";
-}
-function exists(db2, table, id2) {
-  return db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id2) !== void 0;
-}
-function requireRow(db2, table, label, id2) {
-  if (!exists(db2, table, id2)) throw new StoreError(`${label} '${id2}' does not exist`);
-}
-function getTicket(db2, ticketId) {
-  const row = db2.prepare("SELECT id, title, body, source FROM tickets WHERE id = ?").get(ticketId);
-  if (!row) throw new StoreError(`Ticket '${ticketId}' does not exist`);
-  return { ...row };
-}
-function upsertTicket(db2, ticket) {
-  db2.prepare(`
-    INSERT INTO tickets (id, title, body, source) VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET title = excluded.title, body = excluded.body, source = excluded.source
-  `).run(ticket.id, ticket.title, ticket.body, ticket.source);
-}
-async function ensureTicket(db2, adapter, ticketId, guard) {
-  const fresh = await adapter.getTicket(ticketId);
-  if (fresh) guard?.checkTicket(fresh);
-  if (fresh) upsertTicket(db2, { ...fresh, source: adapter.source });
-  return getTicket(db2, ticketId);
-}
-async function importTicket(db2, adapter, input2, guard) {
-  if (await adapter.getTicket(input2.ticket_id)) {
-    throw new StoreError(
-      `Ticket '${input2.ticket_id}' already exists in the plugin's ${adapter.source} tickets. Use get_ticket for it`
-    );
-  }
-  const ticket = { id: input2.ticket_id, title: input2.title, body: input2.body };
-  guard?.checkTicket(ticket);
-  upsertTicket(db2, { ...ticket, source: input2.source });
-  return getTicket(db2, input2.ticket_id);
-}
-function saveAssumptions(db2, input2) {
-  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
-  const insert = db2.prepare(
-    "INSERT INTO assumptions (id, ticket_id, text, status, answer) VALUES (?, ?, ?, ?, ?)"
-  );
-  const ids = [];
-  transaction(db2, () => {
-    db2.prepare("DELETE FROM assumptions WHERE ticket_id = ?").run(input2.ticket_id);
-    for (const a of input2.assumptions) {
-      const id2 = randomUUID();
-      insert.run(id2, input2.ticket_id, a.text, a.status, a.answer ?? null);
-      ids.push(id2);
-    }
-  });
-  return { assumption_ids: ids };
-}
-function logDecision(db2, input2, root = process.cwd(), ladderId2 = null, originQuote = null) {
-  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
-  const decisionId = randomUUID();
-  let pointerId = null;
-  const relatedFiles = input2.related_files.map((f) => tidyPath(f, root));
-  transaction(db2, () => {
-    const p = input2.pointer;
-    if (p) {
-      pointerId = randomUUID();
-      db2.prepare(
-        "INSERT INTO pointers (id, repo, pr_number, file_path, symbol, commit_sha, line_hint) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
-    }
-    db2.prepare(
-      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files, ladder_id, item_id, origin_quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(
-      decisionId,
-      input2.ticket_id,
-      input2.session_id,
-      input2.summary,
-      JSON.stringify(input2.alternatives),
-      input2.origin,
-      pointerId,
-      JSON.stringify(relatedFiles),
-      ladderId2,
-      input2.item_id ?? null,
-      originQuote
-    );
-  });
-  return { decision_id: decisionId, pointer_id: pointerId };
-}
-function startTrail(db2, input2) {
-  const ticket = getTicket(db2, input2.ticket_id);
-  db2.prepare(
-    "INSERT INTO trail_sessions (session_id, ticket_id) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET ticket_id = excluded.ticket_id"
-  ).run(input2.session_id, input2.ticket_id);
-  const assumptions = db2.prepare("SELECT id, text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(input2.ticket_id).map((r) => ({ ...r }));
-  return { session_id: input2.session_id, ticket, assumptions };
-}
-function getTrail(db2, sessionId) {
-  const session = db2.prepare("SELECT ticket_id FROM trail_sessions WHERE session_id = ?").get(sessionId);
-  const decisions = db2.prepare(
-    `SELECT d.id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol
-       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
-       WHERE d.session_id = ? ORDER BY d.rowid`
-  ).all(sessionId).map((r) => {
-    const row = r;
-    return {
-      id: row.id,
-      summary: row.summary,
-      origin: row.origin,
-      alternatives: JSON.parse(row.alternatives),
-      file_path: row.file_path ?? null,
-      symbol: row.symbol ?? null,
-      related_files: JSON.parse(row.related_files)
-    };
-  });
-  const explained = /* @__PURE__ */ new Set();
-  for (const d of decisions) {
-    if (d.file_path) explained.add(pathKey(d.file_path));
-    for (const f of d.related_files) explained.add(pathKey(f));
-  }
-  const editedFiles = db2.prepare("SELECT file_path, edit_count FROM file_edits WHERE session_id = ? ORDER BY first_edited_at, rowid").all(sessionId).map((f) => ({ file_path: f.file_path, edit_count: f.edit_count, explained: explained.has(pathKey(f.file_path)) }));
-  return {
-    session_id: sessionId,
-    tracking: session !== void 0,
-    ticket_id: session?.ticket_id ?? null,
-    decisions,
-    edited_files: editedFiles,
-    unexplained_files: editedFiles.filter((f) => !f.explained).map((f) => f.file_path)
-  };
-}
-function listDecisions(db2, ticketId) {
-  requireRow(db2, "tickets", "Ticket", ticketId);
-  const decisions = db2.prepare(
-    `SELECT d.id, d.session_id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol,
-              (SELECT count(*) FROM explain_backs e WHERE e.decision_id = d.id) AS explain_back_count
-       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
-       WHERE d.ticket_id = ? ORDER BY d.rowid`
-  ).all(ticketId).map((r) => {
-    const row = r;
-    return {
-      id: row.id,
-      session_id: row.session_id,
-      summary: row.summary,
-      origin: row.origin,
-      alternatives: JSON.parse(row.alternatives),
-      file_path: row.file_path ?? null,
-      symbol: row.symbol ?? null,
-      related_files: JSON.parse(row.related_files),
-      explain_back_count: Number(row.explain_back_count)
-    };
-  });
-  return { ticket_id: ticketId, decisions };
-}
-function recordExplainBack(db2, input2) {
-  requireRow(db2, "decisions", "Decision", input2.decision_id);
-  const id2 = randomUUID();
-  db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating) VALUES (?, ?, ?, ?, ?)").run(
-    id2,
-    input2.decision_id,
-    input2.question,
-    input2.answer,
-    input2.rating
-  );
-  return { explain_back_id: id2 };
-}
-function saveObservation(db2, input2) {
-  for (const evidenceId of input2.evidence_ids) {
-    if (!exists(db2, "decisions", evidenceId) && !exists(db2, "explain_backs", evidenceId)) {
-      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explain-back`);
-    }
-  }
-  const id2 = randomUUID();
-  db2.prepare("INSERT INTO observations (id, developer_id, skill_tag, summary, evidence_ids) VALUES (?, ?, ?, ?, ?)").run(
-    id2,
-    input2.developer_id ?? localDeveloperId(),
-    input2.skill_tag,
-    input2.summary,
-    JSON.stringify(input2.evidence_ids)
-  );
-  return { observation_id: id2 };
-}
-function listObservations(db2, developerId = localDeveloperId()) {
-  const decision = db2.prepare("SELECT ticket_id, origin FROM decisions WHERE id = ?");
-  const explainBack = db2.prepare(
-    "SELECT e.rating, d.ticket_id FROM explain_backs e JOIN decisions d ON d.id = e.decision_id WHERE e.id = ?"
-  );
-  const describe3 = (id2) => {
-    const d = decision.get(id2);
-    if (d) return { id: id2, kind: "decision", ticket_id: d.ticket_id, origin: d.origin };
-    const e = explainBack.get(id2);
-    if (e) return { id: id2, kind: "explain_back", ticket_id: e.ticket_id, rating: e.rating };
-    return { id: id2, kind: "missing" };
-  };
-  const observations = db2.prepare("SELECT id, skill_tag, summary, evidence_ids, created_at FROM observations WHERE developer_id = ? ORDER BY rowid").all(developerId).map((o) => ({
-    id: o.id,
-    skill_tag: o.skill_tag,
-    summary: o.summary,
-    created_at: o.created_at,
-    evidence: JSON.parse(o.evidence_ids).map(describe3)
-  }));
-  return { developer_id: developerId, observations };
-}
-function saveGrowthPlan(db2, input2, checkItemArea2) {
-  const developerId = input2.developer_id ?? localDeveloperId();
-  const ownsObservation = db2.prepare("SELECT 1 FROM observations WHERE id = ? AND developer_id = ?");
-  const focusAreas = input2.focus_areas.map((area) => {
-    const evidence = [...new Set(area.evidence_ids)];
-    if (area.item_id !== void 0) {
-      if (!checkItemArea2) throw new StoreError("A focus area with a ladder item cannot be checked here");
-      const ladderId2 = checkItemArea2({ ...area, item_id: area.item_id, evidence_ids: evidence });
-      return {
-        id: randomUUID(),
-        claim: area.claim,
-        evidence_ids: evidence,
-        tentative: evidence.length < 2,
-        exercise: area.exercise,
-        item_id: area.item_id,
-        ladder_id: ladderId2,
-        ...area.spot ? { spot: { file: area.spot.file, symbol: area.spot.symbol ?? null } } : {},
-        ...area.stack ? { stack: area.stack } : {},
-        ...area.exercise_kind ? { exercise_kind: area.exercise_kind } : {}
-      };
-    }
-    for (const evidenceId of evidence) {
-      if (!ownsObservation.get(evidenceId, developerId)) {
-        throw new StoreError(`Evidence '${evidenceId}' is not an observation of developer '${developerId}'`);
-      }
-    }
-    return { id: randomUUID(), claim: area.claim, evidence_ids: evidence, tentative: evidence.length < 2, exercise: area.exercise };
-  });
-  const id2 = randomUUID();
-  db2.prepare("INSERT INTO growth_plans (id, developer_id, focus_areas) VALUES (?, ?, ?)").run(
-    id2,
-    developerId,
-    JSON.stringify(focusAreas)
-  );
-  return { growth_plan_id: id2, focus_areas: focusAreas };
-}
-
-// src/api/data.ts
-var rows = (db2, sql, ...params) => db2.prepare(sql).all(...params).map((r) => ({ ...r }));
-function annotationsFor(db2, targetId) {
-  return rows(db2, "SELECT id, target_id, note, disagrees, created_at FROM annotations WHERE target_id = ? ORDER BY rowid", targetId).map(
-    (a) => ({ ...a, disagrees: a.disagrees === 1 })
-  );
-}
-function pointerUrl(p) {
-  const repo = String(p.repo);
-  if (!p.commit_sha || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
-  const path = String(p.file_path).split("/").map(encodeURIComponent).join("/");
-  return `https://github.com/${repo}/blob/${p.commit_sha}/${path}${p.line_hint ? `#L${p.line_hint}` : ""}`;
-}
-function listTickets(db2) {
-  return rows(
-    db2,
-    `SELECT t.id, t.title, t.source, t.created_at,
-            (SELECT count(*) FROM assumptions a WHERE a.ticket_id = t.id) AS assumption_count,
-            (SELECT count(*) FROM decisions d WHERE d.ticket_id = t.id) AS decision_count
-     FROM tickets t ORDER BY t.rowid`
-  );
-}
-function ticketDecisions(db2, ticketId) {
-  return rows(
-    db2,
-    `SELECT d.id, d.ticket_id, d.session_id, d.summary, d.alternatives, d.origin, d.related_files, d.created_at,
-            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved, p.resolve_note
-     FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
-     WHERE d.ticket_id = ? ORDER BY d.rowid`,
-    ticketId
-  ).map((d) => ({
-    id: d.id,
-    ticket_id: d.ticket_id,
-    session_id: d.session_id,
-    summary: d.summary,
-    alternatives: JSON.parse(d.alternatives),
-    origin: d.origin,
-    related_files: JSON.parse(d.related_files),
-    created_at: d.created_at,
-    pointer: d.p_id ? {
-      id: d.p_id,
-      repo: d.repo,
-      pr_number: d.pr_number,
-      file_path: d.file_path,
-      symbol: d.symbol,
-      commit: d.commit_sha,
-      line_hint: d.line_hint,
-      url: pointerUrl(d),
-      resolved: d.resolved === null ? null : d.resolved === 1,
-      resolve_note: d.resolve_note
-    } : null,
-    explain_backs: rows(
-      db2,
-      "SELECT id, question, answer, rating, created_at FROM explain_backs WHERE decision_id = ? ORDER BY rowid",
-      d.id
-    ),
-    annotations: annotationsFor(db2, d.id)
-  }));
-}
-function ticketDetail(db2, ticketId) {
-  const ticket = rows(db2, "SELECT id, title, body, source, created_at FROM tickets WHERE id = ?", ticketId)[0];
-  if (!ticket) return null;
-  const assumptions = rows(
-    db2,
-    "SELECT id, text, status, answer, created_at FROM assumptions WHERE ticket_id = ? ORDER BY rowid",
-    ticketId
-  );
-  const sessions = rows(db2, "SELECT session_id, started_at FROM trail_sessions WHERE ticket_id = ? ORDER BY rowid", ticketId).map(
-    (s) => {
-      const trail = getTrail(db2, s.session_id);
-      return { ...s, edited_files: trail.edited_files, unexplained_files: trail.unexplained_files };
-    }
-  );
-  return { ticket, assumptions, decisions: ticketDecisions(db2, ticketId), sessions };
-}
-function latestGrowthPlan(db2, developerId = localDeveloperId()) {
-  const plan = rows(
-    db2,
-    "SELECT id, developer_id, focus_areas, created_at FROM growth_plans WHERE developer_id = ? ORDER BY rowid DESC LIMIT 1",
-    developerId
-  )[0];
-  if (!plan) return null;
-  const observations = new Map(
-    listObservations(db2, developerId).observations.map((o) => [o.id, o])
-  );
-  const areas = JSON.parse(plan.focus_areas);
-  return {
-    id: plan.id,
-    developer_id: plan.developer_id,
-    created_at: plan.created_at,
-    focus_areas: areas.map((area, index) => {
-      const id2 = area.id ?? `${plan.id}:${index}`;
-      return {
-        id: id2,
-        claim: area.claim,
-        tentative: area.tentative,
-        exercise: area.exercise,
-        ...area.item_id ? { item_id: area.item_id } : {},
-        ...area.spot ? { spot: area.spot } : {},
-        ...area.stack ? { stack: area.stack } : {},
-        evidence: area.evidence_ids.map((e) => observations.get(e)).filter((o) => o !== void 0),
-        annotations: annotationsFor(db2, id2)
-      };
-    })
-  };
-}
-function targetExists(db2, targetId) {
-  for (const table of ["decisions", "assumptions", "explain_backs", "observations", "growth_plans", "tickets"]) {
-    if (db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(targetId)) return true;
-  }
-  return db2.prepare(
-    `SELECT 1 FROM growth_plans g, json_each(g.focus_areas) fa
-         WHERE json_extract(fa.value, '$.id') = ?
-            OR (json_extract(fa.value, '$.id') IS NULL AND g.id || ':' || fa.key = ?)`
-  ).get(targetId, targetId) !== void 0;
-}
-function addAnnotation(db2, input2) {
-  if (!targetExists(db2, input2.target_id)) throw new StoreError(`Nothing with id '${input2.target_id}' exists to add a note to`);
-  const id2 = randomUUID2();
-  db2.prepare("INSERT INTO annotations (id, target_id, note, disagrees) VALUES (?, ?, ?, ?)").run(
-    id2,
-    input2.target_id,
-    input2.note,
-    input2.disagrees ? 1 : 0
-  );
-  return annotationsFor(db2, input2.target_id).find((a) => a.id === id2);
-}
-function deleteAnnotation(db2, id2) {
-  return db2.prepare("DELETE FROM annotations WHERE id = ?").run(id2).changes > 0;
-}
-var DATA_TABLES = [
-  "annotations",
-  "growth_plans",
-  "observations",
-  "explain_backs",
-  "file_edits",
-  "trail_sessions",
-  "decisions",
-  "pointers",
-  "assumptions",
-  "tickets"
-];
-var JSON_COLUMNS = /* @__PURE__ */ new Set(["alternatives", "related_files", "evidence_ids", "focus_areas"]);
-function countAll(db2) {
-  const counts = {};
-  for (const table of DATA_TABLES) counts[table] = Number(rows(db2, `SELECT count(*) AS n FROM ${table}`)[0]?.n ?? 0);
-  return counts;
-}
-function exportAll(db2) {
-  const data = {};
-  for (const table of [...DATA_TABLES].reverse()) {
-    data[table] = rows(db2, `SELECT * FROM ${table} ORDER BY rowid`).map((row) => {
-      for (const column of Object.keys(row)) {
-        if (JSON_COLUMNS.has(column)) row[column] = JSON.parse(row[column]);
-      }
-      return row;
-    });
-  }
-  return { exported_at: (/* @__PURE__ */ new Date()).toISOString(), counts: countAll(db2), data };
-}
-function deleteAll(db2) {
-  const deleted = countAll(db2);
-  transaction(db2, () => {
-    for (const table of DATA_TABLES) db2.exec(`DELETE FROM ${table}`);
-  });
-  return deleted;
-}
-
-// src/api/static.ts
-import { existsSync } from "node:fs";
-import { readFile as readFile2, stat } from "node:fs/promises";
-import { extname, join as join3, normalize, resolve as resolve2, sep as sep2 } from "node:path";
-
-// src/api/report-page.ts
-var REPORT_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coach report</title>
-<style>
-  :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#16181c; --card:#1f2228; --text:#e6e8eb; --muted:#9aa3ad; --line:#353a42; --accent:#7fb0ff; --warn-bg:#4a3a10; --warn:#ffd97a; --bad:#ff9d94; }
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { font-size:1.6rem; margin:0 0 4px; }
-  h2 { font-size:1.15rem; margin:0 0 8px; }
-  h3 { font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:16px 0 6px; }
-  p { margin:0 0 8px; }
-  .muted { color:var(--muted); font-size:.9rem; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-top:16px; }
-  .badge { display:inline-block; font-size:.75rem; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--warn-bg); color:var(--warn); margin-left:8px; vertical-align:middle; }
-  ul { margin:0; padding-left:20px; }
-  li { margin-bottom:6px; }
-  .note { border-left:3px solid var(--line); padding:4px 0 4px 10px; margin-bottom:6px; }
-  .note.disagrees { border-left-color:var(--bad); }
-  .note b { color:var(--bad); }
-  textarea { width:100%; min-height:64px; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
-  label.check { display:inline-flex; align-items:center; gap:6px; margin:8px 12px 0 0; }
-  button { margin-top:8px; padding:6px 14px; border:1px solid var(--accent); border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
-  button:disabled { opacity:.6; cursor:default; }
-  .error { color:var(--bad); margin-top:6px; }
-</style>
-</head>
-<body>
-<main>
-  <h1>Coach report</h1>
-  <p class="muted">Private to you. Stored on this machine only and never shared.</p>
-  <div id="report" aria-live="polite"><p class="muted">Loading\u2026</p></div>
-</main>
-<script src="/report.js"></script>
-</body>
-</html>
-`;
-var REPORT_JS = `"use strict";
-(function () {
-  var root = document.getElementById("report");
-
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined && text !== null) node.textContent = text;
-    return node;
-  }
-  function message(text, className) {
-    root.replaceChildren(el("p", className || "muted", text));
-  }
-  var RATING = { clear: "explained clearly", partial: "partly explained", not_yet: "not explained yet" };
-  var ORIGIN = { ai: "AI chose", dev: "developer chose", dev_changed_ai: "developer changed the AI's choice" };
-
-  function evidenceLine(observation) {
-    var item = el("li", "", observation.summary);
-    var parts = [];
-    (observation.evidence || []).forEach(function (e) {
-      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
-      if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
-    });
-    if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
-    return item;
-  }
-
-  function noteForm(area) {
-    var form = el("form");
-    var box = el("textarea");
-    box.setAttribute("aria-label", "Your note on this claim");
-    box.maxLength = 2000;
-    box.placeholder = "Add a note. Words only, no code.";
-    var check = el("label", "check");
-    var tick = el("input");
-    tick.type = "checkbox";
-    check.appendChild(tick);
-    check.appendChild(document.createTextNode("I disagree with this claim"));
-    var send = el("button", "", "Save note");
-    send.type = "submit";
-    var error = el("div", "error");
-    error.setAttribute("role", "alert");
-    form.append(box, check, send, error);
-    form.addEventListener("submit", function (event) {
-      event.preventDefault();
-      var note = box.value.trim();
-      if (!note) { error.textContent = "Write a note first."; return; }
-      send.disabled = true;
-      error.textContent = "";
-      fetch("/api/annotations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_id: area.id, note: note, disagrees: tick.checked })
-      }).then(function (response) {
-        return response.json().then(function (body) { return { ok: response.ok, body: body }; });
-      }).then(function (result) {
-        if (!result.ok) throw new Error((result.body.error && result.body.error.message) || "The note was not saved.");
-        load();
-      }).catch(function (problem) {
-        send.disabled = false;
-        error.textContent = problem.message;
-      });
-    });
-    return form;
-  }
-
-  function areaCard(area, index) {
-    var card = el("section", "card");
-    var title = el("h2", "", "Focus area " + (index + 1));
-    if (area.tentative) {
-      var badge = el("span", "badge", "Tentative");
-      badge.title = "This claim rests on a single observation, so it may be wrong.";
-      title.appendChild(badge);
-    }
-    card.appendChild(title);
-    card.appendChild(el("p", "", area.claim));
-    if (area.tentative) card.appendChild(el("p", "muted", "Based on one observation only. Treat it as a first sign."));
-
-    card.appendChild(el("h3", "", "Evidence"));
-    var list = el("ul");
-    (area.evidence || []).forEach(function (o) { list.appendChild(evidenceLine(o)); });
-    if (!list.children.length) list.appendChild(el("li", "muted", "The evidence for this claim was deleted."));
-    card.appendChild(list);
-
-    card.appendChild(el("h3", "", "Exercise"));
-    card.appendChild(el("p", "", area.exercise));
-
-    card.appendChild(el("h3", "", "Your notes"));
-    (area.annotations || []).forEach(function (a) {
-      var note = el("div", a.disagrees ? "note disagrees" : "note");
-      if (a.disagrees) { note.appendChild(el("b", "", "I disagree. ")); }
-      note.appendChild(document.createTextNode(a.note));
-      card.appendChild(note);
-    });
-    card.appendChild(noteForm(area));
-    return card;
-  }
-
-  function render(plan) {
-    if (!plan) {
-      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
-      return;
-    }
-    var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC \xB7 " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];
-    plan.focus_areas.forEach(function (area, index) { nodes.push(areaCard(area, index)); });
-    root.replaceChildren.apply(root, nodes);
-  }
-
-  function load() {
-    fetch("/api/growth-plan").then(function (response) {
-      if (!response.ok) throw new Error("The local service answered " + response.status + ".");
-      return response.json();
-    }).then(function (body) {
-      render(body.growth_plan);
-    }).catch(function (problem) {
-      message("Could not load the report. " + problem.message + " Is the local service still running?", "error");
-    });
-  }
-  load();
-})();
-`;
-
-// src/api/static.ts
-var TYPES = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".map": "application/json; charset=utf-8"
-};
-var STRICT_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-function send(res, status, type, body2, extra = {}) {
-  res.writeHead(status, {
-    "Content-Type": type,
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    ...extra
-  });
-  res.end(body2);
-}
-function hasWebApp(webDir2) {
-  return webDir2 !== void 0 && existsSync(join3(webDir2, "index.html"));
-}
-function reportPath(webDir2) {
-  return hasWebApp(webDir2) ? "/#/coach" : "/";
-}
-async function servePage(res, pathname, webDir2) {
-  if (!hasWebApp(webDir2)) {
-    if (pathname === "/" || pathname === "/index.html") return send(res, 200, TYPES[".html"], REPORT_HTML, { "Content-Security-Policy": STRICT_CSP });
-    if (pathname === "/report.js") return send(res, 200, TYPES[".js"], REPORT_JS);
-    return send(res, 404, "text/plain; charset=utf-8", "Not found");
-  }
-  const root = resolve2(webDir2);
-  let decoded;
-  try {
-    decoded = decodeURIComponent(pathname);
-  } catch {
-    return send(res, 400, "text/plain; charset=utf-8", "Bad request");
-  }
-  const file2 = resolve2(root, `.${normalize(`/${decoded}`)}`);
-  if (file2 !== root && !file2.startsWith(root + sep2)) return send(res, 404, "text/plain; charset=utf-8", "Not found");
-  const info2 = await stat(file2).catch(() => null);
-  if (info2?.isFile()) {
-    return send(res, 200, TYPES[extname(file2).toLowerCase()] ?? "application/octet-stream", await readFile2(file2));
-  }
-  if (extname(file2) === "") return send(res, 200, TYPES[".html"], await readFile2(join3(root, "index.html")));
-  return send(res, 404, "text/plain; charset=utf-8", "Not found");
-}
-
-// src/api/server.ts
-var API_HOST = "127.0.0.1";
-var DEFAULT_API_PORT = 4317;
-var MAX_BODY_BYTES = 64 * 1024;
-function defaultEvalResultsPath() {
-  return process.env.FTC_EVAL_RESULTS ?? join4(dirname2(defaultDbPath()), "eval-results.json");
-}
-var annotationInput = external_exports.strictObject({
-  target_id: external_exports.string().trim().min(1).max(200),
-  note: external_exports.string().trim().min(1).max(2e3),
-  disagrees: external_exports.boolean().default(false)
-});
-var deleteAllInput = external_exports.strictObject({ confirm: external_exports.literal("delete-all") });
-var HttpError = class extends Error {
-  constructor(status, code, message, extra = {}) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.extra = extra;
-  }
-  status;
-  code;
-  extra;
-};
-function send2(res, status, body2, headers = {}) {
-  const text2 = body2 === void 0 ? "" : JSON.stringify(body2);
-  res.writeHead(status, {
-    ...body2 === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    ...headers
-  });
-  res.end(text2);
-}
-async function readJson(req) {
-  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
-    throw new HttpError(415, "unsupported_media_type", "Send the body as application/json");
-  }
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new HttpError(413, "too_large", "Request body is too large");
-    chunks.push(chunk);
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new HttpError(400, "bad_json", "Request body is not valid JSON");
-  }
-}
-function parse3(schema, body2) {
-  const result = schema.safeParse(body2);
-  if (!result.success) {
-    const issue2 = result.error.issues[0];
-    throw new HttpError(400, "invalid_input", `${issue2?.path.join(".") || "body"}: ${issue2?.message ?? "invalid"}`);
-  }
-  return result.data;
-}
-function createApiServer(options) {
-  const { db: db2, guard } = options;
-  const extraOrigins = new Set(options.allowedOrigins ?? []);
-  const ownOrigins = () => {
-    const port2 = server2.address().port;
-    return [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
-  };
-  const corsFor = (req) => {
-    const origin = req.headers.origin;
-    if (origin === void 0 || !ownOrigins().includes(origin) && !extraOrigins.has(origin)) return {};
-    return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
-  };
-  const server2 = createServer((req, res) => {
-    handle2(req, res).catch((err2) => {
-      const cors = corsFor(req);
-      if (err2 instanceof HttpError) {
-        send2(res, err2.status, { error: { code: err2.code, message: err2.message, ...err2.extra } }, cors);
-      } else if (err2 instanceof PrivacyError) {
-        send2(res, 422, { error: { code: "privacy_guard", message: err2.message, field: err2.field, rule: err2.rule } }, cors);
-      } else if (err2 instanceof StoreError) {
-        send2(res, 404, { error: { code: "not_found", message: err2.message } }, cors);
-      } else {
-        console.error(err2);
-        send2(res, 500, { error: { code: "internal", message: "Internal error" } }, cors);
-      }
-    });
-  });
-  async function handle2(req, res) {
-    const own2 = ownOrigins();
-    if (!own2.includes(`http://${req.headers.host ?? ""}`)) {
-      throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
-    }
-    const cors = corsFor(req);
-    if (req.headers.origin !== void 0 && cors["Access-Control-Allow-Origin"] === void 0) {
-      throw new HttpError(403, "bad_origin", "This origin may not call the API");
-    }
-    const method = req.method ?? "GET";
-    if (method === "OPTIONS") {
-      send2(res, 204, void 0, {
-        ...cors,
-        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Max-Age": "600"
-      });
-      return;
-    }
-    const url2 = new URL(req.url ?? "/", own2[0]);
-    if (url2.pathname !== "/api" && !url2.pathname.startsWith("/api/")) {
-      if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method_not_allowed", "Only GET is allowed here");
-      await servePage(res, url2.pathname, options.webDir);
-      return;
-    }
-    const parts2 = url2.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    parts2.shift();
-    const route = `${method} /${parts2.map((p, i2) => i2 % 2 === 1 ? ":id" : p).join("/")}`;
-    const id2 = parts2[1] ?? "";
-    const ok = (body2, status = 200, headers = {}) => send2(res, status, body2, { ...cors, ...headers });
-    const notFound = (what) => new HttpError(404, "not_found", `${what} '${id2}' does not exist`);
-    switch (route) {
-      case "GET /health":
-        return ok({ status: "ok", counts: countAll(db2) });
-      case "GET /tickets":
-        return ok({ tickets: listTickets(db2) });
-      case "GET /tickets/:id": {
-        const detail2 = ticketDetail(db2, id2);
-        if (!detail2) throw notFound("Ticket");
-        return ok(detail2);
-      }
-      case "GET /tickets/:id/decisions": {
-        if (!ticketDetail(db2, id2)) throw notFound("Ticket");
-        return ok({ decisions: ticketDecisions(db2, id2) });
-      }
-      case "GET /growth-plan":
-        return ok({ growth_plan: latestGrowthPlan(db2) });
-      case "POST /annotations": {
-        const input2 = parse3(annotationInput, await readJson(req));
-        guard.check(input2);
-        return ok({ annotation: addAnnotation(db2, input2) }, 201);
-      }
-      case "DELETE /annotations/:id":
-        if (!deleteAnnotation(db2, id2)) throw notFound("Annotation");
-        return ok(void 0, 204);
-      case "GET /eval": {
-        let raw;
-        try {
-          raw = await readFile3(options.evalFile ?? defaultEvalResultsPath(), "utf8");
-        } catch {
-          throw new HttpError(404, "not_found", "No evaluation has been run yet");
-        }
-        try {
-          return ok(JSON.parse(raw));
-        } catch {
-          throw new HttpError(500, "bad_eval_file", "The eval results file is not valid JSON");
-        }
-      }
-      case "GET /export":
-        return ok(exportAll(db2), 200, {
-          "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
-        });
-      case "DELETE /data": {
-        parse3(deleteAllInput, await readJson(req));
-        return ok({ deleted: deleteAll(db2) });
-      }
-      default:
-        throw new HttpError(404, "not_found", "Not found");
-    }
-  }
-  return server2;
-}
-function listen(server2, port2 = DEFAULT_API_PORT) {
-  return new Promise((resolve5, reject) => {
-    server2.once("error", reject);
-    server2.listen(port2, API_HOST, () => resolve5(server2.address().port));
-  });
-}
-
-// src/api/open.ts
-function openInBrowser(url2) {
-  const [command, args2] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url2]] : process.platform === "darwin" ? ["open", [url2]] : ["xdg-open", [url2]];
-  const child = spawn(command, args2, { detached: true, stdio: "ignore", windowsHide: true });
-  child.on("error", () => {
-  });
-  child.unref();
-}
-async function isOurApi(port2) {
-  try {
-    const response = await fetch(`http://${API_HOST}:${port2}/api/health`, { signal: AbortSignal.timeout(2e3) });
-    return response.ok && (await response.json()).status === "ok";
-  } catch {
-    return false;
-  }
-}
-var ReportServer = class {
-  constructor(options) {
-    this.options = options;
-  }
-  options;
-  server;
-  port;
-  /** Starts the local server if needed, and returns the address of the Coach report. */
-  async open(openBrowser = true) {
-    const { started, port: port2 } = await this.ensureRunning();
-    const url2 = `http://${API_HOST}:${port2}${reportPath(this.options.webDir)}`;
-    if (openBrowser) (this.options.openUrl ?? openInBrowser)(url2);
-    return { url: url2, started, opened: openBrowser };
-  }
-  async ensureRunning() {
-    if (this.port !== void 0) return { started: false, port: this.port };
-    const wanted = this.options.port ?? DEFAULT_API_PORT;
-    const create = () => createApiServer({
-      db: this.options.db,
-      guard: this.options.guard,
-      webDir: this.options.webDir,
-      allowedOrigins: this.options.allowedOrigins ?? []
-    });
-    let server2 = create();
-    try {
-      this.port = await listen(server2, wanted);
-    } catch (err2) {
-      if (err2.code !== "EADDRINUSE") throw err2;
-      if (await isOurApi(wanted)) {
-        this.port = wanted;
-        return { started: false, port: wanted };
-      }
-      server2 = create();
-      try {
-        this.port = await listen(server2, 0);
-      } catch {
-        throw new StoreError(`Could not start the local server: port ${wanted} is in use and no other port could be opened.`);
-      }
-    }
-    this.server = server2;
-    return { started: true, port: this.port };
-  }
-  close() {
-    this.server?.close();
-    this.server = void 0;
-    this.port = void 0;
-  }
-};
-
-// src/pointers/service.ts
-import { readFile as readFile4 } from "node:fs/promises";
-import { resolve as resolve3 } from "node:path";
+// src/git/diff.ts
+import { createHash } from "node:crypto";
 
 // src/pointers/git.ts
 import { execFile } from "node:child_process";
@@ -38047,9 +37183,202 @@ async function lookupPr(repo, prNumber, root, deps = {}) {
   };
 }
 
+// src/git/diff.ts
+function cleanPath(raw) {
+  let path = raw.trim();
+  if (path === "/dev/null") return null;
+  if (path.startsWith('"') && path.endsWith('"')) {
+    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
+  }
+  return path.replace(/^[ab]\//, "");
+}
+var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+function parseUnifiedDiff(text2) {
+  const files = [];
+  let file2 = null;
+  let inHunk = false;
+  let oldLine = 0;
+  let newLine = 0;
+  for (const rawLine of text2.split("\n")) {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    if (line.startsWith("diff --git ")) {
+      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
+      files.push(file2);
+      inHunk = false;
+      continue;
+    }
+    if (!file2) continue;
+    if (!inHunk) {
+      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
+      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
+      else if (line.startsWith("--- ")) {
+        const old = cleanPath(line.slice(4));
+        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
+        if (old) file2.path = file2.path || old;
+      } else if (line.startsWith("+++ ")) {
+        const next = cleanPath(line.slice(4));
+        if (next) file2.path = next;
+        else if (file2.oldPath === null) {
+        }
+      } else if (line.startsWith("Binary files ")) file2.binary = true;
+    }
+    const hunk = HUNK.exec(line);
+    if (hunk) {
+      inHunk = true;
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[2]);
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
+    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
+    else if (line.startsWith(" ")) {
+      oldLine++;
+      newLine++;
+    }
+  }
+  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
+  return files;
+}
+var EXCLUDES = [
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/npm-shrinkwrap.json",
+  "**/*.lock",
+  "**/dist/**",
+  "**/build/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/*.min.*",
+  "**/*.generated.*",
+  "**/__generated__/**"
+].map((glob) => `:(exclude,glob)${glob}`);
+async function commitDiff(root, sha, exec = run2) {
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "-M", sha, "--", ".", ...EXCLUDES], root);
+  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
+  return parseUnifiedDiff(result.stdout);
+}
+function changeId(diff) {
+  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
++${f.added.map((l) => l.text).join("\n")}
+-${f.removed.map((l) => l.text).join("\n")}`);
+  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
+}
+
+// src/git/identity.ts
+import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+function normalizeRepoPath(path) {
+  let p = resolve(path);
+  try {
+    p = realpathSync.native(p);
+  } catch {
+  }
+  p = p.replaceAll("\\", "/");
+  return process.platform === "win32" ? p.toLowerCase() : p;
+}
+var ARGS = ["rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir"];
+function parse3(stdout) {
+  const [top, common] = stdout.trim().split(/\r?\n/);
+  return top && common ? { top, key: normalizeRepoPath(common) } : null;
+}
+async function repoIdentity(cwd, exec = run2) {
+  const result = await exec("git", ARGS, cwd);
+  return result.code === 0 ? parse3(result.stdout) : null;
+}
+function repoIdentitySync(cwd) {
+  try {
+    return parse3(execFileSync("git", ARGS, { cwd, encoding: "utf8", timeout: 3e3, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }));
+  } catch {
+    return null;
+  }
+}
+
+// src/git/log.ts
+var SEP = "";
+async function repoTopLevel(cwd, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
+  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
+}
+async function currentBranch(root, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
+  const name2 = result.stdout.trim();
+  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
+}
+async function developerEmails(root, extra, exec = run2) {
+  const result = await exec("git", ["config", "user.email"], root);
+  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
+  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
+}
+async function listCommits(root, opts) {
+  const exec = opts.exec ?? run2;
+  const args2 = ["log", "--branches", "--source", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%S${SEP}%s`];
+  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
+  const result = await exec("git", args2, root);
+  if (result.code !== 0) return [];
+  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
+  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
+    const [sha = "", authorEmail = "", authorDate = "", source = "", ...subject] = line.split(SEP);
+    const branch = source.replace(/^refs\/heads\//, "");
+    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...branch ? { source: branch } : {} };
+  }).filter((c) => opts.anyAuthor === true || emails.has(c.authorEmail)).reverse();
+}
+async function defaultBranchCommits(root, exec = run2) {
+  for (const ref of ["origin/HEAD", "main", "master"]) {
+    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
+    if (found.code !== 0) continue;
+    const list = await exec("git", ["rev-list", ref], root);
+    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+  }
+  return /* @__PURE__ */ new Set();
+}
+
+// src/rules/engine.ts
+var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
+var IMPORT_LINES = [
+  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
+  /^\s*using\s+[\w.]+\s*;\s*$/,
+  /^\s*package\s+[\w.]+\s*;?\s*$/,
+  /^\s*from\s+[\w.]+\s+import\s.+$/,
+  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
+];
+function isCodeLine(line) {
+  if (line.trim() === "") return false;
+  if (COMMENT.test(line)) return false;
+  return !IMPORT_LINES.some((re) => re.test(line));
+}
+function extensionOf(filePath) {
+  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
+  const dot = name2.lastIndexOf(".");
+  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
+}
+function checkFlags(rule) {
+  for (const re of [rule.pattern, rule.unless]) {
+    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
+  }
+}
+function ruleMatches(rule, filePath, line) {
+  checkFlags(rule);
+  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
+  if (!isCodeLine(line)) return false;
+  if (!rule.pattern.test(line)) return false;
+  return !(rule.unless && rule.unless.test(line));
+}
+function matchLine(rules, filePath, line) {
+  return rules.filter((rule) => ruleMatches(rule, filePath, line));
+}
+
+// src/coach/capture.ts
+import { randomUUID } from "node:crypto";
+
 // src/pointers/symbols.ts
-import { existsSync as existsSync2 } from "node:fs";
-import { dirname as dirname3, extname as extname2, join as join5 } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname as dirname2, extname, join as join3 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ../../node_modules/.pnpm/web-tree-sitter@0.27.2/node_modules/web-tree-sitter/web-tree-sitter.js
@@ -42082,14 +41411,14 @@ var GRAMMARS = {
   ".jsx": { file: "tree-sitter-javascript.wasm", pkg: "tree-sitter-javascript" }
 };
 function wasmPath(file2, pkg) {
-  const here = dirname3(fileURLToPath(import.meta.url));
-  const bundled = join5(here, "wasm", file2);
-  return existsSync2(bundled) ? bundled : join5(here, "..", "..", "node_modules", pkg, file2);
+  const here = dirname2(fileURLToPath(import.meta.url));
+  const bundled = join3(here, "wasm", file2);
+  return existsSync(bundled) ? bundled : join3(here, "..", "..", "node_modules", pkg, file2);
 }
 var ready;
 var parsers = /* @__PURE__ */ new Map();
 function parserFor(filePath) {
-  const grammar = GRAMMARS[extname2(filePath).toLowerCase()];
+  const grammar = GRAMMARS[extname(filePath).toLowerCase()];
   if (!grammar) return null;
   let parser = parsers.get(grammar.file);
   if (!parser) {
@@ -42105,7 +41434,7 @@ function parserFor(filePath) {
   return parser;
 }
 function isSupported(filePath) {
-  return extname2(filePath).toLowerCase() in GRAMMARS;
+  return extname(filePath).toLowerCase() in GRAMMARS;
 }
 var NAMED = /* @__PURE__ */ new Set([
   "function_declaration",
@@ -42172,375 +41501,6 @@ async function findSymbol(filePath, source, name2) {
   return loose.length === 1 ? loose[0] ?? null : null;
 }
 
-// src/pointers/service.ts
-async function enrichPointer(pointer, root, exec = run2) {
-  const out2 = { ...pointer, file_path: tidyPath(pointer.file_path, root) };
-  try {
-    out2.repo = await repoSlug(root, exec) ?? pointer.repo;
-    const repoPath = toRepoPath(pointer.file_path, root);
-    if (repoPath === null || !isSupported(repoPath)) return out2;
-    const source = await readFile4(resolve3(root, repoPath), "utf8");
-    if (pointer.line_hint) {
-      const found = await symbolAtLine(repoPath, source, pointer.line_hint);
-      if (found) out2.symbol = found.name;
-    } else if (pointer.symbol) {
-      const found = await findSymbol(repoPath, source, pointer.symbol);
-      if (found) {
-        out2.symbol = found.name;
-        out2.line_hint = found.startLine;
-      }
-    }
-  } catch {
-  }
-  return out2;
-}
-async function resolvePointers(db2, options, deps = {}) {
-  const exec = deps.exec ?? run2;
-  const pointers = db2.prepare(
-    `SELECT p.id, p.repo, p.pr_number, p.file_path, p.symbol, d.id AS decision_id
-       FROM pointers p JOIN decisions d ON d.pointer_id = p.id
-       WHERE d.ticket_id = ? ORDER BY d.rowid`
-  ).all(options.ticketId);
-  if (!db2.prepare("SELECT 1 FROM tickets WHERE id = ?").get(options.ticketId)) {
-    throw new StoreError(`Ticket '${options.ticketId}' does not exist`);
-  }
-  const repo = await repoSlug(options.root, exec) ?? pointers.find((p) => p.repo.includes("/"))?.repo ?? null;
-  let commit = options.commit;
-  let pr = null;
-  if (!commit) {
-    if (!repo) throw new StoreError("This folder has no GitHub remote, so the pull request cannot be found. Pass commit instead.");
-    const known = options.prNumber ?? pointers.find((p) => p.pr_number !== null)?.pr_number ?? void 0;
-    pr = await lookupPr(repo, known, options.root, deps);
-    commit = pr.commit;
-  }
-  if (!await commitExists(options.root, commit, exec)) {
-    throw new StoreError(`Commit ${commit} is not in this clone, even after fetching. Pull the latest changes and try again.`);
-  }
-  const update = db2.prepare(
-    `UPDATE pointers SET repo = ?, commit_sha = ?, pr_number = ?, line_hint = COALESCE(?, line_hint),
-            resolved = ?, resolved_at = datetime('now'), resolve_note = ? WHERE id = ?`
-  );
-  const broken = [];
-  for (const p of pointers) {
-    let reason = null;
-    let line = null;
-    const source = await fileAtCommit(options.root, commit, p.file_path, exec);
-    if (source === null) {
-      reason = "The file does not exist at this commit";
-    } else if (p.symbol && isSupported(p.file_path)) {
-      const found = await findSymbol(p.file_path, source, p.symbol);
-      if (found) line = found.startLine;
-      else reason = `'${p.symbol}' is no longer in the file`;
-    }
-    update.run(repo ?? p.repo, commit, pr?.number ?? options.prNumber ?? p.pr_number, line, reason === null ? 1 : 0, reason, p.id);
-    if (reason !== null) {
-      broken.push({ pointer_id: p.id, decision_id: p.decision_id, file_path: p.file_path, symbol: p.symbol, reason });
-    }
-  }
-  return { ticket_id: options.ticketId, repo, commit, pr, total: pointers.length, resolved: pointers.length - broken.length, broken };
-}
-
-// src/pr/update.ts
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join as join6 } from "node:path";
-
-// src/pr/section.ts
-var SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
-var SECTION_END = "<!-- fork-trail-coach:decisions:end -->";
-var ORIGIN_LABEL = {
-  ai: "AI chose",
-  dev: "Developer chose",
-  dev_changed_ai: "Developer changed the AI's choice"
-};
-var STATUS_LABEL = {
-  answered_by_po: "Answered by PO",
-  assumed_by_dev: "Assumed by dev"
-};
-function inline(text2) {
-  return text2.replace(/\s*\r?\n\s*/g, " ").replace(/</g, "&lt;").replace(/\|/g, "\\|").replace(/@(?=\w)/g, "@\u200B").trim();
-}
-function pointerText(d) {
-  if (!d.file_path) return null;
-  const label = `\`${d.file_path}\`${d.symbol ? ` \xB7 \`${d.symbol}\`` : ""}`;
-  const linkable = d.commit_sha && d.repo && /^[\w.-]+\/[\w.-]+$/.test(d.repo) && d.resolved !== 0;
-  if (!linkable) return d.resolved === 0 ? `${label} (this pointer no longer finds its code)` : label;
-  const path = d.file_path.split("/").map(encodeURIComponent).join("/");
-  return `[${label}](https://github.com/${d.repo}/blob/${d.commit_sha}/${path}${d.line_hint ? `#L${d.line_hint}` : ""})`;
-}
-function buildDecisionsSection(db2, ticketId) {
-  const ticket = db2.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
-  if (!ticket) throw new StoreError(`Ticket '${ticketId}' does not exist`);
-  const assumptions = db2.prepare("SELECT text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(ticketId);
-  const decisions = db2.prepare(
-    `SELECT d.summary, d.alternatives, d.origin, p.repo, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved
-       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
-       WHERE d.ticket_id = ? ORDER BY d.rowid`
-  ).all(ticketId);
-  if (assumptions.length === 0 && decisions.length === 0) {
-    throw new StoreError(`Ticket '${ticketId}' has no assumptions and no decisions to share yet`);
-  }
-  const lines = [SECTION_START, "## Decisions", "", `Ticket **${inline(ticket.id)}**: ${inline(ticket.title)}`, ""];
-  if (assumptions.length > 0) {
-    const assumed = assumptions.filter((a) => a.status === "assumed_by_dev").length;
-    lines.push("### Assumptions", "", "| Question | Status | Answer |", "| --- | --- | --- |");
-    for (const a of assumptions) {
-      lines.push(`| ${inline(a.text)} | ${STATUS_LABEL[a.status] ?? inline(a.status)} | ${a.answer ? inline(a.answer) : ""} |`);
-    }
-    lines.push("");
-    if (assumed > 0) {
-      lines.push(`${assumed} of ${assumptions.length} ${assumed === 1 ? "is an assumption" : "are assumptions"} the product owner has not confirmed.`, "");
-    }
-  }
-  if (decisions.length > 0) {
-    lines.push("### Decisions made while coding", "");
-    decisions.forEach((d, i2) => {
-      lines.push(`${i2 + 1}. **${inline(d.summary)}**`);
-      lines.push(`   - Who chose: ${ORIGIN_LABEL[d.origin] ?? inline(d.origin)}`);
-      const alternatives = JSON.parse(d.alternatives).map(inline).filter(Boolean);
-      if (alternatives.length > 0) lines.push(`   - Alternatives considered: ${alternatives.join("; ")}`);
-      const where = pointerText(d);
-      if (where) lines.push(`   - Where: ${where}`);
-    });
-    lines.push("");
-  }
-  lines.push("<sub>Written by the Fork, Paper Trail, Coach plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
-  return { markdown: lines.join("\n"), assumptions: assumptions.length, decisions: decisions.length };
-}
-function mergeSection(body2, section) {
-  const start2 = body2.indexOf(SECTION_START);
-  const end = body2.indexOf(SECTION_END);
-  if (start2 !== -1 && end > start2) {
-    return body2.slice(0, start2) + section + body2.slice(end + SECTION_END.length);
-  }
-  const trimmed = body2.replace(/\s+$/, "");
-  return trimmed ? `${trimmed}
-
-${section}
-` : `${section}
-`;
-}
-
-// src/pr/update.ts
-async function updatePrDecisions(db2, options, deps = {}) {
-  const exec = deps.exec ?? run2;
-  buildDecisionsSection(db2, options.ticketId);
-  const repo = await repoSlug(options.root, exec);
-  let pr = null;
-  let note = null;
-  if (!repo) {
-    note = "This folder has no GitHub remote, so no pull request was looked up.";
-  } else {
-    try {
-      pr = await lookupPr(repo, options.prNumber, options.root, deps);
-    } catch (err2) {
-      if (!options.dryRun || !(err2 instanceof StoreError)) throw err2;
-      note = err2.message;
-    }
-  }
-  let pointers = null;
-  if (pr) {
-    try {
-      const checked = await resolvePointers(db2, { ticketId: options.ticketId, root: options.root, prNumber: pr.number, commit: pr.commit });
-      pointers = { total: checked.total, resolved: checked.resolved, broken: checked.broken.length };
-    } catch (err2) {
-      if (!(err2 instanceof StoreError)) throw err2;
-      note = `Pointers were not checked: ${err2.message}`;
-    }
-  }
-  const section = buildDecisionsSection(db2, options.ticketId);
-  const result = {
-    ticket_id: options.ticketId,
-    pr,
-    updated: false,
-    note,
-    assumptions: section.assumptions,
-    decisions: section.decisions,
-    pointers,
-    markdown: section.markdown
-  };
-  if (options.dryRun) return { ...result, note: note ?? "Preview only. The pull request was not changed." };
-  if (!repo || !pr) throw new StoreError(note ?? "No pull request was found.");
-  const view2 = await exec("gh", ["pr", "view", String(pr.number), "--repo", repo, "--json", "body"], options.root);
-  if (view2.code === null) {
-    throw new StoreError("The GitHub CLI (gh) is not installed, so the pull request cannot be updated. Install it and sign in, or paste the section by hand.");
-  }
-  if (view2.code !== 0) {
-    throw new StoreError(`The GitHub CLI could not read the pull request: ${view2.stderr.trim().split("\n")[0] ?? "unknown error"}`);
-  }
-  const body2 = JSON.parse(view2.stdout).body ?? "";
-  const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
-  const dir = await mkdtemp(join6(tmpdir(), "ftc-pr-"));
-  try {
-    const file2 = join6(dir, "body.md");
-    await writeFile(file2, next, "utf8");
-    const edit = await exec("gh", ["pr", "edit", String(pr.number), "--repo", repo, "--body-file", file2], options.root);
-    if (edit.code !== 0) {
-      throw new StoreError(`The GitHub CLI could not update the pull request: ${edit.stderr.trim().split("\n")[0] ?? "unknown error"}`);
-    }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-  return { ...result, updated: true };
-}
-
-// src/git/identity.ts
-import { execFileSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { resolve as resolve4 } from "node:path";
-function normalizeRepoPath(path) {
-  let p = resolve4(path);
-  try {
-    p = realpathSync.native(p);
-  } catch {
-  }
-  p = p.replaceAll("\\", "/");
-  return process.platform === "win32" ? p.toLowerCase() : p;
-}
-var ARGS = ["rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir"];
-function parse4(stdout) {
-  const [top, common] = stdout.trim().split(/\r?\n/);
-  return top && common ? { top, key: normalizeRepoPath(common) } : null;
-}
-async function repoIdentity(cwd, exec = run2) {
-  const result = await exec("git", ARGS, cwd);
-  return result.code === 0 ? parse4(result.stdout) : null;
-}
-function repoIdentitySync(cwd) {
-  try {
-    return parse4(execFileSync("git", ARGS, { cwd, encoding: "utf8", timeout: 3e3, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }));
-  } catch {
-    return null;
-  }
-}
-
-// src/coach/review.ts
-import { randomUUID as randomUUID8 } from "node:crypto";
-
-// src/git/diff.ts
-import { createHash } from "node:crypto";
-function cleanPath(raw) {
-  let path = raw.trim();
-  if (path === "/dev/null") return null;
-  if (path.startsWith('"') && path.endsWith('"')) {
-    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
-  }
-  return path.replace(/^[ab]\//, "");
-}
-var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-function parseUnifiedDiff(text2) {
-  const files = [];
-  let file2 = null;
-  let inHunk = false;
-  let oldLine = 0;
-  let newLine = 0;
-  for (const rawLine of text2.split("\n")) {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-    if (line.startsWith("diff --git ")) {
-      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
-      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
-      files.push(file2);
-      inHunk = false;
-      continue;
-    }
-    if (!file2) continue;
-    if (!inHunk) {
-      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
-      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
-      else if (line.startsWith("--- ")) {
-        const old = cleanPath(line.slice(4));
-        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
-        if (old) file2.path = file2.path || old;
-      } else if (line.startsWith("+++ ")) {
-        const next = cleanPath(line.slice(4));
-        if (next) file2.path = next;
-        else if (file2.oldPath === null) {
-        }
-      } else if (line.startsWith("Binary files ")) file2.binary = true;
-    }
-    const hunk = HUNK.exec(line);
-    if (hunk) {
-      inHunk = true;
-      oldLine = Number(hunk[1]);
-      newLine = Number(hunk[2]);
-      continue;
-    }
-    if (!inHunk) continue;
-    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
-    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
-    else if (line.startsWith(" ")) {
-      oldLine++;
-      newLine++;
-    }
-  }
-  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
-  return files;
-}
-var EXCLUDES = [
-  "**/package-lock.json",
-  "**/pnpm-lock.yaml",
-  "**/yarn.lock",
-  "**/npm-shrinkwrap.json",
-  "**/*.lock",
-  "**/dist/**",
-  "**/build/**",
-  "**/node_modules/**",
-  "**/vendor/**",
-  "**/*.min.*",
-  "**/*.generated.*",
-  "**/__generated__/**"
-].map((glob) => `:(exclude,glob)${glob}`);
-async function commitDiff(root, sha, exec = run2) {
-  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "-M", sha, "--", ".", ...EXCLUDES], root);
-  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
-  return parseUnifiedDiff(result.stdout);
-}
-function changeId(diff) {
-  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
-+${f.added.map((l) => l.text).join("\n")}
--${f.removed.map((l) => l.text).join("\n")}`);
-  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
-}
-
-// src/git/log.ts
-var SEP = "";
-async function repoTopLevel(cwd, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
-  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
-}
-async function currentBranch(root, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
-  const name2 = result.stdout.trim();
-  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
-}
-async function developerEmails(root, extra, exec = run2) {
-  const result = await exec("git", ["config", "user.email"], root);
-  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
-  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
-}
-async function listCommits(root, opts) {
-  const exec = opts.exec ?? run2;
-  const args2 = ["log", "--branches", "--source", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%S${SEP}%s`];
-  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
-  const result = await exec("git", args2, root);
-  if (result.code !== 0) return [];
-  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
-  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
-    const [sha = "", authorEmail = "", authorDate = "", source = "", ...subject] = line.split(SEP);
-    const branch = source.replace(/^refs\/heads\//, "");
-    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...branch ? { source: branch } : {} };
-  }).filter((c) => opts.anyAuthor === true || emails.has(c.authorEmail)).reverse();
-}
-async function defaultBranchCommits(root, exec = run2) {
-  for (const ref of ["origin/HEAD", "main", "master"]) {
-    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
-    if (found.code !== 0) continue;
-    const list = await exec("git", ["rev-list", ref], root);
-    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
-  }
-  return /* @__PURE__ */ new Set();
-}
-
 // src/coach/attribution.ts
 import { createHash as createHash2 } from "node:crypto";
 function normalizeLine(line) {
@@ -42565,46 +41525,6 @@ function sqliteTime(date5) {
 function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
   const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
   return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
-}
-
-// src/coach/capture.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
-
-// src/rules/engine.ts
-var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
-var IMPORT_LINES = [
-  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
-  /^\s*using\s+[\w.]+\s*;\s*$/,
-  /^\s*package\s+[\w.]+\s*;?\s*$/,
-  /^\s*from\s+[\w.]+\s+import\s.+$/,
-  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
-];
-function isCodeLine(line) {
-  if (line.trim() === "") return false;
-  if (COMMENT.test(line)) return false;
-  return !IMPORT_LINES.some((re) => re.test(line));
-}
-function extensionOf(filePath) {
-  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
-  const dot = name2.lastIndexOf(".");
-  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
-}
-function checkFlags(rule) {
-  for (const re of [rule.pattern, rule.unless]) {
-    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
-  }
-}
-function ruleMatches(rule, filePath, line) {
-  checkFlags(rule);
-  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
-  if (!isCodeLine(line)) return false;
-  if (!rule.pattern.test(line)) return false;
-  return !(rule.unless && rule.unless.test(line));
-}
-function matchLine(rules, filePath, line) {
-  return rules.filter((rule) => ruleMatches(rule, filePath, line));
 }
 
 // src/coach/ladder/schema.ts
@@ -43045,7 +41965,7 @@ function captureStart(db2, repoKey) {
   return first;
 }
 async function closeReviewFaults(db2, top, key, sha, diff, ticket, at, exec) {
-  const open2 = db2.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind = 'review' AND signal_id IS NULL AND polarity = 'negative' AND fixed_at IS NULL AND at < ?");
+  const open2 = db2.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL AND at < ?");
   const close = db2.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
   const faults = open2.all(key, at);
   for (const file2 of diff) {
@@ -43130,22 +42050,16 @@ async function catchUp(db2, opts) {
     }
     transaction(db2, () => {
       for (const r of rows2) {
-        insert.run(randomUUID3(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
+        insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
         evidenceAdded++;
       }
-      for (const x of exposure) insertExposure.run(randomUUID3(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
+      for (const x of exposure) insertExposure.run(randomUUID(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
       markSeen.run(key, c.sha, id2);
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
 }
-
-// src/coach/status.ts
-import { randomUUID as randomUUID7 } from "node:crypto";
-
-// src/coach/bugs.ts
-import { randomUUID as randomUUID4 } from "node:crypto";
 
 // src/coach/facts.ts
 function toIso(value) {
@@ -43253,9 +42167,9 @@ async function scanShippedBugs(db2, opts) {
             { onDefault: true, branch: null }
           );
           for (const t of negative) {
-            const inserted = insertBug.run(randomUUID4(), key, fix.sha, origin.sha, t.ladder_id, t.item_id, rule.id, file2.path, originTicket, fix.authorDate);
+            const inserted = insertBug.run(randomUUID2(), key, fix.sha, origin.sha, t.ladder_id, t.item_id, rule.id, file2.path, originTicket, fix.authorDate);
             if (Number(inserted.changes) === 0) continue;
-            insertEvidence.run(randomUUID4(), t.ladder_id, t.item_id, key, origin.sha, file2.path, originTicket, rule.id, originInfo[0] ?? fix.authorDate, fix.authorDate, fixTicket);
+            insertEvidence.run(randomUUID2(), t.ladder_id, t.item_id, key, origin.sha, file2.path, originTicket, rule.id, originInfo[0] ?? fix.authorDate, fix.authorDate, fixTicket);
             found++;
           }
         }
@@ -43290,7 +42204,7 @@ function repeats(db2, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/coach/drills.ts
-import { randomUUID as randomUUID5 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // src/coach/exposure.ts
 function exposureFor(db2, ladderId2, itemId2, now, t) {
@@ -43504,7 +42418,7 @@ function startDrill(db2, ctx, input2, now = /* @__PURE__ */ new Date()) {
   const { facts, gate } = gateFor(db2, ctx, now);
   if (!gate.allowed) throw new StoreError(gate.reason);
   const drill = pickDrill(ctx.item, facts.drills);
-  const id2 = randomUUID5();
+  const id2 = randomUUID3();
   db2.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE open_session = ? AND answered_at IS NULL").run(input2.session_id);
   db2.prepare(
     "INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket, question, opened_at, open_session) VALUES (?, 'drill', ?, ?, ?, 'drill', ?, ?, ?)"
@@ -43541,7 +42455,7 @@ function scoreDrill(db2, ctx, input2) {
   const flagsHit = keep(input2.red_flags, flagIds);
   const passed = keptHits.length >= passCount(drill) && flagsHit.length === 0;
   db2.prepare("INSERT INTO drill_attempts (id, ladder_id, item_id, drill_id, question_id, hits, red_flags, passed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
-    randomUUID5(),
+    randomUUID3(),
     ctx.loaded.ladder_id,
     ctx.item.id,
     drill.id,
@@ -43578,9 +42492,9 @@ function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
 
 // src/coach/ladder/load.ts
 import { createHash as createHash3 } from "node:crypto";
-import { existsSync as existsSync3, readFileSync } from "node:fs";
+import { existsSync as existsSync2, readFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { join as join7 } from "node:path";
+import { join as join4 } from "node:path";
 
 // src/coach/ladder/builtin/backend.json
 var backend_default = {
@@ -44441,8 +43355,160 @@ var backend_default = {
       id: "REQ",
       name: "Requirements and scope",
       levels: {
-        junior: [],
-        mid: [],
+        junior: [
+          {
+            id: "BE.REQ.J1",
+            title: "Builds what the ticket asks, and nothing extra",
+            good_looks_like: [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Build the export the ticket asks for"
+                  },
+                  {
+                    id: "k2",
+                    text: "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    id: "k3",
+                    text: "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    id: "k2",
+                    text: "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    id: "k3",
+                    text: "If it is kept, say why in the pull request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            exercise_kinds: [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "BE.REQ.M1",
+            title: "Spots unclear needs before coding",
+            good_looks_like: [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    id: "k2",
+                    text: "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Write the assumption down where the team can see it"
+                  },
+                  {
+                    id: "k2",
+                    text: "Build the part that does not depend on it first"
+                  },
+                  {
+                    id: "k3",
+                    text: "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            exercise_kinds: [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
         senior: [],
         staff: []
       }
@@ -45290,8 +44356,160 @@ var frontend_default = {
       id: "REQ",
       name: "Requirements and scope",
       levels: {
-        junior: [],
-        mid: [],
+        junior: [
+          {
+            id: "FE.REQ.J1",
+            title: "Builds what the ticket asks, and nothing extra",
+            good_looks_like: [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Build the export the ticket asks for"
+                  },
+                  {
+                    id: "k2",
+                    text: "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    id: "k3",
+                    text: "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    id: "k2",
+                    text: "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    id: "k3",
+                    text: "If it is kept, say why in the pull request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            exercise_kinds: [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "FE.REQ.M1",
+            title: "Spots unclear needs before coding",
+            good_looks_like: [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    id: "k2",
+                    text: "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Write the assumption down where the team can see it"
+                  },
+                  {
+                    id: "k2",
+                    text: "Build the part that does not depend on it first"
+                  },
+                  {
+                    id: "k3",
+                    text: "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            exercise_kinds: [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
         senior: [],
         staff: []
       }
@@ -45306,7 +44524,7 @@ var BUILTIN_LADDERS = {
 };
 
 // src/coach/ladder/load.ts
-var FILE = join7(".fork-trail-coach", "ladder.json");
+var FILE = join4(".fork-trail-coach", "ladder.json");
 function withThresholds(ladder) {
   return { ...DEFAULT_THRESHOLDS, ...ladder.thresholds };
 }
@@ -45323,7 +44541,7 @@ function unknownSignals(ladder) {
   return [...missing];
 }
 function readCompanyFile(path, track) {
-  if (!existsSync3(path)) return null;
+  if (!existsSync2(path)) return null;
   let raw;
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
@@ -45344,8 +44562,8 @@ function loadLadder(track, opts) {
   const builtin = BUILTIN_LADDERS[track];
   const tries = [
     // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
-    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
-    { source: "home", path: join7(home, FILE), id: `home/${track}` }
+    { source: "repo", path: join4(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
+    { source: "home", path: join4(home, FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
     const found = readCompanyFile(t.path, track);
@@ -45377,9 +44595,12 @@ function findItem(ladder, itemId2) {
   return null;
 }
 
+// src/coach/status.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+
 // src/coach/stack.ts
-import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
-import { join as join8 } from "node:path";
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
+import { join as join5 } from "node:path";
 var SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "vendor", ".next", "out", "target", "bin", "obj", ".venv", "venv"]);
 var NPM = [
   { dep: "@nestjs/core", stack_id: "nestjs", track: "backend" },
@@ -45409,7 +44630,7 @@ function stacksInFolder(abs, folder) {
   const add = (stack_id, track) => {
     if (!hits.some((h) => h.track === track)) hits.push({ stack_id, track, folder });
   };
-  const pkgText = read2(join8(abs, "package.json"));
+  const pkgText = read2(join5(abs, "package.json"));
   if (pkgText !== null) {
     try {
       const pkg = JSON.parse(pkgText);
@@ -45419,12 +44640,12 @@ function stacksInFolder(abs, folder) {
     }
   }
   for (const file2 of ["pom.xml", "build.gradle", "build.gradle.kts"]) {
-    const text2 = read2(join8(abs, file2));
+    const text2 = read2(join5(abs, file2));
     if (text2 !== null && /spring/i.test(text2)) add("spring", "backend");
   }
-  if (existsSync4(join8(abs, "go.mod"))) add("go", "backend");
+  if (existsSync3(join5(abs, "go.mod"))) add("go", "backend");
   for (const file2 of ["requirements.txt", "pyproject.toml"]) {
-    const text2 = read2(join8(abs, file2));
+    const text2 = read2(join5(abs, file2));
     if (text2 === null) continue;
     const found = PYTHON.find((p) => p.word.test(text2));
     if (found) add(found.stack_id, "backend");
@@ -45448,7 +44669,7 @@ function detectStacks(root) {
     }
     for (const name2 of names) {
       if (SKIP.has(name2) || name2.startsWith(".")) continue;
-      const child = join8(abs, name2);
+      const child = join5(abs, name2);
       try {
         if (!statSync(child).isDirectory()) continue;
       } catch {
@@ -45581,7 +44802,7 @@ function checkItemArea(db2, area, allowedKinds = EXERCISE_KINDS) {
 }
 
 // src/coach/questions.ts
-import { randomUUID as randomUUID6 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 var EVIDENCE_REF = "evidence:";
 function aboutEvidence(row) {
   const meaning = row.signal_id && signalById(row.signal_id)?.meaning || row.note || "a choice";
@@ -45631,7 +44852,7 @@ function proposeQuestions(db2, results, max) {
       const row = nextEvidence(loaded.ladder_id, status.item_id);
       if (!row) continue;
       const about = aboutEvidence(row);
-      const id2 = randomUUID6();
+      const id2 = randomUUID4();
       insert.run(id2, "why", loaded.ladder_id, status.item_id, `${EVIDENCE_REF}${row.id}`, null, row.ticket);
       out2.push({ question_id: id2, kind: "why", item_id: status.item_id, ticket: row.ticket, about, opened: false });
       usedItems.add(status.item_id);
@@ -45647,7 +44868,7 @@ function proposeQuestions(db2, results, max) {
   for (const d of decisions) {
     if (out2.length >= max) break;
     if (usedItems.has(d.item_id) || !inLadder(d.ladder_id, d.item_id)) continue;
-    const id2 = randomUUID6();
+    const id2 = randomUUID4();
     insert.run(id2, "explain_back", d.ladder_id, d.item_id, null, d.id, d.ticket_id);
     out2.push({ question_id: id2, kind: "explain_back", item_id: d.item_id, ticket: d.ticket_id, about: d.summary, opened: false });
     usedItems.add(d.item_id);
@@ -45661,7 +44882,7 @@ function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
   let id2 = input2.question_id;
   if (input2.question_id === void 0 && input2.decision_id === void 0) {
     if (!input2.item_id || !input2.ladder_id) throw new StoreError("Give question_id, decision_id, or item_id");
-    id2 = randomUUID6();
+    id2 = randomUUID4();
     db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket) VALUES (?, 'why', ?, ?, ?, 'drill')").run(
       id2,
       input2.ladder_id,
@@ -45675,7 +44896,7 @@ function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
     const itemId2 = input2.item_id ?? d.item_id;
     const ladderId2 = input2.ladder_id ?? d.ladder_id;
     if (!itemId2 || !ladderId2) throw new StoreError("This decision has no ladder item. Pass item_id with the ladder item it is about");
-    id2 = randomUUID6();
+    id2 = randomUUID4();
     db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, decision_id, ticket) VALUES (?, 'explain_back', ?, ?, ?, ?)").run(
       id2,
       ladderId2,
@@ -45726,7 +44947,7 @@ function rateAnswer(db2, input2) {
   );
   if (row.kind === "explain_back" && row.decision_id !== null) {
     db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating, question_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-      randomUUID6(),
+      randomUUID4(),
       row.decision_id,
       row.question ?? "",
       row.answer,
@@ -45777,7 +44998,7 @@ function recordStateChanges(db2, ladderId2, statuses, reason = reasonFor) {
   for (const s of statuses) {
     const from = last.get(ladderId2, s.item_id)?.to_state ?? "not_seen";
     if (from === s.state) continue;
-    insert.run(randomUUID7(), ladderId2, s.item_id, from, s.state, reason(s));
+    insert.run(randomUUID5(), ladderId2, s.item_id, from, s.state, reason(s));
     written++;
   }
   return written;
@@ -45981,7 +45202,7 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const source = await exec("git", ["show", `${sha}:${file2.path}`], top);
   const symbol2 = source.code === 0 && isSupported(file2.path) ? (await symbolAtLine(file2.path, source.stdout, devLine.line))?.name ?? null : null;
   const ticket = ticketForCommit({ sha, authorEmail: email3, authorDate, subject }, { onDefault: (await defaultBranchCommits(top, exec)).has(sha), branch: await currentBranch(top, exec) });
-  const id2 = randomUUID7();
+  const id2 = randomUUID5();
   db2.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)"
   ).run(id2, loaded.ladder_id, input2.item_id, key, sha, file2.path, symbol2, ticket, input2.why, authorDate);
@@ -46000,7 +45221,1209 @@ function disagree(db2, input2) {
   throw new StoreError("You can disagree with evidence or a drill score. To change an answer, ask for a new question.");
 }
 
+// src/coach/dashboard.ts
+var EVIDENCE_PER_ITEM = 12;
+function coachDashboard(db2, opts) {
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const tracks = getTracks(db2);
+  const ladders = loadActiveLadders(tracks, { repoRoot: opts.root, ...opts.home ? { home: opts.home } : {} });
+  const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db2, loaded, now) }));
+  const { areas } = areaViews(results);
+  const evidenceFor = db2.prepare(
+    `SELECT id, kind, polarity, author, decided_by, owned, file_path, symbol, ticket, signal_id, note, at, fixed_at, disagreed_at
+     FROM skill_evidence WHERE ladder_id = ? AND item_id = ? ORDER BY at DESC LIMIT ${EVIDENCE_PER_ITEM}`
+  );
+  const drillsFor = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ? ORDER BY created_at DESC");
+  const dashboardAreas = areas.map((area) => {
+    const loaded = ladders.find((l) => l.ladder_id === area.ladder_id);
+    const statuses = results.find((r) => r.loaded.ladder_id === area.ladder_id).statuses;
+    return {
+      ladder_id: area.ladder_id,
+      track: loaded.track,
+      area_id: area.area_id,
+      name: area.name,
+      level: area.level,
+      working_toward: area.working_toward,
+      exposure: area.exposure,
+      items: area.items.map((it) => {
+        const status = statuses.get(it.item_id);
+        const ladderItem = findItem(loaded.ladder, it.item_id).item;
+        return {
+          item_id: it.item_id,
+          title: it.title,
+          level: it.level,
+          state: it.state,
+          exposure: it.exposure,
+          exposure_functions: status.exposure_functions,
+          shown_by: status.shown_by,
+          detail: it.detail,
+          why_it_matters: ladderItem.why_it_matters ?? "",
+          needs: status.needs,
+          evidence: evidenceFor.all(area.ladder_id, it.item_id).map((e) => ({
+            id: e.id,
+            kind: e.kind,
+            polarity: e.polarity,
+            author: e.author,
+            decided_by: e.decided_by,
+            owned: e.owned === 1,
+            file: e.file_path,
+            symbol: e.symbol,
+            ticket: e.ticket,
+            signal: e.signal_id,
+            note: e.note,
+            at: toIso(e.at),
+            fixed: e.fixed_at !== null,
+            disagreed: e.disagreed_at !== null
+          })),
+          drills: drillsFor.all(area.ladder_id, it.item_id).map((d) => ({
+            id: d.id,
+            drill_id: d.drill_id,
+            passed: d.passed === 1,
+            void: d.void === 1,
+            at: toIso(d.created_at)
+          }))
+        };
+      })
+    };
+  });
+  const allItems = dashboardAreas.flatMap((a) => a.items.map((i2) => ({ ...i2, area: a.name })));
+  const open_faults = allItems.flatMap(
+    (i2) => i2.evidence.filter((e) => e.polarity === "negative" && !e.fixed).map((e) => ({ item_id: i2.item_id, title: i2.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note }))
+  );
+  const ready2 = new Set(drillsReady(db2, results, now));
+  const ready_for_assessment = allItems.filter((i2) => ready2.has(i2.item_id) || i2.state === "not_assessed" && (i2.exposure === "none" || i2.exposure === "low")).map((i2) => i2.item_id);
+  const next_actions = [];
+  for (const f of open_faults.slice(0, 2)) next_actions.push(`Fix the open fault in ${f.file ?? "your code"}${f.symbol ? ` (${f.symbol})` : ""}: ${f.title}`);
+  for (const id2 of [...ready2].slice(0, 2)) next_actions.push(`Take a drill for ${id2}: /fork-trail-coach:coach drill ${id2}`);
+  for (const i2 of allItems.filter((x) => x.state === "learning").slice(0, 2)) if (i2.needs[0]) next_actions.push(`${i2.item_id}: ${i2.needs[0]}`);
+  const drill_results = allItems.flatMap((i2) => i2.drills.map((d) => ({ item_id: i2.item_id, title: i2.title, drill_id: d.drill_id, passed: d.passed, void: d.void, at: d.at }))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 20);
+  const titles = new Map(allItems.map((i2) => [i2.item_id, i2.title]));
+  const history = stateHistory(db2).filter((h) => titles.has(h.item_id)).map((h) => ({ item_id: h.item_id, title: titles.get(h.item_id), from_state: h.from_state, to_state: h.to_state, reason: h.reason, at: h.at })).reverse().slice(0, 30);
+  const levelOrder = ["not_seen", "not_assessed", "learning", "shown", "proven"];
+  const rank = (s) => levelOrder.indexOf(s);
+  const recent_changes = history.map((h) => ({ ...h, direction: rank(h.to_state) > rank(h.from_state) ? "up" : "down" }));
+  return {
+    tracks,
+    areas: dashboardAreas,
+    repeats: repeats(db2, now).map((r) => ({ ...r, title: titles.get(r.item_id) ?? r.item_id })),
+    open_faults,
+    ready_for_assessment,
+    next_actions,
+    drill_results,
+    recent_changes,
+    levels: LEVELS
+  };
+}
+
+// src/api/data.ts
+import { randomUUID as randomUUID7 } from "node:crypto";
+
+// src/store.ts
+import { randomUUID as randomUUID6 } from "node:crypto";
+
+// src/paths.ts
+import { isAbsolute, relative, resolve as resolve2, sep } from "node:path";
+function toRepoPath(rawPath, root) {
+  const path = sep === "/" ? rawPath.replaceAll("\\", "/") : rawPath;
+  const absolute = isAbsolute(path) ? path : resolve2(root, path);
+  const rel = relative(root, absolute);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
+  return rel.split(sep).join("/");
+}
+function tidyPath(path, root) {
+  return toRepoPath(path, root) ?? path.replaceAll("\\", "/");
+}
+function pathKey(path) {
+  return path.replaceAll("\\", "/").toLowerCase();
+}
+
+// src/store.ts
+function localDeveloperId() {
+  return process.env.FTC_DEVELOPER_ID ?? "local";
+}
+function exists(db2, table, id2) {
+  return db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id2) !== void 0;
+}
+function requireRow(db2, table, label, id2) {
+  if (!exists(db2, table, id2)) throw new StoreError(`${label} '${id2}' does not exist`);
+}
+function getTicket(db2, ticketId) {
+  const row = db2.prepare("SELECT id, title, body, source FROM tickets WHERE id = ?").get(ticketId);
+  if (!row) throw new StoreError(`Ticket '${ticketId}' does not exist`);
+  return { ...row };
+}
+function upsertTicket(db2, ticket) {
+  db2.prepare(`
+    INSERT INTO tickets (id, title, body, source) VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET title = excluded.title, body = excluded.body, source = excluded.source
+  `).run(ticket.id, ticket.title, ticket.body, ticket.source);
+}
+async function ensureTicket(db2, adapter, ticketId, guard) {
+  const fresh = await adapter.getTicket(ticketId);
+  if (fresh) guard?.checkTicket(fresh);
+  if (fresh) upsertTicket(db2, { ...fresh, source: adapter.source });
+  return getTicket(db2, ticketId);
+}
+async function importTicket(db2, adapter, input2, guard) {
+  if (await adapter.getTicket(input2.ticket_id)) {
+    throw new StoreError(
+      `Ticket '${input2.ticket_id}' already exists in the plugin's ${adapter.source} tickets. Use get_ticket for it`
+    );
+  }
+  const ticket = { id: input2.ticket_id, title: input2.title, body: input2.body };
+  guard?.checkTicket(ticket);
+  upsertTicket(db2, { ...ticket, source: input2.source });
+  return getTicket(db2, input2.ticket_id);
+}
+function saveAssumptions(db2, input2) {
+  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
+  const insert = db2.prepare(
+    "INSERT INTO assumptions (id, ticket_id, text, status, answer) VALUES (?, ?, ?, ?, ?)"
+  );
+  const ids = [];
+  transaction(db2, () => {
+    db2.prepare("DELETE FROM assumptions WHERE ticket_id = ?").run(input2.ticket_id);
+    for (const a of input2.assumptions) {
+      const id2 = randomUUID6();
+      insert.run(id2, input2.ticket_id, a.text, a.status, a.answer ?? null);
+      ids.push(id2);
+    }
+  });
+  return { assumption_ids: ids };
+}
+function logDecision(db2, input2, root = process.cwd(), ladderId2 = null, originQuote = null) {
+  requireRow(db2, "tickets", "Ticket", input2.ticket_id);
+  const decisionId = randomUUID6();
+  let pointerId = null;
+  const relatedFiles = input2.related_files.map((f) => tidyPath(f, root));
+  transaction(db2, () => {
+    const p = input2.pointer;
+    if (p) {
+      pointerId = randomUUID6();
+      db2.prepare(
+        "INSERT INTO pointers (id, repo, pr_number, file_path, symbol, commit_sha, line_hint) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
+    }
+    db2.prepare(
+      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files, ladder_id, item_id, origin_quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      decisionId,
+      input2.ticket_id,
+      input2.session_id,
+      input2.summary,
+      JSON.stringify(input2.alternatives),
+      input2.origin,
+      pointerId,
+      JSON.stringify(relatedFiles),
+      ladderId2,
+      input2.item_id ?? null,
+      originQuote
+    );
+  });
+  return { decision_id: decisionId, pointer_id: pointerId };
+}
+function startTrail(db2, input2) {
+  const ticket = getTicket(db2, input2.ticket_id);
+  db2.prepare(
+    "INSERT INTO trail_sessions (session_id, ticket_id) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET ticket_id = excluded.ticket_id"
+  ).run(input2.session_id, input2.ticket_id);
+  const assumptions = db2.prepare("SELECT id, text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(input2.ticket_id).map((r) => ({ ...r }));
+  return { session_id: input2.session_id, ticket, assumptions };
+}
+function getTrail(db2, sessionId) {
+  const session = db2.prepare("SELECT ticket_id FROM trail_sessions WHERE session_id = ?").get(sessionId);
+  const decisions = db2.prepare(
+    `SELECT d.id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol
+       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+       WHERE d.session_id = ? ORDER BY d.rowid`
+  ).all(sessionId).map((r) => {
+    const row = r;
+    return {
+      id: row.id,
+      summary: row.summary,
+      origin: row.origin,
+      alternatives: JSON.parse(row.alternatives),
+      file_path: row.file_path ?? null,
+      symbol: row.symbol ?? null,
+      related_files: JSON.parse(row.related_files)
+    };
+  });
+  const explained = /* @__PURE__ */ new Set();
+  for (const d of decisions) {
+    if (d.file_path) explained.add(pathKey(d.file_path));
+    for (const f of d.related_files) explained.add(pathKey(f));
+  }
+  const editedFiles = db2.prepare("SELECT file_path, edit_count FROM file_edits WHERE session_id = ? ORDER BY first_edited_at, rowid").all(sessionId).map((f) => ({ file_path: f.file_path, edit_count: f.edit_count, explained: explained.has(pathKey(f.file_path)) }));
+  return {
+    session_id: sessionId,
+    tracking: session !== void 0,
+    ticket_id: session?.ticket_id ?? null,
+    decisions,
+    edited_files: editedFiles,
+    unexplained_files: editedFiles.filter((f) => !f.explained).map((f) => f.file_path)
+  };
+}
+function listDecisions(db2, ticketId) {
+  requireRow(db2, "tickets", "Ticket", ticketId);
+  const decisions = db2.prepare(
+    `SELECT d.id, d.session_id, d.summary, d.origin, d.alternatives, d.related_files, p.file_path, p.symbol,
+              (SELECT count(*) FROM explain_backs e WHERE e.decision_id = d.id) AS explain_back_count
+       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+       WHERE d.ticket_id = ? ORDER BY d.rowid`
+  ).all(ticketId).map((r) => {
+    const row = r;
+    return {
+      id: row.id,
+      session_id: row.session_id,
+      summary: row.summary,
+      origin: row.origin,
+      alternatives: JSON.parse(row.alternatives),
+      file_path: row.file_path ?? null,
+      symbol: row.symbol ?? null,
+      related_files: JSON.parse(row.related_files),
+      explain_back_count: Number(row.explain_back_count)
+    };
+  });
+  return { ticket_id: ticketId, decisions };
+}
+function recordExplainBack(db2, input2) {
+  requireRow(db2, "decisions", "Decision", input2.decision_id);
+  const id2 = randomUUID6();
+  db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating) VALUES (?, ?, ?, ?, ?)").run(
+    id2,
+    input2.decision_id,
+    input2.question,
+    input2.answer,
+    input2.rating
+  );
+  return { explain_back_id: id2 };
+}
+function saveObservation(db2, input2) {
+  for (const evidenceId of input2.evidence_ids) {
+    if (!exists(db2, "decisions", evidenceId) && !exists(db2, "explain_backs", evidenceId)) {
+      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explain-back`);
+    }
+  }
+  const id2 = randomUUID6();
+  db2.prepare("INSERT INTO observations (id, developer_id, skill_tag, summary, evidence_ids) VALUES (?, ?, ?, ?, ?)").run(
+    id2,
+    input2.developer_id ?? localDeveloperId(),
+    input2.skill_tag,
+    input2.summary,
+    JSON.stringify(input2.evidence_ids)
+  );
+  return { observation_id: id2 };
+}
+function listObservations(db2, developerId = localDeveloperId()) {
+  const decision = db2.prepare("SELECT ticket_id, origin FROM decisions WHERE id = ?");
+  const explainBack = db2.prepare(
+    "SELECT e.rating, d.ticket_id FROM explain_backs e JOIN decisions d ON d.id = e.decision_id WHERE e.id = ?"
+  );
+  const describe3 = (id2) => {
+    const d = decision.get(id2);
+    if (d) return { id: id2, kind: "decision", ticket_id: d.ticket_id, origin: d.origin };
+    const e = explainBack.get(id2);
+    if (e) return { id: id2, kind: "explain_back", ticket_id: e.ticket_id, rating: e.rating };
+    return { id: id2, kind: "missing" };
+  };
+  const observations = db2.prepare("SELECT id, skill_tag, summary, evidence_ids, created_at FROM observations WHERE developer_id = ? ORDER BY rowid").all(developerId).map((o) => ({
+    id: o.id,
+    skill_tag: o.skill_tag,
+    summary: o.summary,
+    created_at: o.created_at,
+    evidence: JSON.parse(o.evidence_ids).map(describe3)
+  }));
+  return { developer_id: developerId, observations };
+}
+function saveGrowthPlan(db2, input2, checkItemArea2) {
+  const developerId = input2.developer_id ?? localDeveloperId();
+  const ownsObservation = db2.prepare("SELECT 1 FROM observations WHERE id = ? AND developer_id = ?");
+  const focusAreas = input2.focus_areas.map((area) => {
+    const evidence = [...new Set(area.evidence_ids)];
+    if (area.item_id !== void 0) {
+      if (!checkItemArea2) throw new StoreError("A focus area with a ladder item cannot be checked here");
+      const ladderId2 = checkItemArea2({ ...area, item_id: area.item_id, evidence_ids: evidence });
+      return {
+        id: randomUUID6(),
+        claim: area.claim,
+        evidence_ids: evidence,
+        tentative: evidence.length < 2,
+        exercise: area.exercise,
+        item_id: area.item_id,
+        ladder_id: ladderId2,
+        ...area.spot ? { spot: { file: area.spot.file, symbol: area.spot.symbol ?? null } } : {},
+        ...area.stack ? { stack: area.stack } : {},
+        ...area.exercise_kind ? { exercise_kind: area.exercise_kind } : {}
+      };
+    }
+    for (const evidenceId of evidence) {
+      if (!ownsObservation.get(evidenceId, developerId)) {
+        throw new StoreError(`Evidence '${evidenceId}' is not an observation of developer '${developerId}'`);
+      }
+    }
+    return { id: randomUUID6(), claim: area.claim, evidence_ids: evidence, tentative: evidence.length < 2, exercise: area.exercise };
+  });
+  const id2 = randomUUID6();
+  db2.prepare("INSERT INTO growth_plans (id, developer_id, focus_areas) VALUES (?, ?, ?)").run(
+    id2,
+    developerId,
+    JSON.stringify(focusAreas)
+  );
+  return { growth_plan_id: id2, focus_areas: focusAreas };
+}
+
+// src/api/data.ts
+var rows = (db2, sql, ...params) => db2.prepare(sql).all(...params).map((r) => ({ ...r }));
+function annotationsFor(db2, targetId) {
+  return rows(db2, "SELECT id, target_id, note, disagrees, created_at FROM annotations WHERE target_id = ? ORDER BY rowid", targetId).map(
+    (a) => ({ ...a, disagrees: a.disagrees === 1 })
+  );
+}
+function pointerUrl(p) {
+  const repo = String(p.repo);
+  if (!p.commit_sha || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
+  const path = String(p.file_path).split("/").map(encodeURIComponent).join("/");
+  return `https://github.com/${repo}/blob/${p.commit_sha}/${path}${p.line_hint ? `#L${p.line_hint}` : ""}`;
+}
+function listTickets(db2) {
+  return rows(
+    db2,
+    `SELECT t.id, t.title, t.source, t.created_at,
+            (SELECT count(*) FROM assumptions a WHERE a.ticket_id = t.id) AS assumption_count,
+            (SELECT count(*) FROM decisions d WHERE d.ticket_id = t.id) AS decision_count
+     FROM tickets t ORDER BY t.rowid`
+  );
+}
+function ticketDecisions(db2, ticketId) {
+  return rows(
+    db2,
+    `SELECT d.id, d.ticket_id, d.session_id, d.summary, d.alternatives, d.origin, d.related_files, d.created_at,
+            p.id AS p_id, p.repo, p.pr_number, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved, p.resolve_note
+     FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+     WHERE d.ticket_id = ? ORDER BY d.rowid`,
+    ticketId
+  ).map((d) => ({
+    id: d.id,
+    ticket_id: d.ticket_id,
+    session_id: d.session_id,
+    summary: d.summary,
+    alternatives: JSON.parse(d.alternatives),
+    origin: d.origin,
+    related_files: JSON.parse(d.related_files),
+    created_at: d.created_at,
+    pointer: d.p_id ? {
+      id: d.p_id,
+      repo: d.repo,
+      pr_number: d.pr_number,
+      file_path: d.file_path,
+      symbol: d.symbol,
+      commit: d.commit_sha,
+      line_hint: d.line_hint,
+      url: pointerUrl(d),
+      resolved: d.resolved === null ? null : d.resolved === 1,
+      resolve_note: d.resolve_note
+    } : null,
+    explain_backs: rows(
+      db2,
+      "SELECT id, question, answer, rating, created_at FROM explain_backs WHERE decision_id = ? ORDER BY rowid",
+      d.id
+    ),
+    annotations: annotationsFor(db2, d.id)
+  }));
+}
+function ticketDetail(db2, ticketId) {
+  const ticket = rows(db2, "SELECT id, title, body, source, created_at FROM tickets WHERE id = ?", ticketId)[0];
+  if (!ticket) return null;
+  const assumptions = rows(
+    db2,
+    "SELECT id, text, status, answer, created_at FROM assumptions WHERE ticket_id = ? ORDER BY rowid",
+    ticketId
+  );
+  const sessions = rows(db2, "SELECT session_id, started_at FROM trail_sessions WHERE ticket_id = ? ORDER BY rowid", ticketId).map(
+    (s) => {
+      const trail = getTrail(db2, s.session_id);
+      return { ...s, edited_files: trail.edited_files, unexplained_files: trail.unexplained_files };
+    }
+  );
+  return { ticket, assumptions, decisions: ticketDecisions(db2, ticketId), sessions };
+}
+function latestGrowthPlan(db2, developerId = localDeveloperId()) {
+  const plan = rows(
+    db2,
+    "SELECT id, developer_id, focus_areas, created_at FROM growth_plans WHERE developer_id = ? ORDER BY rowid DESC LIMIT 1",
+    developerId
+  )[0];
+  if (!plan) return null;
+  const observations = new Map(
+    listObservations(db2, developerId).observations.map((o) => [o.id, o])
+  );
+  const areas = JSON.parse(plan.focus_areas);
+  return {
+    id: plan.id,
+    developer_id: plan.developer_id,
+    created_at: plan.created_at,
+    focus_areas: areas.map((area, index) => {
+      const id2 = area.id ?? `${plan.id}:${index}`;
+      return {
+        id: id2,
+        claim: area.claim,
+        tentative: area.tentative,
+        exercise: area.exercise,
+        ...area.item_id ? { item_id: area.item_id } : {},
+        ...area.spot ? { spot: area.spot } : {},
+        ...area.stack ? { stack: area.stack } : {},
+        evidence: area.evidence_ids.map((e) => observations.get(e)).filter((o) => o !== void 0),
+        annotations: annotationsFor(db2, id2)
+      };
+    })
+  };
+}
+function targetExists(db2, targetId) {
+  for (const table of ["decisions", "assumptions", "explain_backs", "observations", "growth_plans", "tickets"]) {
+    if (db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(targetId)) return true;
+  }
+  return db2.prepare(
+    `SELECT 1 FROM growth_plans g, json_each(g.focus_areas) fa
+         WHERE json_extract(fa.value, '$.id') = ?
+            OR (json_extract(fa.value, '$.id') IS NULL AND g.id || ':' || fa.key = ?)`
+  ).get(targetId, targetId) !== void 0;
+}
+function addAnnotation(db2, input2) {
+  if (!targetExists(db2, input2.target_id)) throw new StoreError(`Nothing with id '${input2.target_id}' exists to add a note to`);
+  const id2 = randomUUID7();
+  db2.prepare("INSERT INTO annotations (id, target_id, note, disagrees) VALUES (?, ?, ?, ?)").run(
+    id2,
+    input2.target_id,
+    input2.note,
+    input2.disagrees ? 1 : 0
+  );
+  return annotationsFor(db2, input2.target_id).find((a) => a.id === id2);
+}
+function deleteAnnotation(db2, id2) {
+  return db2.prepare("DELETE FROM annotations WHERE id = ?").run(id2).changes > 0;
+}
+var DATA_TABLES = [
+  "annotations",
+  "growth_plans",
+  "observations",
+  "explain_backs",
+  "file_edits",
+  "trail_sessions",
+  "decisions",
+  "pointers",
+  "assumptions",
+  "tickets"
+];
+var JSON_COLUMNS = /* @__PURE__ */ new Set(["alternatives", "related_files", "evidence_ids", "focus_areas"]);
+function countAll(db2) {
+  const counts = {};
+  for (const table of DATA_TABLES) counts[table] = Number(rows(db2, `SELECT count(*) AS n FROM ${table}`)[0]?.n ?? 0);
+  return counts;
+}
+function exportAll(db2) {
+  const data = {};
+  for (const table of [...DATA_TABLES].reverse()) {
+    data[table] = rows(db2, `SELECT * FROM ${table} ORDER BY rowid`).map((row) => {
+      for (const column of Object.keys(row)) {
+        if (JSON_COLUMNS.has(column)) row[column] = JSON.parse(row[column]);
+      }
+      return row;
+    });
+  }
+  return { exported_at: (/* @__PURE__ */ new Date()).toISOString(), counts: countAll(db2), data };
+}
+function deleteAll(db2) {
+  const deleted = countAll(db2);
+  transaction(db2, () => {
+    for (const table of DATA_TABLES) db2.exec(`DELETE FROM ${table}`);
+  });
+  return deleted;
+}
+
+// src/api/static.ts
+import { existsSync as existsSync4 } from "node:fs";
+import { readFile as readFile2, stat } from "node:fs/promises";
+import { extname as extname2, join as join6, normalize, resolve as resolve3, sep as sep2 } from "node:path";
+
+// src/api/report-page.ts
+var REPORT_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach report</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181c; --card:#1f2228; --text:#e6e8eb; --muted:#9aa3ad; --line:#353a42; --accent:#7fb0ff; --warn-bg:#4a3a10; --warn:#ffd97a; --bad:#ff9d94; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:0 0 8px; }
+  h3 { font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:16px 0 6px; }
+  p { margin:0 0 8px; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-top:16px; }
+  .badge { display:inline-block; font-size:.75rem; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--warn-bg); color:var(--warn); margin-left:8px; vertical-align:middle; }
+  ul { margin:0; padding-left:20px; }
+  li { margin-bottom:6px; }
+  .note { border-left:3px solid var(--line); padding:4px 0 4px 10px; margin-bottom:6px; }
+  .note.disagrees { border-left-color:var(--bad); }
+  .note b { color:var(--bad); }
+  textarea { width:100%; min-height:64px; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
+  label.check { display:inline-flex; align-items:center; gap:6px; margin:8px 12px 0 0; }
+  button { margin-top:8px; padding:6px 14px; border:1px solid var(--accent); border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  .error { color:var(--bad); margin-top:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Coach report</h1>
+  <p class="muted">Private to you. Stored on this machine only and never shared.</p>
+  <div id="report" aria-live="polite"><p class="muted">Loading\u2026</p></div>
+</main>
+<script src="/report.js"></script>
+</body>
+</html>
+`;
+var REPORT_JS = `"use strict";
+(function () {
+  var root = document.getElementById("report");
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+  function message(text, className) {
+    root.replaceChildren(el("p", className || "muted", text));
+  }
+  var RATING = { clear: "explained clearly", partial: "partly explained", not_yet: "not explained yet" };
+  var ORIGIN = { ai: "AI chose", dev: "developer chose", dev_changed_ai: "developer changed the AI's choice" };
+
+  function evidenceLine(observation) {
+    var item = el("li", "", observation.summary);
+    var parts = [];
+    (observation.evidence || []).forEach(function (e) {
+      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
+      if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
+    });
+    if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
+    return item;
+  }
+
+  function noteForm(area) {
+    var form = el("form");
+    var box = el("textarea");
+    box.setAttribute("aria-label", "Your note on this claim");
+    box.maxLength = 2000;
+    box.placeholder = "Add a note. Words only, no code.";
+    var check = el("label", "check");
+    var tick = el("input");
+    tick.type = "checkbox";
+    check.appendChild(tick);
+    check.appendChild(document.createTextNode("I disagree with this claim"));
+    var send = el("button", "", "Save note");
+    send.type = "submit";
+    var error = el("div", "error");
+    error.setAttribute("role", "alert");
+    form.append(box, check, send, error);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var note = box.value.trim();
+      if (!note) { error.textContent = "Write a note first."; return; }
+      send.disabled = true;
+      error.textContent = "";
+      fetch("/api/annotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: area.id, note: note, disagrees: tick.checked })
+      }).then(function (response) {
+        return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+      }).then(function (result) {
+        if (!result.ok) throw new Error((result.body.error && result.body.error.message) || "The note was not saved.");
+        load();
+      }).catch(function (problem) {
+        send.disabled = false;
+        error.textContent = problem.message;
+      });
+    });
+    return form;
+  }
+
+  function areaCard(area, index) {
+    var card = el("section", "card");
+    var title = el("h2", "", "Focus area " + (index + 1));
+    if (area.tentative) {
+      var badge = el("span", "badge", "Tentative");
+      badge.title = "This claim rests on a single observation, so it may be wrong.";
+      title.appendChild(badge);
+    }
+    card.appendChild(title);
+    card.appendChild(el("p", "", area.claim));
+    if (area.tentative) card.appendChild(el("p", "muted", "Based on one observation only. Treat it as a first sign."));
+
+    card.appendChild(el("h3", "", "Evidence"));
+    var list = el("ul");
+    (area.evidence || []).forEach(function (o) { list.appendChild(evidenceLine(o)); });
+    if (!list.children.length) list.appendChild(el("li", "muted", "The evidence for this claim was deleted."));
+    card.appendChild(list);
+
+    card.appendChild(el("h3", "", "Exercise"));
+    card.appendChild(el("p", "", area.exercise));
+
+    card.appendChild(el("h3", "", "Your notes"));
+    (area.annotations || []).forEach(function (a) {
+      var note = el("div", a.disagrees ? "note disagrees" : "note");
+      if (a.disagrees) { note.appendChild(el("b", "", "I disagree. ")); }
+      note.appendChild(document.createTextNode(a.note));
+      card.appendChild(note);
+    });
+    card.appendChild(noteForm(area));
+    return card;
+  }
+
+  function render(plan) {
+    if (!plan) {
+      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
+      return;
+    }
+    var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC \xB7 " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];
+    plan.focus_areas.forEach(function (area, index) { nodes.push(areaCard(area, index)); });
+    root.replaceChildren.apply(root, nodes);
+  }
+
+  function load() {
+    fetch("/api/growth-plan").then(function (response) {
+      if (!response.ok) throw new Error("The local service answered " + response.status + ".");
+      return response.json();
+    }).then(function (body) {
+      render(body.growth_plan);
+    }).catch(function (problem) {
+      message("Could not load the report. " + problem.message + " Is the local service still running?", "error");
+    });
+  }
+  load();
+})();
+`;
+
+// src/api/static.ts
+var TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".map": "application/json; charset=utf-8"
+};
+var STRICT_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+function send(res, status, type, body2, extra = {}) {
+  res.writeHead(status, {
+    "Content-Type": type,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    ...extra
+  });
+  res.end(body2);
+}
+function hasWebApp(webDir2) {
+  return webDir2 !== void 0 && existsSync4(join6(webDir2, "index.html"));
+}
+function reportPath(webDir2) {
+  return hasWebApp(webDir2) ? "/#/coach" : "/";
+}
+async function servePage(res, pathname, webDir2) {
+  if (!hasWebApp(webDir2)) {
+    if (pathname === "/" || pathname === "/index.html") return send(res, 200, TYPES[".html"], REPORT_HTML, { "Content-Security-Policy": STRICT_CSP });
+    if (pathname === "/report.js") return send(res, 200, TYPES[".js"], REPORT_JS);
+    return send(res, 404, "text/plain; charset=utf-8", "Not found");
+  }
+  const root = resolve3(webDir2);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return send(res, 400, "text/plain; charset=utf-8", "Bad request");
+  }
+  const file2 = resolve3(root, `.${normalize(`/${decoded}`)}`);
+  if (file2 !== root && !file2.startsWith(root + sep2)) return send(res, 404, "text/plain; charset=utf-8", "Not found");
+  const info2 = await stat(file2).catch(() => null);
+  if (info2?.isFile()) {
+    return send(res, 200, TYPES[extname2(file2).toLowerCase()] ?? "application/octet-stream", await readFile2(file2));
+  }
+  if (extname2(file2) === "") return send(res, 200, TYPES[".html"], await readFile2(join6(root, "index.html")));
+  return send(res, 404, "text/plain; charset=utf-8", "Not found");
+}
+
+// src/api/server.ts
+var API_HOST = "127.0.0.1";
+var DEFAULT_API_PORT = 4317;
+var MAX_BODY_BYTES = 64 * 1024;
+function defaultEvalResultsPath() {
+  return process.env.FTC_EVAL_RESULTS ?? join7(dirname3(defaultDbPath()), "eval-results.json");
+}
+var annotationInput = external_exports.strictObject({
+  target_id: external_exports.string().trim().min(1).max(200),
+  note: external_exports.string().trim().min(1).max(2e3),
+  disagrees: external_exports.boolean().default(false)
+});
+var deleteAllInput = external_exports.strictObject({ confirm: external_exports.literal("delete-all") });
+var HttpError = class extends Error {
+  constructor(status, code, message, extra = {}) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.extra = extra;
+  }
+  status;
+  code;
+  extra;
+};
+function send2(res, status, body2, headers = {}) {
+  const text2 = body2 === void 0 ? "" : JSON.stringify(body2);
+  res.writeHead(status, {
+    ...body2 === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    ...headers
+  });
+  res.end(text2);
+}
+async function readJson(req) {
+  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+    throw new HttpError(415, "unsupported_media_type", "Send the body as application/json");
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) throw new HttpError(413, "too_large", "Request body is too large");
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new HttpError(400, "bad_json", "Request body is not valid JSON");
+  }
+}
+function parse4(schema, body2) {
+  const result = schema.safeParse(body2);
+  if (!result.success) {
+    const issue2 = result.error.issues[0];
+    throw new HttpError(400, "invalid_input", `${issue2?.path.join(".") || "body"}: ${issue2?.message ?? "invalid"}`);
+  }
+  return result.data;
+}
+function createApiServer(options) {
+  const { db: db2, guard } = options;
+  const extraOrigins = new Set(options.allowedOrigins ?? []);
+  const ownOrigins = () => {
+    const port2 = server2.address().port;
+    return [`http://127.0.0.1:${port2}`, `http://localhost:${port2}`];
+  };
+  const corsFor = (req) => {
+    const origin = req.headers.origin;
+    if (origin === void 0 || !ownOrigins().includes(origin) && !extraOrigins.has(origin)) return {};
+    return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
+  };
+  const server2 = createServer((req, res) => {
+    handle2(req, res).catch((err2) => {
+      const cors = corsFor(req);
+      if (err2 instanceof HttpError) {
+        send2(res, err2.status, { error: { code: err2.code, message: err2.message, ...err2.extra } }, cors);
+      } else if (err2 instanceof PrivacyError) {
+        send2(res, 422, { error: { code: "privacy_guard", message: err2.message, field: err2.field, rule: err2.rule } }, cors);
+      } else if (err2 instanceof StoreError) {
+        send2(res, 404, { error: { code: "not_found", message: err2.message } }, cors);
+      } else {
+        console.error(err2);
+        send2(res, 500, { error: { code: "internal", message: "Internal error" } }, cors);
+      }
+    });
+  });
+  async function handle2(req, res) {
+    const own2 = ownOrigins();
+    if (!own2.includes(`http://${req.headers.host ?? ""}`)) {
+      throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
+    }
+    const cors = corsFor(req);
+    if (req.headers.origin !== void 0 && cors["Access-Control-Allow-Origin"] === void 0) {
+      throw new HttpError(403, "bad_origin", "This origin may not call the API");
+    }
+    const method = req.method ?? "GET";
+    if (method === "OPTIONS") {
+      send2(res, 204, void 0, {
+        ...cors,
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "600"
+      });
+      return;
+    }
+    const url2 = new URL(req.url ?? "/", own2[0]);
+    if (url2.pathname !== "/api" && !url2.pathname.startsWith("/api/")) {
+      if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method_not_allowed", "Only GET is allowed here");
+      await servePage(res, url2.pathname, options.webDir);
+      return;
+    }
+    const parts2 = url2.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    parts2.shift();
+    const route = `${method} /${parts2.map((p, i2) => i2 % 2 === 1 ? ":id" : p).join("/")}`;
+    const id2 = parts2[1] ?? "";
+    const ok = (body2, status = 200, headers = {}) => send2(res, status, body2, { ...cors, ...headers });
+    const notFound = (what) => new HttpError(404, "not_found", `${what} '${id2}' does not exist`);
+    switch (route) {
+      case "GET /health":
+        return ok({ status: "ok", counts: countAll(db2) });
+      case "GET /tickets":
+        return ok({ tickets: listTickets(db2) });
+      case "GET /tickets/:id": {
+        const detail2 = ticketDetail(db2, id2);
+        if (!detail2) throw notFound("Ticket");
+        return ok(detail2);
+      }
+      case "GET /tickets/:id/decisions": {
+        if (!ticketDetail(db2, id2)) throw notFound("Ticket");
+        return ok({ decisions: ticketDecisions(db2, id2) });
+      }
+      case "GET /growth-plan":
+        return ok({ growth_plan: latestGrowthPlan(db2) });
+      case "GET /coach":
+        return ok(coachDashboard(db2, { root: options.coachRoot ?? process.cwd(), ...options.coachHome ? { home: options.coachHome } : {} }));
+      case "POST /annotations": {
+        const input2 = parse4(annotationInput, await readJson(req));
+        guard.check(input2);
+        return ok({ annotation: addAnnotation(db2, input2) }, 201);
+      }
+      case "DELETE /annotations/:id":
+        if (!deleteAnnotation(db2, id2)) throw notFound("Annotation");
+        return ok(void 0, 204);
+      case "GET /eval": {
+        let raw;
+        try {
+          raw = await readFile3(options.evalFile ?? defaultEvalResultsPath(), "utf8");
+        } catch {
+          throw new HttpError(404, "not_found", "No evaluation has been run yet");
+        }
+        try {
+          return ok(JSON.parse(raw));
+        } catch {
+          throw new HttpError(500, "bad_eval_file", "The eval results file is not valid JSON");
+        }
+      }
+      case "GET /export":
+        return ok(exportAll(db2), 200, {
+          "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
+        });
+      case "DELETE /data": {
+        parse4(deleteAllInput, await readJson(req));
+        return ok({ deleted: deleteAll(db2) });
+      }
+      default:
+        throw new HttpError(404, "not_found", "Not found");
+    }
+  }
+  return server2;
+}
+function listen(server2, port2 = DEFAULT_API_PORT) {
+  return new Promise((resolve5, reject) => {
+    server2.once("error", reject);
+    server2.listen(port2, API_HOST, () => resolve5(server2.address().port));
+  });
+}
+
+// src/api/open.ts
+function openInBrowser(url2) {
+  const [command, args2] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url2]] : process.platform === "darwin" ? ["open", [url2]] : ["xdg-open", [url2]];
+  const child = spawn(command, args2, { detached: true, stdio: "ignore", windowsHide: true });
+  child.on("error", () => {
+  });
+  child.unref();
+}
+async function isOurApi(port2) {
+  try {
+    const response = await fetch(`http://${API_HOST}:${port2}/api/health`, { signal: AbortSignal.timeout(2e3) });
+    return response.ok && (await response.json()).status === "ok";
+  } catch {
+    return false;
+  }
+}
+var ReportServer = class {
+  constructor(options) {
+    this.options = options;
+  }
+  options;
+  server;
+  port;
+  /** Starts the local server if needed, and returns the address of the Coach report. */
+  async open(openBrowser = true) {
+    const { started, port: port2 } = await this.ensureRunning();
+    const url2 = `http://${API_HOST}:${port2}${reportPath(this.options.webDir)}`;
+    if (openBrowser) (this.options.openUrl ?? openInBrowser)(url2);
+    return { url: url2, started, opened: openBrowser };
+  }
+  async ensureRunning() {
+    if (this.port !== void 0) return { started: false, port: this.port };
+    const wanted = this.options.port ?? DEFAULT_API_PORT;
+    const create = () => createApiServer({
+      db: this.options.db,
+      guard: this.options.guard,
+      webDir: this.options.webDir,
+      coachRoot: this.options.coachRoot,
+      allowedOrigins: this.options.allowedOrigins ?? []
+    });
+    let server2 = create();
+    try {
+      this.port = await listen(server2, wanted);
+    } catch (err2) {
+      if (err2.code !== "EADDRINUSE") throw err2;
+      if (await isOurApi(wanted)) {
+        this.port = wanted;
+        return { started: false, port: wanted };
+      }
+      server2 = create();
+      try {
+        this.port = await listen(server2, 0);
+      } catch {
+        throw new StoreError(`Could not start the local server: port ${wanted} is in use and no other port could be opened.`);
+      }
+    }
+    this.server = server2;
+    return { started: true, port: this.port };
+  }
+  close() {
+    this.server?.close();
+    this.server = void 0;
+    this.port = void 0;
+  }
+};
+
+// src/pointers/service.ts
+import { readFile as readFile4 } from "node:fs/promises";
+import { resolve as resolve4 } from "node:path";
+async function enrichPointer(pointer, root, exec = run2) {
+  const out2 = { ...pointer, file_path: tidyPath(pointer.file_path, root) };
+  try {
+    out2.repo = await repoSlug(root, exec) ?? pointer.repo;
+    const repoPath = toRepoPath(pointer.file_path, root);
+    if (repoPath === null || !isSupported(repoPath)) return out2;
+    const source = await readFile4(resolve4(root, repoPath), "utf8");
+    if (pointer.line_hint) {
+      const found = await symbolAtLine(repoPath, source, pointer.line_hint);
+      if (found) out2.symbol = found.name;
+    } else if (pointer.symbol) {
+      const found = await findSymbol(repoPath, source, pointer.symbol);
+      if (found) {
+        out2.symbol = found.name;
+        out2.line_hint = found.startLine;
+      }
+    }
+  } catch {
+  }
+  return out2;
+}
+async function resolvePointers(db2, options, deps = {}) {
+  const exec = deps.exec ?? run2;
+  const pointers = db2.prepare(
+    `SELECT p.id, p.repo, p.pr_number, p.file_path, p.symbol, d.id AS decision_id
+       FROM pointers p JOIN decisions d ON d.pointer_id = p.id
+       WHERE d.ticket_id = ? ORDER BY d.rowid`
+  ).all(options.ticketId);
+  if (!db2.prepare("SELECT 1 FROM tickets WHERE id = ?").get(options.ticketId)) {
+    throw new StoreError(`Ticket '${options.ticketId}' does not exist`);
+  }
+  const repo = await repoSlug(options.root, exec) ?? pointers.find((p) => p.repo.includes("/"))?.repo ?? null;
+  let commit = options.commit;
+  let pr = null;
+  if (!commit) {
+    if (!repo) throw new StoreError("This folder has no GitHub remote, so the pull request cannot be found. Pass commit instead.");
+    const known = options.prNumber ?? pointers.find((p) => p.pr_number !== null)?.pr_number ?? void 0;
+    pr = await lookupPr(repo, known, options.root, deps);
+    commit = pr.commit;
+  }
+  if (!await commitExists(options.root, commit, exec)) {
+    throw new StoreError(`Commit ${commit} is not in this clone, even after fetching. Pull the latest changes and try again.`);
+  }
+  const update = db2.prepare(
+    `UPDATE pointers SET repo = ?, commit_sha = ?, pr_number = ?, line_hint = COALESCE(?, line_hint),
+            resolved = ?, resolved_at = datetime('now'), resolve_note = ? WHERE id = ?`
+  );
+  const broken = [];
+  for (const p of pointers) {
+    let reason = null;
+    let line = null;
+    const source = await fileAtCommit(options.root, commit, p.file_path, exec);
+    if (source === null) {
+      reason = "The file does not exist at this commit";
+    } else if (p.symbol && isSupported(p.file_path)) {
+      const found = await findSymbol(p.file_path, source, p.symbol);
+      if (found) line = found.startLine;
+      else reason = `'${p.symbol}' is no longer in the file`;
+    }
+    update.run(repo ?? p.repo, commit, pr?.number ?? options.prNumber ?? p.pr_number, line, reason === null ? 1 : 0, reason, p.id);
+    if (reason !== null) {
+      broken.push({ pointer_id: p.id, decision_id: p.decision_id, file_path: p.file_path, symbol: p.symbol, reason });
+    }
+  }
+  return { ticket_id: options.ticketId, repo, commit, pr, total: pointers.length, resolved: pointers.length - broken.length, broken };
+}
+
+// src/pr/update.ts
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as join8 } from "node:path";
+
+// src/pr/section.ts
+var SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
+var SECTION_END = "<!-- fork-trail-coach:decisions:end -->";
+var ORIGIN_LABEL = {
+  ai: "AI chose",
+  dev: "Developer chose",
+  dev_changed_ai: "Developer changed the AI's choice"
+};
+var STATUS_LABEL = {
+  answered_by_po: "Answered by PO",
+  assumed_by_dev: "Assumed by dev"
+};
+function inline(text2) {
+  return text2.replace(/\s*\r?\n\s*/g, " ").replace(/</g, "&lt;").replace(/\|/g, "\\|").replace(/@(?=\w)/g, "@\u200B").trim();
+}
+function pointerText(d) {
+  if (!d.file_path) return null;
+  const label = `\`${d.file_path}\`${d.symbol ? ` \xB7 \`${d.symbol}\`` : ""}`;
+  const linkable = d.commit_sha && d.repo && /^[\w.-]+\/[\w.-]+$/.test(d.repo) && d.resolved !== 0;
+  if (!linkable) return d.resolved === 0 ? `${label} (this pointer no longer finds its code)` : label;
+  const path = d.file_path.split("/").map(encodeURIComponent).join("/");
+  return `[${label}](https://github.com/${d.repo}/blob/${d.commit_sha}/${path}${d.line_hint ? `#L${d.line_hint}` : ""})`;
+}
+function buildDecisionsSection(db2, ticketId) {
+  const ticket = db2.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
+  if (!ticket) throw new StoreError(`Ticket '${ticketId}' does not exist`);
+  const assumptions = db2.prepare("SELECT text, status, answer FROM assumptions WHERE ticket_id = ? ORDER BY rowid").all(ticketId);
+  const decisions = db2.prepare(
+    `SELECT d.summary, d.alternatives, d.origin, p.repo, p.file_path, p.symbol, p.commit_sha, p.line_hint, p.resolved
+       FROM decisions d LEFT JOIN pointers p ON p.id = d.pointer_id
+       WHERE d.ticket_id = ? ORDER BY d.rowid`
+  ).all(ticketId);
+  if (assumptions.length === 0 && decisions.length === 0) {
+    throw new StoreError(`Ticket '${ticketId}' has no assumptions and no decisions to share yet`);
+  }
+  const lines = [SECTION_START, "## Decisions", "", `Ticket **${inline(ticket.id)}**: ${inline(ticket.title)}`, ""];
+  if (assumptions.length > 0) {
+    const assumed = assumptions.filter((a) => a.status === "assumed_by_dev").length;
+    lines.push("### Assumptions", "", "| Question | Status | Answer |", "| --- | --- | --- |");
+    for (const a of assumptions) {
+      lines.push(`| ${inline(a.text)} | ${STATUS_LABEL[a.status] ?? inline(a.status)} | ${a.answer ? inline(a.answer) : ""} |`);
+    }
+    lines.push("");
+    if (assumed > 0) {
+      lines.push(`${assumed} of ${assumptions.length} ${assumed === 1 ? "is an assumption" : "are assumptions"} the product owner has not confirmed.`, "");
+    }
+  }
+  if (decisions.length > 0) {
+    lines.push("### Decisions made while coding", "");
+    decisions.forEach((d, i2) => {
+      lines.push(`${i2 + 1}. **${inline(d.summary)}**`);
+      lines.push(`   - Who chose: ${ORIGIN_LABEL[d.origin] ?? inline(d.origin)}`);
+      const alternatives = JSON.parse(d.alternatives).map(inline).filter(Boolean);
+      if (alternatives.length > 0) lines.push(`   - Alternatives considered: ${alternatives.join("; ")}`);
+      const where = pointerText(d);
+      if (where) lines.push(`   - Where: ${where}`);
+    });
+    lines.push("");
+  }
+  lines.push("<sub>Written by the Fork, Paper Trail, Coach plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
+  return { markdown: lines.join("\n"), assumptions: assumptions.length, decisions: decisions.length };
+}
+function mergeSection(body2, section) {
+  const start2 = body2.indexOf(SECTION_START);
+  const end = body2.indexOf(SECTION_END);
+  if (start2 !== -1 && end > start2) {
+    return body2.slice(0, start2) + section + body2.slice(end + SECTION_END.length);
+  }
+  const trimmed = body2.replace(/\s+$/, "");
+  return trimmed ? `${trimmed}
+
+${section}
+` : `${section}
+`;
+}
+
+// src/pr/update.ts
+async function updatePrDecisions(db2, options, deps = {}) {
+  const exec = deps.exec ?? run2;
+  buildDecisionsSection(db2, options.ticketId);
+  const repo = await repoSlug(options.root, exec);
+  let pr = null;
+  let note = null;
+  if (!repo) {
+    note = "This folder has no GitHub remote, so no pull request was looked up.";
+  } else {
+    try {
+      pr = await lookupPr(repo, options.prNumber, options.root, deps);
+    } catch (err2) {
+      if (!options.dryRun || !(err2 instanceof StoreError)) throw err2;
+      note = err2.message;
+    }
+  }
+  let pointers = null;
+  if (pr) {
+    try {
+      const checked = await resolvePointers(db2, { ticketId: options.ticketId, root: options.root, prNumber: pr.number, commit: pr.commit });
+      pointers = { total: checked.total, resolved: checked.resolved, broken: checked.broken.length };
+    } catch (err2) {
+      if (!(err2 instanceof StoreError)) throw err2;
+      note = `Pointers were not checked: ${err2.message}`;
+    }
+  }
+  const section = buildDecisionsSection(db2, options.ticketId);
+  const result = {
+    ticket_id: options.ticketId,
+    pr,
+    updated: false,
+    note,
+    assumptions: section.assumptions,
+    decisions: section.decisions,
+    pointers,
+    markdown: section.markdown
+  };
+  if (options.dryRun) return { ...result, note: note ?? "Preview only. The pull request was not changed." };
+  if (!repo || !pr) throw new StoreError(note ?? "No pull request was found.");
+  const view2 = await exec("gh", ["pr", "view", String(pr.number), "--repo", repo, "--json", "body"], options.root);
+  if (view2.code === null) {
+    throw new StoreError("The GitHub CLI (gh) is not installed, so the pull request cannot be updated. Install it and sign in, or paste the section by hand.");
+  }
+  if (view2.code !== 0) {
+    throw new StoreError(`The GitHub CLI could not read the pull request: ${view2.stderr.trim().split("\n")[0] ?? "unknown error"}`);
+  }
+  const body2 = JSON.parse(view2.stdout).body ?? "";
+  const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
+  const dir = await mkdtemp(join8(tmpdir(), "ftc-pr-"));
+  try {
+    const file2 = join8(dir, "body.md");
+    await writeFile(file2, next, "utf8");
+    const edit = await exec("gh", ["pr", "edit", String(pr.number), "--repo", repo, "--body-file", file2], options.root);
+    if (edit.code !== 0) {
+      throw new StoreError(`The GitHub CLI could not update the pull request: ${edit.stderr.trim().split("\n")[0] ?? "unknown error"}`);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+  return { ...result, updated: true };
+}
+
 // src/coach/review.ts
+import { randomUUID as randomUUID8 } from "node:crypto";
 async function mergeBase(top, exec) {
   for (const ref of ["origin/HEAD", "origin/main", "main", "origin/master", "master"]) {
     const out2 = await exec("git", ["merge-base", "HEAD", ref], top);
@@ -46008,6 +46431,19 @@ async function mergeBase(top, exec) {
     if (out2.code === 0 && sha !== "") return sha;
   }
   return null;
+}
+async function addedLinesInChange(top, base, filePath, lineStart, lineEnd, exec) {
+  if (lineEnd < lineStart) throw new StoreError("line_end must not be before line_start");
+  const from = base ?? await mergeBase(top, exec);
+  if (from === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
+  const path = filePath.replaceAll("\\", "/");
+  const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${from}...HEAD`, "--", path], top);
+  if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
+  const file2 = parseUnifiedDiff(diff.stdout).find((f) => f.path === path);
+  const lines = (file2?.added ?? []).filter((l) => l.line >= lineStart && l.line <= lineEnd);
+  if (lines.length === 0) throw new StoreError(`Lines ${lineStart}-${lineEnd} of ${filePath} were not added in this change (${from.slice(0, 7)}...HEAD)`);
+  const head = (await exec("git", ["rev-parse", "HEAD"], top)).stdout.trim();
+  return { path, lines, head: head === "" ? null : head };
 }
 async function proposeFault(db2, root, input2, exec = run2, home) {
   const identity = await repoIdentity(root, exec);
@@ -46044,6 +46480,9 @@ async function proposeFault(db2, root, input2, exec = run2, home) {
   return { evidence_id: id2, owned: aiWritten };
 }
 
+// src/coach/ticketcheck.ts
+import { randomUUID as randomUUID10 } from "node:crypto";
+
 // src/coach/messages.ts
 import { randomUUID as randomUUID9 } from "node:crypto";
 function quoteInSession(db2, sessionId, quote) {
@@ -46062,6 +46501,92 @@ function decisionEvidence(db2, d) {
   db2.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, decided_by, ticket, file_path, symbol, at) VALUES (?, ?, ?, 'decision', 'positive', 'unknown', ?, ?, ?, ?, ?)"
   ).run(randomUUID9(), d.ladder_id, d.item_id, d.decided_by, d.ticket, d.file, d.symbol, (/* @__PURE__ */ new Date()).toISOString());
+}
+
+// src/coach/ticketcheck.ts
+function reqItem(file2, tracks, level) {
+  const web = file2 !== null && /\.(tsx|jsx|vue|svelte|css|html)$/i.test(file2);
+  const frontend = web || tracks.length === 1 && tracks[0] === "frontend";
+  return `${frontend ? "FE" : "BE"}.REQ.${level}`;
+}
+function ticketCorpus(db2, ticket, ticketId) {
+  const rows2 = db2.prepare("SELECT text, answer FROM assumptions WHERE ticket_id = ?").all(ticketId);
+  return [ticket.title, ticket.body, ...rows2.flatMap((r) => [r.text, r.answer ?? ""])].join("\n");
+}
+async function proposeFinding(db2, root, ticket, input2, exec = run2, home) {
+  if (!quoteIn(ticketCorpus(db2, ticket, input2.ticket_id), input2.ticket_quote)) {
+    throw new StoreError("The ticket_quote is not in the ticket or its assumptions. Copy the words exactly");
+  }
+  const needsLines = input2.kind !== "missing";
+  if (needsLines && (input2.file === void 0 || input2.line_start === void 0 || input2.line_end === void 0)) {
+    throw new StoreError(`A '${input2.kind}' finding needs file, line_start and line_end: the code that is ${input2.kind === "extra" ? "not asked for" : "different from the ticket"}`);
+  }
+  const identity = await repoIdentity(root, exec);
+  if (identity === null && needsLines) throw new StoreError("This folder is not a git repo");
+  let author = "dev";
+  let symbol2 = null;
+  let file2 = null;
+  let commit = null;
+  if (needsLines && identity !== null) {
+    const found = await addedLinesInChange(identity.top, input2.base, input2.file, input2.line_start, input2.line_end, exec);
+    file2 = found.path;
+    commit = found.head;
+    const ai = aiHashesFor(db2, identity.key, found.path);
+    author = found.lines.some((l) => {
+      const n = normalizeLine(l.text);
+      return n !== null && ai.has(lineHash(n));
+    }) ? "ai" : "dev";
+    const source = await exec("git", ["show", `HEAD:${found.path}`], identity.top);
+    symbol2 = source.code === 0 && isSupported(found.path) ? (await symbolAtLine(found.path, source.stdout, found.lines[0].line))?.name ?? null : null;
+  }
+  const itemId2 = reqItem(file2 ?? input2.file ?? null, getTracks(db2), "J1");
+  const { loaded } = ladderForItem(identity?.top ?? root, itemId2, home ? { home } : {});
+  const evidenceId = randomUUID10();
+  const owned = author === "ai";
+  db2.prepare(
+    `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, commit_sha, file_path, symbol, ticket, note, at)
+     VALUES (?, ?, ?, 'ticket_check', 'negative', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(evidenceId, loaded.ladder_id, itemId2, author, owned ? 1 : 0, identity?.key ?? null, commit, file2, symbol2, input2.ticket_id, `${input2.kind}: ${input2.why}`, (/* @__PURE__ */ new Date()).toISOString());
+  const findingId = randomUUID10();
+  db2.prepare(
+    "INSERT INTO ticket_findings (id, ticket_id, kind, ticket_quote, file_path, line_start, line_end, why, evidence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(findingId, input2.ticket_id, input2.kind, input2.ticket_quote, file2, input2.line_start ?? null, input2.line_end ?? null, input2.why, evidenceId);
+  return { finding_id: findingId, evidence_id: evidenceId, owned };
+}
+function decideFinding(db2, input2) {
+  const row = db2.prepare("SELECT ticket_id, choice, evidence_id FROM ticket_findings WHERE id = ?").get(input2.finding_id);
+  if (!row) throw new StoreError(`Finding '${input2.finding_id}' does not exist`);
+  if (row.choice !== null) throw new StoreError("This finding was already decided");
+  if (!quoteInSession(db2, input2.session_id, input2.reason_quote)) {
+    throw new StoreError("Those words are not in a message the developer sent in this session. Ask them to say what they decide and why, then copy their words");
+  }
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  db2.prepare("UPDATE ticket_findings SET choice = ?, reason_quote = ?, decided_at = ? WHERE id = ?").run(input2.choice, input2.reason_quote, now, input2.finding_id);
+  db2.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?").run(now, row.ticket_id, row.evidence_id);
+  return { decided: true };
+}
+function finishTicketCheck(db2, root, input2, home) {
+  const findings = Number(db2.prepare("SELECT count(*) AS n FROM ticket_findings WHERE ticket_id = ?").get(input2.ticket_id).n);
+  if (findings > 0 || input2.needs < 3) return { credited: false, findings };
+  const itemId2 = reqItem(null, getTracks(db2), "J1");
+  const { loaded } = ladderForItem(root, itemId2, home ? { home } : {});
+  const exists2 = db2.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(loaded.ladder_id, itemId2, input2.ticket_id);
+  if (exists2) return { credited: false, findings };
+  insertTicketCredit(db2, loaded.ladder_id, itemId2, input2.ticket_id);
+  return { credited: true, findings };
+}
+function insertTicketCredit(db2, ladderId2, itemId2, ticketId) {
+  db2.prepare(
+    `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, symbol, note, at)
+     VALUES (?, ?, ?, 'ticket_check', 'positive', 'dev', ?, ?, ?, ?)`
+  ).run(randomUUID10(), ladderId2, itemId2, ticketId, ticketId, "ticket check", (/* @__PURE__ */ new Date()).toISOString());
+}
+function creditSpottedNeeds(db2, root, ticketId, askedPo, home) {
+  if (!askedPo || getTracks(db2).length === 0) return;
+  const itemId2 = reqItem(null, getTracks(db2), "M1");
+  const { loaded } = ladderForItem(root, itemId2, home ? { home } : {});
+  const exists2 = db2.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(loaded.ladder_id, itemId2, ticketId);
+  if (!exists2) insertTicketCredit(db2, loaded.ladder_id, itemId2, ticketId);
 }
 
 // src/privacy/denylist.ts
@@ -46522,6 +47047,26 @@ var proposeFaultInput = external_exports.strictObject({
   line_end: external_exports.number().int().positive(),
   why: shortText.describe("The fault, in plain words: what is wrong and what it risks. No code.")
 });
+var proposeTicketFindingInput = external_exports.strictObject({
+  ticket_id: id,
+  kind: external_exports.enum(["missing", "extra", "different"]).describe("missing: asked for, not built. extra: works but nobody asked for it. different: does something other than the ticket asks."),
+  ticket_quote: external_exports.string().trim().min(12).max(500).describe("Words copied exactly from the ticket or its assumptions that the finding rests on."),
+  file: external_exports.string().trim().min(1).max(500).optional().describe("Repo-relative path. Required for extra and different."),
+  line_start: external_exports.number().int().positive().optional(),
+  line_end: external_exports.number().int().positive().optional(),
+  base: external_exports.string().regex(/^[0-9a-f]{7,40}$/i, "base must be a git SHA").optional(),
+  why: shortText.describe("What is missing, extra or different, in plain words. No code.")
+});
+var decideTicketFindingInput = external_exports.strictObject({
+  finding_id: id,
+  session_id: id.describe("The Claude Code session id"),
+  choice: external_exports.enum(["fixed", "kept"]),
+  reason_quote: external_exports.string().trim().min(12).max(500).describe("The developer's own words, copied exactly from their message, saying what they decide and why.")
+});
+var finishTicketCheckInput = external_exports.strictObject({
+  ticket_id: id,
+  needs: external_exports.number().int().min(1).max(100).describe("How many separate needs the ticket states.")
+});
 var disagreeInput = external_exports.strictObject({
   target_id: id.describe("The id of a piece of evidence or a drill attempt"),
   reason: external_exports.string().trim().min(8).max(500).describe("The developer's reason, in their own words")
@@ -46583,7 +47128,7 @@ function createServer2(db2, tickets2, options = {}) {
   const root = options.root ?? process.cwd();
   const guard = options.guard ?? new PrivacyGuard({ root });
   const server2 = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
-  const report = new ReportServer({ db: db2, guard, ...options.report });
+  const report = new ReportServer({ db: db2, guard, coachRoot: repoIdentitySync(root)?.top ?? root, ...options.report });
   server2.server.onclose = () => report.close();
   const write2 = (input2, save) => reply(() => {
     guard.check(input2);
@@ -46624,7 +47169,9 @@ function createServer2(db2, tickets2, options = {}) {
     },
     (input2) => write2(input2, async (i2) => {
       await ticket(i2.ticket_id);
-      return saveAssumptions(db2, i2);
+      const saved = saveAssumptions(db2, i2);
+      creditSpottedNeeds(db2, coachRoot, i2.ticket_id, i2.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+      return saved;
     })
   );
   server2.registerTool(
@@ -46812,6 +47359,36 @@ function createServer2(db2, tickets2, options = {}) {
       inputSchema: proposeFaultInput
     },
     (input2) => write2(input2, (i2) => proposeFault(db2, root, i2, void 0, options.coachHome))
+  );
+  server2.registerTool(
+    "propose_ticket_finding",
+    {
+      title: "Propose ticket finding",
+      description: "Ticket check: name code that is missing, extra (works but nobody asked for it) or different from the ticket. Give words copied exactly from the ticket and, for extra and different, the exact lines in the pull request's change. The server checks both. Shown only to the developer, never to reviewers.",
+      inputSchema: proposeTicketFindingInput
+    },
+    (input2) => write2(input2, async (i2) => {
+      const t = await ticket(i2.ticket_id);
+      return proposeFinding(db2, root, t, i2, void 0, options.coachHome);
+    })
+  );
+  server2.registerTool(
+    "decide_ticket_finding",
+    {
+      title: "Decide ticket finding",
+      description: "Record what the developer decides about a finding: fixed it, or keep it. It needs the developer's own words, copied exactly from a message they sent in this session. You cannot decide for them.",
+      inputSchema: decideTicketFindingInput
+    },
+    (input2) => write2(input2, (i2) => decideFinding(db2, i2))
+  );
+  server2.registerTool(
+    "finish_ticket_check",
+    {
+      title: "Finish ticket check",
+      description: "Close the ticket check. A check with no findings on a ticket with 3 or more needs is a positive sign for building what the ticket asks. Credit is given once per ticket.",
+      inputSchema: finishTicketCheckInput
+    },
+    (input2) => reply(() => finishTicketCheck(db2, coachRoot, input2, options.coachHome))
   );
   server2.registerTool(
     "disagree",

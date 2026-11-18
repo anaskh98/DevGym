@@ -28,6 +28,7 @@ const TABLES = [
   "skill_evidence",
   "skill_exposure",
   "stack_notes_local",
+  "ticket_findings",
   "tickets",
   "trail_sessions",
 ];

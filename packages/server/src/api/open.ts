@@ -12,6 +12,7 @@ export interface ReportOptions {
   guard: PrivacyGuard;
   port?: number | undefined;
   webDir?: string | undefined;
+  coachRoot?: string | undefined;
   allowedOrigins?: string[] | undefined;
   /** Opens a URL in the developer's browser. Replaced in tests. */
   openUrl?: ((url: string) => void) | undefined;
@@ -71,6 +72,7 @@ export class ReportServer {
         db: this.options.db,
         guard: this.options.guard,
         webDir: this.options.webDir,
+        coachRoot: this.options.coachRoot,
         allowedOrigins: this.options.allowedOrigins ?? [],
       });
     let server = create();

@@ -81,3 +81,27 @@ describe("ticket markdown", () => {
     expect(parseBlocks("<script>alert(1)</script>")).toEqual([{ type: "paragraph", text: "<script>alert(1)</script>" }]);
   });
 });
+
+import { EXPOSURE_LABEL, STATE_LABEL, evidenceLine, levelText, visibleItems } from "../src/lib/coach";
+
+describe("coach helpers", () => {
+  it("keeps Not assessed apart from Learning, and exposure apart from both", () => {
+    expect(STATE_LABEL.not_assessed).toBe("Not assessed");
+    expect(STATE_LABEL.learning).not.toBe(STATE_LABEL.not_assessed);
+    expect(EXPOSURE_LABEL.low).toBe("low exposure");
+  });
+  it("words a level and what it is working toward", () => {
+    expect(levelText({ level: "mid", working_toward: "senior" })).toBe("Mid, working toward Senior");
+    expect(levelText({ level: null, working_toward: "junior" })).toBe("Starting, working toward Junior");
+    expect(levelText({ level: "staff", working_toward: null })).toBe("Staff");
+  });
+  it("shows the level being worked on plus any item with evidence", () => {
+    const item = (item_id: string, level: "junior" | "mid", state: "not_seen" | "shown") => ({ item_id, level, state }) as never;
+    const area = { level: null, working_toward: "junior", items: [item("a", "junior", "not_seen"), item("b", "mid", "shown"), item("c", "mid", "not_seen")] } as never;
+    expect(visibleItems(area).map((i: { item_id: string }) => i.item_id)).toEqual(["a", "b"]);
+  });
+  it("says who wrote it and whether the developer owns it, without any code", () => {
+    const line = evidenceLine({ kind: "review", polarity: "negative", author: "ai", decided_by: null, owned: true, file: "src/pay.ts", symbol: "charge", ticket: "PAY-1", signal: null, note: "No time limit on the call" });
+    expect(line).toBe("No time limit on the call · src/pay.ts (charge) · ticket PAY-1 · written by the AI · owned by you: you shipped it");
+  });
+});

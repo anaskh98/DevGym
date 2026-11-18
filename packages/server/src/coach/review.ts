@@ -33,6 +33,28 @@ async function mergeBase(top: string, exec: Run): Promise<string | null> {
   return null;
 }
 
+/** The added lines of a file between the pull request's base and HEAD, limited to a line range. Throws when none. */
+export async function addedLinesInChange(
+  top: string,
+  base: string | undefined,
+  filePath: string,
+  lineStart: number,
+  lineEnd: number,
+  exec: Run,
+): Promise<{ path: string; lines: { line: number; text: string }[]; head: string | null }> {
+  if (lineEnd < lineStart) throw new StoreError("line_end must not be before line_start");
+  const from = base ?? (await mergeBase(top, exec));
+  if (from === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
+  const path = filePath.replaceAll("\\", "/");
+  const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${from}...HEAD`, "--", path], top);
+  if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
+  const file = parseUnifiedDiff(diff.stdout).find((f) => f.path === path);
+  const lines = (file?.added ?? []).filter((l) => l.line >= lineStart && l.line <= lineEnd);
+  if (lines.length === 0) throw new StoreError(`Lines ${lineStart}-${lineEnd} of ${filePath} were not added in this change (${from.slice(0, 7)}...HEAD)`);
+  const head = (await exec("git", ["rev-parse", "HEAD"], top)).stdout.trim();
+  return { path, lines, head: head === "" ? null : head };
+}
+
 export async function proposeFault(
   db: Db,
   root: string,

@@ -252,8 +252,112 @@ export const API_PATHS = {
   tickets: () => "/api/tickets",
   ticket: (ticketId: string) => `/api/tickets/${encodeURIComponent(ticketId)}`,
   growthPlan: () => "/api/growth-plan",
+  coach: () => "/api/coach",
   annotations: () => "/api/annotations",
   export: () => "/api/export",
   data: () => "/api/data",
   eval: () => "/api/eval",
 } as const;
+
+// ---- Coach growth dashboard (GET /api/coach) -------------------------------------------------------------------
+
+export const CoachExposure = z.enum(["none", "low", "medium", "high"]);
+export type CoachExposure = z.infer<typeof CoachExposure>;
+/** Proficiency. Kept apart from exposure: low exposure is never low skill. */
+export const CoachState = z.enum(["not_seen", "not_assessed", "learning", "shown", "proven"]);
+export type CoachState = z.infer<typeof CoachState>;
+const CoachLevel = z.enum(["junior", "mid", "senior", "staff"]);
+
+export const CoachEvidence = z.object({
+  id: z.string(),
+  kind: z.string(),
+  polarity: z.enum(["positive", "negative"]),
+  author: z.string(),
+  decided_by: z.string().nullable(),
+  /** A fault in lines the AI wrote: the developer shipped it, so it counts for them too. */
+  owned: z.boolean(),
+  file: z.string().nullable(),
+  symbol: z.string().nullable(),
+  ticket: z.string(),
+  signal: z.string().nullable(),
+  note: z.string().nullable(),
+  at: z.string(),
+  fixed: z.boolean(),
+  disagreed: z.boolean(),
+});
+export type CoachEvidence = z.infer<typeof CoachEvidence>;
+
+export const CoachItem = z.object({
+  item_id: z.string(),
+  title: z.string(),
+  level: CoachLevel,
+  state: CoachState,
+  exposure: CoachExposure,
+  exposure_functions: z.number().int(),
+  shown_by: z.enum(["work", "drill"]).nullable(),
+  detail: z.string(),
+  why_it_matters: z.string(),
+  needs: z.array(z.string()),
+  evidence: z.array(CoachEvidence),
+  drills: z.array(z.object({ id: z.string(), drill_id: z.string(), passed: z.boolean(), void: z.boolean(), at: z.string() })),
+});
+export type CoachItem = z.infer<typeof CoachItem>;
+
+export const CoachArea = z.object({
+  ladder_id: z.string(),
+  track: z.enum(["backend", "frontend"]),
+  area_id: z.string(),
+  name: z.string(),
+  level: CoachLevel.nullable(),
+  working_toward: CoachLevel.nullable(),
+  exposure: CoachExposure,
+  items: z.array(CoachItem),
+});
+export type CoachArea = z.infer<typeof CoachArea>;
+
+export const CoachDashboard = z.object({
+  tracks: z.array(z.string()),
+  areas: z.array(CoachArea),
+  repeats: z.array(
+    z.object({
+      ladder_id: z.string(),
+      item_id: z.string(),
+      title: z.string(),
+      signal_id: z.string(),
+      times: z.number().int(),
+      tickets: z.number().int(),
+      shipped: z.number().int(),
+      last_at: z.string(),
+      coming_back: z.boolean(),
+    }),
+  ),
+  open_faults: z.array(
+    z.object({
+      item_id: z.string(),
+      title: z.string(),
+      file: z.string().nullable(),
+      symbol: z.string().nullable(),
+      ticket: z.string(),
+      owned: z.boolean(),
+      author: z.string(),
+      at: z.string(),
+      note: z.string().nullable(),
+    }),
+  ),
+  ready_for_assessment: z.array(z.string()),
+  next_actions: z.array(z.string()),
+  drill_results: z.array(z.object({ item_id: z.string(), title: z.string(), drill_id: z.string(), passed: z.boolean(), void: z.boolean(), at: z.string() })),
+  recent_changes: z.array(
+    z.object({
+      item_id: z.string(),
+      title: z.string(),
+      from_state: z.string(),
+      to_state: z.string(),
+      reason: z.string(),
+      at: z.string(),
+      direction: z.enum(["up", "down"]),
+    }),
+  ),
+  levels: z.array(CoachLevel),
+});
+export type CoachDashboard = z.infer<typeof CoachDashboard>;

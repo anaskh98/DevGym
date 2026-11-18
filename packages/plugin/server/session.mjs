@@ -59,7 +59,7 @@ function main(stdin) {
   } finally {
     db.close();
   }
-  if (spawnFor !== null) {
+  if (spawnFor !== null && process.env.FTC_NO_BACKGROUND !== "1") {
     const child = spawn(process.execPath, [process.argv[1], "background", spawnFor], { detached: true, stdio: "ignore", windowsHide: true, env: process.env });
     child.unref();
   }

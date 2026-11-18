@@ -8,6 +8,7 @@ import { z } from "zod";
 import { defaultDbPath, type Db } from "../db/connection.js";
 import { PrivacyError, StoreError } from "../errors.js";
 import type { PrivacyGuard } from "../privacy/guard.js";
+import { coachDashboard } from "../coach/dashboard.js";
 import * as data from "./data.js";
 import { servePage } from "./static.js";
 
@@ -24,6 +25,10 @@ export interface ApiOptions {
   webDir?: string | undefined;
   /** The results file the eval harness writes. Defaults to defaultEvalResultsPath(). */
   evalFile?: string | undefined;
+  /** The project folder the Coach dashboard reads its ladder from. Defaults to the current folder. */
+  coachRoot?: string | undefined;
+  /** Home folder for the developer-level ladder file (tests change it). */
+  coachHome?: string | undefined;
 }
 
 /** The eval results live next to the local database, outside any repo. FTC_EVAL_RESULTS overrides the path. */
@@ -178,6 +183,9 @@ export function createApiServer(options: ApiOptions): Server {
 
       case "GET /growth-plan":
         return ok({ growth_plan: data.latestGrowthPlan(db) });
+
+      case "GET /coach":
+        return ok(coachDashboard(db, { root: options.coachRoot ?? process.cwd(), ...(options.coachHome ? { home: options.coachHome } : {}) }));
 
       case "POST /annotations": {
         const input = parse(annotationInput, await readJson(req));

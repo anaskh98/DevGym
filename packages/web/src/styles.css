@@ -1469,3 +1469,23 @@ code {
     color: var(--ink-soft);
   }
 }
+
+/* Coach growth dashboard */
+.growth { margin-bottom: 3rem; max-width: 52rem; }
+.growth h3 { margin-top: 2rem; }
+.growth-area__level { margin: 0.25rem 0 0.75rem; }
+.growth-items { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
+.growth-item { border: 1px solid var(--line, #d8d8d8); border-radius: 6px; padding: 0.5rem 0.75rem; }
+.growth-item summary { cursor: pointer; }
+.growth-item__id { font-family: ui-monospace, monospace; font-size: 0.85em; opacity: 0.75; }
+.growth-item__detail { display: block; font-size: 0.85em; opacity: 0.75; margin-top: 0.2rem; }
+.growth-item h4 { margin: 0.75rem 0 0.25rem; }
+.tag--state-not_seen, .tag--exposure-none { opacity: 0.6; }
+.tag--state-not_assessed { background: transparent; outline: 1.5px dashed currentColor; outline-offset: -1.5px; }
+.tag--state-learning { background: #fff1d6; color: #7a4a00; }
+.tag--state-shown { background: #dff1e4; color: #1f5a30; }
+.tag--state-proven { background: #1f5a30; color: #fff; }
+.tag--exposure-low, .tag--exposure-medium, .tag--exposure-high { background: transparent; outline: 1px solid currentColor; outline-offset: -1px; }
+.evidence--fault { color: #8a2a1a; }
+.change--down { color: #8a2a1a; }
+.change--up { color: #1f5a30; }

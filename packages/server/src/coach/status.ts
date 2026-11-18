@@ -146,7 +146,7 @@ function detail(s: ItemStatus, proofsNeeded: number): string {
   }
 }
 
-function areaViews(results: LadderStatuses[]): { areas: AreaView[]; notWritten: string[] } {
+export function areaViews(results: LadderStatuses[]): { areas: AreaView[]; notWritten: string[] } {
   const areas: AreaView[] = [];
   const notWritten: string[] = [];
   for (const { loaded, statuses } of results) {

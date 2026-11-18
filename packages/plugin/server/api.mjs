@@ -2,12 +2,12 @@ import { createRequire as __ftcCreateRequire } from 'node:module';
 const require = __ftcCreateRequire(import.meta.url);
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+  for (var name2 in all)
+    __defProp(target, name2, { get: all[name2], enumerable: true });
 };
 
 // src/api/main.ts
-import { dirname as dirname4, join as join6 } from "node:path";
+import { dirname as dirname4, join as join7 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/db/connection.ts
@@ -30,9 +30,9 @@ function transaction(db2, fn) {
     const result = fn();
     db2.exec("COMMIT");
     return result;
-  } catch (err) {
+  } catch (err2) {
     db2.exec("ROLLBACK");
-    throw err;
+    throw err2;
   }
 }
 
@@ -347,6 +347,30 @@ var migrations = [
       -- The words of the developer that made a decision theirs. Checked against developer_messages.
       ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
     `
+  },
+  {
+    id: 10,
+    name: "coach_ticket_check",
+    sql: `
+      -- Code that is missing, extra or different from the ticket, shown only to the developer. The ticket quote is a
+      -- quote the server found in the ticket. The choice and reason_quote are the developer's own words.
+      CREATE TABLE ticket_findings (
+        id           TEXT PRIMARY KEY,
+        ticket_id    TEXT NOT NULL,
+        kind         TEXT NOT NULL CHECK (kind IN ('missing', 'extra', 'different')),
+        ticket_quote TEXT NOT NULL,
+        file_path    TEXT,
+        line_start   INTEGER,
+        line_end     INTEGER,
+        why          TEXT NOT NULL,
+        evidence_id  TEXT NOT NULL,
+        choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
+        reason_quote TEXT,
+        decided_at   TEXT,
+        created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_ticket_findings_ticket ON ticket_findings(ticket_id);
+    `
   }
 ];
 function migrate(db2, list = migrations) {
@@ -395,13 +419,13 @@ function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
   try {
     for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-      const name = line.trim();
-      if (name && !name.startsWith("#")) names.push(name);
+      const name2 = line.trim();
+      if (name2 && !name2.startsWith("#")) names.push(name2);
     }
   } catch {
   }
-  for (const name of (process.env.FTC_DENYLIST ?? "").split(",")) {
-    if (name.trim()) names.push(name.trim());
+  for (const name2 of (process.env.FTC_DENYLIST ?? "").split(",")) {
+    if (name2.trim()) names.push(name2.trim());
   }
   return names;
 }
@@ -435,27 +459,27 @@ var LOOKALIKES = {
 };
 var LEET_I = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", $: "s", "!": "i" };
 var LEET_L = { ...LEET_I, "1": "l" };
-function squash(text, leet) {
-  let out = "";
-  for (const ch of text.normalize("NFKD").toLowerCase()) {
+function squash(text2, leet) {
+  let out2 = "";
+  for (const ch of text2.normalize("NFKD").toLowerCase()) {
     const mapped = LOOKALIKES[ch] ?? leet?.[ch] ?? ch;
-    if (/[a-z0-9]/.test(mapped)) out += mapped;
+    if (/[a-z0-9]/.test(mapped)) out2 += mapped;
   }
-  return out;
+  return out2;
 }
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegExp(text2) {
+  return text2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function containsBlockedName(text, names) {
+function containsBlockedName(text2, names) {
   if (names.length === 0) return false;
-  const variants = [squash(text), squash(text, LEET_I), squash(text, LEET_L)];
-  const lower = text.normalize("NFKC").toLowerCase();
-  for (const name of names) {
-    const key = squash(name);
+  const variants = [squash(text2), squash(text2, LEET_I), squash(text2, LEET_L)];
+  const lower = text2.normalize("NFKC").toLowerCase();
+  for (const name2 of names) {
+    const key = squash(name2);
     if (key.length >= 4) {
       if (variants.some((v) => v.includes(key))) return true;
     } else if (key.length > 0) {
-      if (new RegExp(`(?<![a-z0-9])${escapeRegExp(name.toLowerCase())}(?![a-z0-9])`).test(lower)) return true;
+      if (new RegExp(`(?<![a-z0-9])${escapeRegExp(name2.toLowerCase())}(?![a-z0-9])`).test(lower)) return true;
     }
   }
   return false;
@@ -466,8 +490,8 @@ import { readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
 import { extname, join as join3 } from "node:path";
 
 // src/privacy/rules.ts
-function cleanText(text) {
-  return text.normalize("NFKC").replace(/[​-‍⁠﻿­]/g, "");
+function cleanText(text2) {
+  return text2.normalize("NFKC").replace(/[​-‍⁠﻿­]/g, "");
 }
 var SECRET_RULES = [
   ["private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
@@ -501,22 +525,22 @@ var CODE_RULES = [
   ["encoded-blob", /[A-Za-z0-9+/_-]{80,}={0,2}|\b[0-9a-fA-F]{64,}\b/]
 ];
 var CODE_SYMBOLS = /[{}[\]();=<>|&]/g;
-function symbolDense(text) {
-  if (text.length < 40) return false;
-  const count = text.match(CODE_SYMBOLS)?.length ?? 0;
-  return count >= 8 && count / text.length > 0.1;
+function symbolDense(text2) {
+  if (text2.length < 40) return false;
+  const count = text2.match(CODE_SYMBOLS)?.length ?? 0;
+  return count >= 8 && count / text2.length > 0.1;
 }
-function looksLikeCodeBlock(text) {
-  const lines = text.split(/\r?\n/);
+function looksLikeCodeBlock(text2) {
+  const lines = text2.split(/\r?\n/);
   if (lines.length < 3) return false;
   return lines.filter((line) => /[{};,)]\s*$/.test(line) && /[(){}=]/.test(line)).length >= 2;
 }
 function findRuleHit(rawText) {
-  const text = cleanText(rawText);
-  for (const [rule, pattern] of SECRET_RULES) if (pattern.test(text)) return { rule, kind: "secret" };
-  for (const [rule, pattern] of CODE_RULES) if (pattern.test(text)) return { rule, kind: "code" };
-  if (symbolDense(text)) return { rule: "symbol-density", kind: "code" };
-  if (looksLikeCodeBlock(text)) return { rule: "code-block-shape", kind: "code" };
+  const text2 = cleanText(rawText);
+  for (const [rule, pattern] of SECRET_RULES) if (pattern.test(text2)) return { rule, kind: "secret" };
+  for (const [rule, pattern] of CODE_RULES) if (pattern.test(text2)) return { rule, kind: "code" };
+  if (symbolDense(text2)) return { rule: "symbol-density", kind: "code" };
+  if (looksLikeCodeBlock(text2)) return { rule: "code-block-shape", kind: "code" };
   return null;
 }
 
@@ -571,13 +595,13 @@ var MAX_TOTAL_BYTES = 30 * 1024 * 1024;
 var REFRESH_MS = 3e4;
 var TOKEN = /[A-Za-z_$][\w$]*|\d+(?:\.\d+)?|[^\s\w]/g;
 var STRING_LITERAL = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\\n]|\\.)*`/g;
-function tokenize(text) {
-  return cleanText(text).replace(STRING_LITERAL, "  ").match(TOKEN) ?? [];
+function tokenize(text2) {
+  return cleanText(text2).replace(STRING_LITERAL, "  ").match(TOKEN) ?? [];
 }
 function* codeWindows(tokens) {
-  for (let i = 0; i + WINDOW <= tokens.length; i++) {
-    const window = tokens.slice(i, i + WINDOW);
-    if (window.filter((t) => !/^[\w$]/.test(t)).length >= 2) yield window.join("");
+  for (let i2 = 0; i2 + WINDOW <= tokens.length; i2++) {
+    const window2 = tokens.slice(i2, i2 + WINDOW);
+    if (window2.filter((t) => !/^[\w$]/.test(t)).length >= 2) yield window2.join("");
   }
 }
 function* codeFiles(root) {
@@ -630,8 +654,8 @@ var RepoCodeIndex = class {
     this.builtAt = this.now();
   }
   /** True when the text contains a run of code that also appears in a repo source file. */
-  overlaps(text) {
-    const tokens = tokenize(text);
+  overlaps(text2) {
+    const tokens = tokenize(text2);
     if (tokens.length < WINDOW) return false;
     this.refresh();
     if (this.windows.size === 0) return false;
@@ -685,22 +709,22 @@ var PrivacyGuard = class {
     if (typeof value === "string") {
       this.checkString(value, path, REFERENCE_FIELDS.has(key), names);
     } else if (Array.isArray(value)) {
-      value.forEach((item, i) => this.walk(item, `${path}[${i}]`, key, names));
+      value.forEach((item, i2) => this.walk(item, `${path}[${i2}]`, key, names));
     } else if (value !== null && typeof value === "object") {
       for (const [k, v] of Object.entries(value)) this.walk(v, path ? `${path}.${k}` : k, k, names);
     }
   }
-  checkString(text, field, isReference, names) {
-    if (containsBlockedName(text, names)) throw blockedName(field);
+  checkString(text2, field, isReference, names) {
+    if (containsBlockedName(text2, names)) throw blockedName(field);
     if (isReference) return;
-    const hit = findRuleHit(text);
+    const hit = findRuleHit(text2);
     if (hit?.kind === "secret") {
       throw new PrivacyError(field, hit.rule, "looks like it holds a secret or credential. Remove it");
     }
     if (hit) {
       throw new PrivacyError(field, hit.rule, "looks like code. Describe the choice in plain words instead");
     }
-    if (this.index.overlaps(text)) {
+    if (this.index.overlaps(text2)) {
       throw new PrivacyError(field, "code-overlap", "copies code from this repository. Describe it in plain words instead");
     }
   }
@@ -712,7 +736,7 @@ function blockedName(field) {
 // src/api/server.ts
 import { readFile as readFile2 } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname as dirname3, join as join5 } from "node:path";
+import { dirname as dirname3, join as join6 } from "node:path";
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -1424,9 +1448,9 @@ function nullish(input2) {
   return input2 === null || input2 === void 0;
 }
 function cleanRegex(source) {
-  const start = source.startsWith("^") ? 1 : 0;
+  const start2 = source.startsWith("^") ? 1 : 0;
   const end = source.endsWith("$") ? source.length - 1 : source.length;
-  return source.slice(start, end);
+  return source.slice(start2, end);
 }
 function floatSafeRemainder(val, step) {
   const ratio = val / step;
@@ -1541,8 +1565,8 @@ function promiseAllObject(promisesObj) {
   const promises = keys.map((key) => promisesObj[key]);
   return Promise.all(promises).then((results) => {
     const resolvedObj = {};
-    for (let i = 0; i < keys.length; i++) {
-      resolvedObj[keys[i]] = results[i];
+    for (let i2 = 0; i2 < keys.length; i2++) {
+      resolvedObj[keys[i2]] = results[i2];
     }
     return resolvedObj;
   });
@@ -1550,7 +1574,7 @@ function promiseAllObject(promisesObj) {
 function randomString(length = 10) {
   const chars = "abcdefghijklmnopqrstuvwxyz";
   let str = "";
-  for (let i = 0; i < length; i++) {
+  for (let i2 = 0; i2 < length; i2++) {
     str += chars[Math.floor(Math.random() * chars.length)];
   }
   return str;
@@ -1833,12 +1857,12 @@ function merge(a, b) {
   });
   return clone(a, def);
 }
-function partial(Class2, schema, mask, name = "partial") {
+function partial(Class2, schema, mask, name2 = "partial") {
   const currDef = schema._zod.def;
   const checks = currDef.checks;
   const hasChecks = checks && checks.length > 0;
   if (hasChecks) {
-    throw new Error(`.${name}() cannot be used on object schemas containing refinements`);
+    throw new Error(`.${name2}() cannot be used on object schemas containing refinements`);
   }
   const selected = mask ? new Set(maskedKeys(schema, mask)) : void 0;
   const newShape = {};
@@ -1857,8 +1881,8 @@ function required(Class2, schema, mask) {
 function aborted(x, startIndex = 0) {
   if (x.aborted === true)
     return true;
-  for (let i = startIndex; i < x.issues.length; i++) {
-    if (x.issues[i]?.continue !== true) {
+  for (let i2 = startIndex; i2 < x.issues.length; i2++) {
+    if (x.issues[i2]?.continue !== true) {
       return true;
     }
   }
@@ -1867,8 +1891,8 @@ function aborted(x, startIndex = 0) {
 function explicitlyAborted(x, startIndex = 0) {
   if (x.aborted === true)
     return true;
-  for (let i = startIndex; i < x.issues.length; i++) {
-    if (x.issues[i]?.continue === false) {
+  for (let i2 = startIndex; i2 < x.issues.length; i2++) {
+    if (x.issues[i2]?.continue === false) {
       return true;
     }
   }
@@ -1897,10 +1921,10 @@ function sizeCaps(defChecks) {
   }
   return caps;
 }
-function attachSchema(issues, start, inst) {
+function attachSchema(issues, start2, inst) {
   var _a3;
-  for (let i = start; i < issues.length; i++) {
-    (_a3 = issues[i]).schema ?? (_a3.schema = inst);
+  for (let i2 = start2; i2 < issues.length; i2++) {
+    (_a3 = issues[i2]).schema ?? (_a3.schema = inst);
   }
 }
 function finalizeIssue(iss, ctx, config2) {
@@ -1942,10 +1966,10 @@ function codePointLength(str) {
   if (!highSurrogate.test(str))
     return units;
   let count = units;
-  for (let i = 0; i < units - 1; i++) {
-    if ((str.charCodeAt(i) & 64512) === 55296 && (str.charCodeAt(i + 1) & 64512) === 56320) {
+  for (let i2 = 0; i2 < units - 1; i2++) {
+    if ((str.charCodeAt(i2) & 64512) === 55296 && (str.charCodeAt(i2 + 1) & 64512) === 56320) {
       count--;
-      i++;
+      i2++;
     }
   }
   return count;
@@ -1978,8 +2002,8 @@ function parsedType(data) {
   }
   return t;
 }
-function issue(...args) {
-  const [iss, input2, inst] = args;
+function issue(...args2) {
+  const [iss, input2, inst] = args2;
   if (typeof iss === "string") {
     return {
       message: iss,
@@ -1998,15 +2022,15 @@ function cleanEnum(obj) {
 function base64ToUint8Array(base643) {
   const binaryString = atob(base643);
   const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+  for (let i2 = 0; i2 < binaryString.length; i2++) {
+    bytes[i2] = binaryString.charCodeAt(i2);
   }
   return bytes;
 }
 function uint8ArrayToBase64(bytes) {
   let binaryString = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binaryString += String.fromCharCode(bytes[i]);
+  for (let i2 = 0; i2 < bytes.length; i2++) {
+    binaryString += String.fromCharCode(bytes[i2]);
   }
   return btoa(binaryString);
 }
@@ -2024,8 +2048,8 @@ function hexToUint8Array(hex3) {
     throw new Error("Invalid hex string length");
   }
   const bytes = new Uint8Array(cleanHex.length / 2);
-  for (let i = 0; i < cleanHex.length; i += 2) {
-    bytes[i / 2] = Number.parseInt(cleanHex.slice(i, i + 2), 16);
+  for (let i2 = 0; i2 < cleanHex.length; i2 += 2) {
+    bytes[i2 / 2] = Number.parseInt(cleanHex.slice(i2, i2 + 2), 16);
   }
   return bytes;
 }
@@ -2114,10 +2138,10 @@ function defineLazyInternal(inst, key, compute) {
           Object.defineProperty(this, key, { configurable: true, writable: true, value });
         broke = broke || outer;
         return value;
-      } catch (err) {
+      } catch (err2) {
         delete this[key];
         broke = broke || outer;
-        throw err;
+        throw err2;
       }
     },
     set(value) {
@@ -2178,7 +2202,7 @@ function newError(Definition) {
   return new Definition();
 }
 // @__NO_SIDE_EFFECTS__
-function $constructor(name, initializer3, proto, params) {
+function $constructor(name2, initializer3, proto, params) {
   const zodProto = {};
   function Internals(def) {
     this.def = def;
@@ -2188,7 +2212,7 @@ function $constructor(name, initializer3, proto, params) {
   Internals.prototype = zodProto;
   const protoMembers = proto;
   const initialized = protoMembers && /* @__PURE__ */ new WeakSet();
-  function init(inst, def) {
+  function init2(inst, def) {
     if (!inst._zod) {
       _zodDesc.value = new Internals(def);
       try {
@@ -2196,10 +2220,10 @@ function $constructor(name, initializer3, proto, params) {
       } finally {
         _zodDesc.value = void 0;
       }
-    } else if (inst._zod.traits.has(name)) {
+    } else if (inst._zod.traits.has(name2)) {
       return;
     }
-    inst._zod.traits.add(name);
+    inst._zod.traits.add(name2);
     initializer3(inst, def);
     if (initialized) {
       const own2 = Object.getPrototypeOf(inst);
@@ -2225,10 +2249,10 @@ function $constructor(name, initializer3, proto, params) {
   const Parent = params?.Parent ?? Object;
   class Definition extends Parent {
   }
-  Object.defineProperty(Definition, "name", { value: name });
+  Object.defineProperty(Definition, "name", { value: name2 });
   function _(def) {
     const inst = params?.Parent ? newError(Definition) : this;
-    init(inst, def);
+    init2(inst, def);
     const deferred = inst._zod.deferred;
     if (deferred) {
       for (const fn of deferred) {
@@ -2241,15 +2265,15 @@ function $constructor(name, initializer3, proto, params) {
       pp(inst);
     return inst;
   }
-  Object.defineProperty(_, "init", { value: init });
+  Object.defineProperty(_, "init", { value: init2 });
   Object.defineProperty(_, Symbol.hasInstance, {
     value: (inst) => {
       if (params?.Parent && inst instanceof params.Parent)
         return true;
-      return inst?._zod?.traits?.has(name);
+      return inst?._zod?.traits?.has(name2);
     }
   });
-  Object.defineProperty(_, "name", { value: name });
+  Object.defineProperty(_, "name", { value: name2 });
   return _;
 }
 var $brand = /* @__PURE__ */ Symbol("zod_brand");
@@ -2259,8 +2283,8 @@ var $ZodAsyncError = class extends Error {
   }
 };
 var $ZodEncodeError = class extends Error {
-  constructor(name) {
-    super(`Encountered unidirectional transform during encode: ${name}`);
+  constructor(name2) {
+    super(`Encountered unidirectional transform during encode: ${name2}`);
     this.name = "ZodEncodeError";
   }
 };
@@ -2354,14 +2378,14 @@ function formatError(error62, mapper = (issue2) => issue2.message) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
           let curr = fieldErrors;
-          let i = 0;
-          while (i < fullpath.length) {
-            const el = fullpath[i];
-            const terminal = i === fullpath.length - 1;
+          let i2 = 0;
+          while (i2 < fullpath.length) {
+            const el = fullpath[i2];
+            const terminal = i2 === fullpath.length - 1;
             if (el === "_errors") {
               if (terminal)
                 curr._errors.push(mapper(issue2));
-              i++;
+              i2++;
               continue;
             }
             if (!Object.prototype.hasOwnProperty.call(curr, el)) {
@@ -2377,7 +2401,7 @@ function formatError(error62, mapper = (issue2) => issue2.message) {
               node2._errors.push(mapper(issue2));
             }
             curr = node2;
-            i++;
+            i2++;
           }
         }
       }
@@ -2404,10 +2428,10 @@ function treeifyError(error62, mapper = (issue2) => issue2.message) {
           continue;
         }
         let curr = result;
-        let i = 0;
-        while (i < fullpath.length) {
-          const el = fullpath[i];
-          const terminal = i === fullpath.length - 1;
+        let i2 = 0;
+        while (i2 < fullpath.length) {
+          const el = fullpath[i2];
+          const terminal = i2 === fullpath.length - 1;
           if (typeof el === "string") {
             curr.properties ?? (curr.properties = {});
             if (!Object.prototype.hasOwnProperty.call(curr.properties, el)) {
@@ -2427,7 +2451,7 @@ function treeifyError(error62, mapper = (issue2) => issue2.message) {
           if (terminal) {
             curr.errors.push(mapper(issue2));
           }
-          i++;
+          i2++;
         }
       }
     }
@@ -2744,20 +2768,20 @@ function anchor(source) {
   return new RegExp(`^${source}$`);
 }
 var date = /* @__PURE__ */ anchor(dateSource);
-function timeSource(args) {
+function timeSource(args2) {
   const hhmm = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
-  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm}` : args.precision === 0 ? `${hhmm}:[0-5]\\d` : `${hhmm}:[0-5]\\d\\.\\d{${args.precision}}` : args.seconds ? `${hhmm}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm}(?::[0-5]\\d(?:\\.\\d+)?)?`;
+  const regex = typeof args2.precision === "number" ? args2.precision === -1 ? `${hhmm}` : args2.precision === 0 ? `${hhmm}:[0-5]\\d` : `${hhmm}:[0-5]\\d\\.\\d{${args2.precision}}` : args2.seconds ? `${hhmm}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm}(?::[0-5]\\d(?:\\.\\d+)?)?`;
   return regex;
 }
-function time(args) {
-  return new RegExp(`^${timeSource(args)}$`);
+function time(args2) {
+  return new RegExp(`^${timeSource(args2)}$`);
 }
-function datetime(args) {
+function datetime(args2) {
   const opts = ["Z"];
-  if (args.offset)
+  if (args2.offset)
     opts.push(`([+-](?:[01]\\d|2[0-3]):[0-5]\\d)`);
-  const qualified = `${timeSource({ precision: args.precision, seconds: true })}(?:${opts.join("|")})`;
-  const timeRegex = args.local ? `${qualified}|${timeSource({ precision: args.precision })}` : qualified;
+  const qualified = `${timeSource({ precision: args2.precision, seconds: true })}(?:${opts.join("|")})`;
+  const timeRegex = args2.local ? `${qualified}|${timeSource({ precision: args2.precision })}` : qualified;
   return new RegExp(`^${dateSource}T(?:${timeRegex})$`);
 }
 var anyString = /^[\s\S]{0,}$/;
@@ -3274,10 +3298,10 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/doc.js
 var Doc = class {
-  constructor(args = [], closed = {}) {
+  constructor(args2 = [], closed = {}) {
     this.content = [];
     this.indent = 0;
-    this.args = args;
+    this.args = args2;
     this.closed = closed;
   }
   // the compiler catches a child's throw and keeps writing into this doc, so the indent has to unwind with it
@@ -3694,10 +3718,10 @@ var $ZodCIDRv4 = /* @__PURE__ */ $constructor("$ZodCIDRv4", (inst, def) => {
   $ZodStringFormat.init(inst, def);
 });
 function isValidCIDRv6(value) {
-  const parts = value.split("/");
-  if (parts.length !== 2)
+  const parts2 = value.split("/");
+  if (parts2.length !== 2)
     return false;
-  const [address, prefix] = parts;
+  const [address, prefix] = parts2;
   if (!prefix)
     return false;
   const prefixNum = Number(prefix);
@@ -3814,12 +3838,12 @@ var $ZodCreditCard = /* @__PURE__ */ $constructor("$ZodCreditCard", (inst, def) 
 function isIso7064Mod97(iban3) {
   let remainder = 0;
   const len = iban3.length;
-  for (let i = 4; i < len; i++) {
-    const code = iban3.charCodeAt(i);
+  for (let i2 = 4; i2 < len; i2++) {
+    const code = iban3.charCodeAt(i2);
     remainder = (code >= 65 ? remainder * 100 + (code - 55) : remainder * 10 + (code - 48)) % 97;
   }
-  for (let i = 0; i < 4; i++) {
-    const code = iban3.charCodeAt(i);
+  for (let i2 = 0; i2 < 4; i2++) {
+    const code = iban3.charCodeAt(i2);
     remainder = (code >= 65 ? remainder * 100 + (code - 55) : remainder * 10 + (code - 48)) % 97;
   }
   return remainder === 1;
@@ -4084,10 +4108,10 @@ function capSize(inst, size) {
     if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
       for (const [max, ch] of sizeCaps(inst._zod.def.checks)) {
         if (n > max && ch._zod.def.when(payload)) {
-          const start = payload.issues.length;
+          const start2 = payload.issues.length;
           ch._zod.check(payload);
-          payload.issues[start].continue = false;
-          attachSchema(payload.issues, start, inst);
+          payload.issues[start2].continue = false;
+          attachSchema(payload.issues, start2, inst);
           return payload;
         }
       }
@@ -4122,16 +4146,16 @@ var $ZodArray = /* @__PURE__ */ $constructor("$ZodArray", (inst, def) => {
     payload.value = memo2 ? memo2.alloc(inst, payload, Array(input2.length), ctx) : Array(input2.length);
     const proms = [];
     const abortEarly = ctx?.abortEarly;
-    for (let i = 0; i < input2.length; i++) {
-      const item = input2[i];
+    for (let i2 = 0; i2 < input2.length; i2++) {
+      const item = input2[i2];
       const result = def.element._zod.run({
         value: item,
         issues: []
       }, ctx);
       if (result instanceof Promise) {
-        proms.push(result.then((result2) => handleArrayResult(result2, payload, i)));
+        proms.push(result.then((result2) => handleArrayResult(result2, payload, i2)));
       } else {
-        handleArrayResult(result, payload, i);
+        handleArrayResult(result, payload, i2);
         if (abortEarly && result.issues.length !== 0 && aborted(result))
           break;
       }
@@ -4516,9 +4540,9 @@ var $ZodUnion = /* @__PURE__ */ $constructor("$ZodUnion", (inst, def) => {
 });
 function handleExclusiveUnionResults(results, final, inst, ctx) {
   const matches = [];
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].issues.length === 0)
-      matches.push(i);
+  for (let i2 = 0; i2 < results.length; i2++) {
+    if (results[i2].issues.length === 0)
+      matches.push(i2);
   }
   if (matches.length === 1) {
     final.value = results[matches[0]].value;
@@ -4628,10 +4652,10 @@ var $ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("$ZodDiscriminatedUnio
       propValues[zod.def.discriminator]?.delete(void 0);
     return propValues;
   });
-  def.options.forEach((option, i) => {
+  def.options.forEach((option, i2) => {
     const propShape = rawShape(option._zod.def);
     if (propShape && !Object.prototype.hasOwnProperty.call(propShape, def.discriminator)) {
-      throw new Error(`Invalid discriminated union option at index "${i}"`);
+      throw new Error(`Invalid discriminated union option at index "${i2}"`);
     }
   });
   const disc = cached(() => discriminatorMap(def));
@@ -4827,20 +4851,20 @@ var $ZodTuple = /* @__PURE__ */ $constructor("$ZodTuple", (inst, def) => {
     const itemResults = new Array(items.length);
     const abortEarly = def.rest ? ctx?.abortEarly : void 0;
     let itemAborted = false;
-    for (let i = 0; i < items.length; i++) {
-      const r = items[i]._zod.run({ value: input2[i], issues: [] }, ctx);
+    for (let i2 = 0; i2 < items.length; i2++) {
+      const r = items[i2]._zod.run({ value: input2[i2], issues: [] }, ctx);
       if (r instanceof Promise) {
         proms.push(r.then((rr) => {
-          itemResults[i] = rr;
+          itemResults[i2] = rr;
         }));
       } else {
-        itemResults[i] = r;
+        itemResults[i2] = r;
         if (abortEarly && !itemAborted && r.issues.length)
           itemAborted = aborted(r);
       }
     }
     if (def.rest && !itemAborted) {
-      let i = items.length - 1;
+      let i2 = items.length - 1;
       const rest = input2.slice(items.length);
       let seen = payload.issues.length;
       for (const el of rest) {
@@ -4849,12 +4873,12 @@ var $ZodTuple = /* @__PURE__ */ $constructor("$ZodTuple", (inst, def) => {
             break;
           seen = payload.issues.length;
         }
-        i++;
+        i2++;
         const result = def.rest._zod.run({ value: el, issues: [] }, ctx);
         if (result instanceof Promise) {
-          proms.push(result.then((r) => handleTupleResult(r, payload, i)));
+          proms.push(result.then((r) => handleTupleResult(r, payload, i2)));
         } else {
-          handleTupleResult(result, payload, i);
+          handleTupleResult(result, payload, i2);
         }
       }
     }
@@ -4865,10 +4889,10 @@ var $ZodTuple = /* @__PURE__ */ $constructor("$ZodTuple", (inst, def) => {
   };
 });
 function getTupleOptStart(items, key) {
-  for (let i = items.length - 1; i >= 0; i--) {
-    const omittable = key === "optin" ? items[i]._zod.optin !== void 0 : items[i]._zod.optout === "optional";
+  for (let i2 = items.length - 1; i2 >= 0; i2--) {
+    const omittable = key === "optin" ? items[i2]._zod.optin !== void 0 : items[i2]._zod.optout === "optional";
     if (!omittable)
-      return i + 1;
+      return i2 + 1;
   }
   return 0;
 }
@@ -4879,25 +4903,25 @@ function handleTupleResult(result, final, index) {
   final.value[index] = result.value;
 }
 function handleTupleResults(itemResults, final, items, input2, optoutStart) {
-  for (let i = 0; i < items.length; i++) {
-    const r = itemResults[i];
-    const isPresent = i < input2.length;
-    if (!isPresent && i >= optoutStart && items[i]._zod.optin === "optional") {
-      final.value.length = i;
+  for (let i2 = 0; i2 < items.length; i2++) {
+    const r = itemResults[i2];
+    const isPresent = i2 < input2.length;
+    if (!isPresent && i2 >= optoutStart && items[i2]._zod.optin === "optional") {
+      final.value.length = i2;
       break;
     }
     if (r.issues.length) {
-      if (!isPresent && i >= optoutStart) {
-        final.value.length = i;
+      if (!isPresent && i2 >= optoutStart) {
+        final.value.length = i2;
         break;
       }
-      final.issues.push(...prefixIssues(i, r.issues));
+      final.issues.push(...prefixIssues(i2, r.issues));
     }
-    final.value[i] = r.value;
+    final.value[i2] = r.value;
   }
-  for (let i = final.value.length - 1; i >= input2.length; i--) {
-    if (items[i]._zod.optout === "optional" && final.value[i] === void 0) {
-      final.value.length = i;
+  for (let i2 = final.value.length - 1; i2 >= input2.length; i2--) {
+    if (items[i2]._zod.optout === "optional" && final.value[i2] === void 0) {
+      final.value.length = i2;
     } else {
       break;
     }
@@ -5632,26 +5656,26 @@ var $ZodFunction = /* @__PURE__ */ $constructor("$ZodFunction", (inst, def) => {
   $ZodType.init(inst, def);
   Object.defineProperty(inst, "_def", { value: def });
   inst._zod.def = def;
-  inst.implement = (func) => {
-    if (typeof func !== "function") {
+  inst.implement = (func2) => {
+    if (typeof func2 !== "function") {
       throw new Error("implement() must be called with a function");
     }
-    return Object.defineProperty(function(...args) {
-      const parsedArgs = inst._def.input ? parse(inst._def.input, args) : args;
-      const result = Reflect.apply(func, this, parsedArgs);
+    return Object.defineProperty(function(...args2) {
+      const parsedArgs = inst._def.input ? parse(inst._def.input, args2) : args2;
+      const result = Reflect.apply(func2, this, parsedArgs);
       if (inst._def.output) {
         return parse(inst._def.output, result);
       }
       return result;
     }, "_zod", { value: inst._zod, enumerable: false });
   };
-  inst.implementAsync = (func) => {
-    if (typeof func !== "function") {
+  inst.implementAsync = (func2) => {
+    if (typeof func2 !== "function") {
       throw new Error("implementAsync() must be called with a function");
     }
-    return Object.defineProperty(async function(...args) {
-      const parsedArgs = inst._def.input ? await parseAsync(inst._def.input, args) : args;
-      const result = await Reflect.apply(func, this, parsedArgs);
+    return Object.defineProperty(async function(...args2) {
+      const parsedArgs = inst._def.input ? await parseAsync(inst._def.input, args2) : args2;
+      const result = await Reflect.apply(func2, this, parsedArgs);
       if (inst._def.output) {
         return await parseAsync(inst._def.output, result);
       }
@@ -5676,22 +5700,22 @@ var $ZodFunction = /* @__PURE__ */ $constructor("$ZodFunction", (inst, def) => {
     }
     return payload;
   };
-  inst.input = (...args) => {
+  inst.input = (...args2) => {
     const F = inst.constructor;
-    if (Array.isArray(args[0])) {
+    if (Array.isArray(args2[0])) {
       return new F({
         type: "function",
         input: new $ZodTuple({
           type: "tuple",
-          items: args[0],
-          rest: args[1]
+          items: args2[0],
+          rest: args2[1]
         }),
         output: inst._def.output
       });
     }
     return new F({
       type: "function",
-      input: args[0],
+      input: args2[0],
       output: inst._def.output
     });
   };
@@ -5781,7 +5805,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve2) {
+function isRecursive(inst, stack, resolve3) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5791,7 +5815,7 @@ function isRecursive(inst, stack, resolve2) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve2);
+      const answer = isRecursive(child, stack, resolve3);
       if (answer > result)
         result = answer;
     }
@@ -5802,7 +5826,7 @@ function isRecursive(inst, stack, resolve2) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve2) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve3) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5866,7 +5890,7 @@ function isRecursive(inst, stack, resolve2) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve2 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve3 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -10064,8 +10088,8 @@ function ko_default() {
 }
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/locales/lt.js
-var capitalizeFirstCharacter = (text) => {
-  return text.charAt(0).toUpperCase() + text.slice(1);
+var capitalizeFirstCharacter = (text2) => {
+  return text2.charAt(0).toUpperCase() + text2.slice(1);
 };
 function getUnitTypeFromNumber(number4) {
   const abs = Math.abs(number4);
@@ -11425,8 +11449,8 @@ var error43 = () => {
       case "not_multiple_of":
         return `N\xFAmero inv\xE1lido: deve ser m\xFAltiplo de ${issue2.divisor}`;
       case "unrecognized_keys": {
-        const plural2 = issue2.keys.length > 1 ? "s" : "";
-        return `Chave${plural2} inv\xE1lida${plural2}: ${joinValues(issue2.keys, ", ")}`;
+        const plural3 = issue2.keys.length > 1 ? "s" : "";
+        return `Chave${plural3} inv\xE1lida${plural3}: ${joinValues(issue2.keys, ", ")}`;
       }
       case "invalid_key":
         return `Entrada inv\xE1lida n${translateOriginWithArticle(issue2.origin, "definite")}`;
@@ -11570,8 +11594,8 @@ var error44 = () => {
       case "not_multiple_of":
         return `N\xFAmero inv\xE1lido: deve ser m\xFAltiplo de ${issue2.divisor}`;
       case "unrecognized_keys": {
-        const plural2 = issue2.keys.length > 1 ? "s" : "";
-        return `Chave${plural2} inv\xE1lida${plural2}: ${joinValues(issue2.keys, ", ")}`;
+        const plural3 = issue2.keys.length > 1 ? "s" : "";
+        return `Chave${plural3} inv\xE1lida${plural3}: ${joinValues(issue2.keys, ", ")}`;
       }
       case "invalid_key":
         return `Entrada inv\xE1lida n${translateOriginWithArticle(issue2.origin, "definite")}`;
@@ -13685,9 +13709,9 @@ function compile(schema, options) {
     const clone2 = withParser(schema, parser);
     clone2._zod.bag.validator = compileValidator(schema, parser);
     return clone2;
-  } catch (err) {
+  } catch (err2) {
     if (options?.strict)
-      throw err;
+      throw err2;
     return schema;
   }
 }
@@ -13705,9 +13729,9 @@ function withParser(schema, parser) {
     if (ctx && isBackEdge(ctx, payload.value)) {
       return originalRun(payload, ctx);
     }
-    const out = parser(payload.value);
-    if (out !== INVALID) {
-      payload.value = out;
+    const out2 = parser(payload.value);
+    if (out2 !== INVALID) {
+      payload.value = out2;
       return payload;
     }
     if (ctx)
@@ -13728,9 +13752,9 @@ function installCompiledUserMethods(target, source, parser) {
   if (typeof sourceAny.safeParse === "function") {
     const originalSafeParse = sourceAny.safeParse;
     targetAny.safeParse = (data, params) => {
-      const out = parser(data);
-      if (out !== INVALID) {
-        return { success: true, data: out };
+      const out2 = parser(data);
+      if (out2 !== INVALID) {
+        return { success: true, data: out2 };
       }
       return originalSafeParse(data, params);
     };
@@ -13738,9 +13762,9 @@ function installCompiledUserMethods(target, source, parser) {
   if (typeof sourceAny.parse === "function") {
     const originalParse = sourceAny.parse;
     targetAny.parse = (data, params) => {
-      const out = parser(data);
-      if (out !== INVALID) {
-        return out;
+      const out2 = parser(data);
+      if (out2 !== INVALID) {
+        return out2;
       }
       return originalParse(data, params);
     };
@@ -13777,8 +13801,8 @@ ${code}
   try {
     const factory = new F(...constantNames, factoryCode);
     fn = factory(...constantValues);
-  } catch (err) {
-    throw new ZodCompileUnsupportedError(`this schema (generated code failed to evaluate: ${err.message})`);
+  } catch (err2) {
+    throw new ZodCompileUnsupportedError(`this schema (generated code failed to evaluate: ${err2.message})`);
   }
   if (options?.debug) {
     fn.code = fullCode;
@@ -13787,13 +13811,13 @@ ${code}
   return fn;
 }
 function addConstant(ctx, value) {
-  for (const [name2, v] of ctx.constants) {
+  for (const [name3, v] of ctx.constants) {
     if (v === value)
-      return name2;
+      return name3;
   }
-  const name = `c${ctx.constantCounter++}`;
-  ctx.constants.set(name, value);
-  return name;
+  const name2 = `c${ctx.constantCounter++}`;
+  ctx.constants.set(name2, value);
+  return name2;
 }
 function addUserConstant(ctx, fn) {
   ctx.definite = false;
@@ -13816,9 +13840,9 @@ function compileChild(doc, ctx, schema, accessor, needsValue = true) {
   const varCounter = ctx.varCounter;
   try {
     return generateCheck(doc, ctx, schema, accessor, needsValue);
-  } catch (err) {
-    if (!(err instanceof ZodCompileUnsupportedError) || !err.islandable)
-      throw err;
+  } catch (err2) {
+    if (!(err2 instanceof ZodCompileUnsupportedError) || !err2.islandable)
+      throw err2;
     doc.content.length = contentLen;
     if (ctx.constants.size > constantCount) {
       const trailing = Array.from(ctx.constants.keys()).slice(constantCount);
@@ -14501,13 +14525,13 @@ function generateObjectCheck(doc, ctx, schema, accessor, buildsValue = true) {
     doc.write(`const ${outputVar} = {};`);
     for (const k of allKeys) {
       const kx = keyExpr(k);
-      const out = propOutputs.get(k);
+      const out2 = propOutputs.get(k);
       if (dropsWhenAbsent(propShape[k])) {
-        doc.write(`if (${kx} in ${accessor}) ${outputVar}[${kx}] = ${out};`);
+        doc.write(`if (${kx} in ${accessor}) ${outputVar}[${kx}] = ${out2};`);
       } else if (mayOmitUndefined(propShape[k])) {
-        doc.write(`if (${out} !== undefined || ${kx} in ${accessor}) ${outputVar}[${kx}] = ${out};`);
+        doc.write(`if (${out2} !== undefined || ${kx} in ${accessor}) ${outputVar}[${kx}] = ${out2};`);
       } else {
-        doc.write(`${outputVar}[${kx}] = ${out};`);
+        doc.write(`${outputVar}[${kx}] = ${out2};`);
       }
     }
   }
@@ -14824,22 +14848,22 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
   }
   const outputVar = newVar(ctx);
   doc.write(`const ${outputVar} = [];`);
-  for (let i = 0; i < items.length; i++) {
-    const itemSchema = items[i];
-    if (i >= optoutStart) {
-      doc.write(`if (${outputVar}.length === ${i}) {`);
+  for (let i2 = 0; i2 < items.length; i2++) {
+    const itemSchema2 = items[i2];
+    if (i2 >= optoutStart) {
+      doc.write(`if (${outputVar}.length === ${i2}) {`);
       doc.indented((d) => {
-        d.write(`if (${i} < ${accessor}.length) {`);
+        d.write(`if (${i2} < ${accessor}.length) {`);
         d.indented((d2) => {
           const elemVar = newVar(ctx);
-          d2.write(`const ${elemVar} = ${accessor}[${i}];`);
-          const elemOutput = compileChild(d2, ctx, itemSchema, elemVar);
-          d2.write(`${outputVar}[${i}] = ${elemOutput};`);
+          d2.write(`const ${elemVar} = ${accessor}[${i2}];`);
+          const elemOutput = compileChild(d2, ctx, itemSchema2, elemVar);
+          d2.write(`${outputVar}[${i2}] = ${elemOutput};`);
         });
         d.write(`} else {`);
         d.indented((d2) => {
-          if (dropsWhenAbsent(itemSchema)) {
-            d2.write(`${outputVar}.length = ${i};`);
+          if (dropsWhenAbsent(itemSchema2)) {
+            d2.write(`${outputVar}.length = ${i2};`);
             return;
           }
           const elemVar = newVar(ctx);
@@ -14847,21 +14871,21 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
           d2.write(`const ${elemVar} = undefined;`);
           d2.write(`const ${branchVar} = (() => {`);
           d2.indented((d3) => {
-            const elemOutput = compileChild(d3, ctx, itemSchema, elemVar);
+            const elemOutput = compileChild(d3, ctx, itemSchema2, elemVar);
             d3.write(`return ${elemOutput};`);
           });
           d2.write(`})();`);
-          d2.write(`if (${branchVar} === INVALID || ${branchVar} === undefined) ${outputVar}.length = ${i};`);
-          d2.write(`else ${outputVar}[${i}] = ${branchVar};`);
+          d2.write(`if (${branchVar} === INVALID || ${branchVar} === undefined) ${outputVar}.length = ${i2};`);
+          d2.write(`else ${outputVar}[${i2}] = ${branchVar};`);
         });
         d.write(`}`);
       });
       doc.write(`}`);
     } else {
       const elemVar = newVar(ctx);
-      doc.write(`const ${elemVar} = ${accessor}[${i}];`);
-      const elemOutput = compileChild(doc, ctx, itemSchema, elemVar);
-      doc.write(`${outputVar}[${i}] = ${elemOutput};`);
+      doc.write(`const ${elemVar} = ${accessor}[${i2}];`);
+      const elemOutput = compileChild(doc, ctx, itemSchema2, elemVar);
+      doc.write(`${outputVar}[${i2}] = ${elemOutput};`);
     }
   }
   if (rest) {
@@ -14878,10 +14902,10 @@ function generateTupleCheck(doc, ctx, schema, accessor) {
   return outputVar;
 }
 function getTupleOptStart2(items, key) {
-  for (let i = items.length - 1; i >= 0; i--) {
-    const omittable = key === "optin" ? items[i]._zod.optin !== void 0 : items[i]._zod.optout === "optional";
+  for (let i2 = items.length - 1; i2 >= 0; i2--) {
+    const omittable = key === "optin" ? items[i2]._zod.optin !== void 0 : items[i2]._zod.optout === "optional";
     if (!omittable)
-      return i + 1;
+      return i2 + 1;
   }
   return 0;
 }
@@ -14910,9 +14934,9 @@ function generateUnionCheck(doc, ctx, schema, accessor) {
   }
   const outputVar = newVar(ctx);
   doc.write(`let ${outputVar};`);
-  for (let i = 0; i < options.length; i++) {
-    const opt = options[i];
-    if (i === 0) {
+  for (let i2 = 0; i2 < options.length; i2++) {
+    const opt = options[i2];
+    if (i2 === 0) {
       doc.write(`${outputVar} = (() => {`);
     } else {
       doc.write(`if (${outputVar} === INVALID) ${outputVar} = (() => {`);
@@ -15071,7 +15095,7 @@ function generateRecordCheck(doc, ctx, schema, accessor) {
   }, `return INVALID;`);
   return outputVar;
 }
-function emitOwnKeys(doc, ctx, accessor, kVar, body, onSymbol) {
+function emitOwnKeys(doc, ctx, accessor, kVar, body2, onSymbol) {
   const propIsEnumerableConst = addConstant(ctx, Object.prototype.propertyIsEnumerable);
   const symsVar = newVar(ctx);
   const keysVar = newVar(ctx);
@@ -15082,7 +15106,7 @@ function emitOwnKeys(doc, ctx, accessor, kVar, body, onSymbol) {
   doc.indented((d) => {
     d.write(`const ${kVar} = ${keysVar}[${iVar}];`);
     d.write(`if (${kVar} === "__proto__" || !${propIsEnumerableConst}.call(${accessor}, ${kVar})) continue;`);
-    body(d);
+    body2(d);
   });
   doc.write(`}`);
   doc.write(`for (let ${iVar} = 0; ${iVar} < ${symsVar}.length; ${iVar}++) {`);
@@ -15092,7 +15116,7 @@ function emitOwnKeys(doc, ctx, accessor, kVar, body, onSymbol) {
     if (onSymbol)
       d.write(onSymbol);
     else
-      body(d);
+      body2(d);
   });
   doc.write(`}`);
 }
@@ -16139,11 +16163,11 @@ function _catch(Class2, innerType, catchValue) {
   });
 }
 // @__NO_SIDE_EFFECTS__
-function _pipe(Class2, in_, out) {
+function _pipe(Class2, in_, out2) {
   return new Class2({
     type: "pipe",
     in: in_,
-    out
+    out: out2
   });
 }
 // @__NO_SIDE_EFFECTS__
@@ -16154,10 +16178,10 @@ function _readonly(Class2, innerType) {
   });
 }
 // @__NO_SIDE_EFFECTS__
-function _templateLiteral(Class2, parts, params) {
+function _templateLiteral(Class2, parts2, params) {
   return new Class2({
     type: "template_literal",
-    parts,
+    parts: parts2,
     ...normalizeParams(params)
   });
 }
@@ -16242,12 +16266,12 @@ function describe(description) {
   return ch;
 }
 // @__NO_SIDE_EFFECTS__
-function meta(metadata) {
+function meta(metadata2) {
   const ch = new $ZodCheck({ check: "meta" });
   ch._zod.onattach = [
     (inst) => {
       const existing = globalRegistry.get(inst) ?? {};
-      globalRegistry.add(inst, { ...existing, ...metadata });
+      globalRegistry.add(inst, { ...existing, ...metadata2 });
     }
   ];
   ch._zod.check = () => {
@@ -16570,15 +16594,15 @@ function foldObjects(members2) {
     for (const key in object2.properties) {
       if (Object.prototype.hasOwnProperty.call(properties, key))
         continue;
-      const parts = [];
+      const parts2 = [];
       for (const other of objects) {
         const part = other.properties?.[key] ?? undeclaredConstraint(other);
         if (part === null || part === void 0)
           continue;
-        if (!parts.some((seen) => JSON.stringify(seen) === JSON.stringify(part)))
-          parts.push(part);
+        if (!parts2.some((seen) => JSON.stringify(seen) === JSON.stringify(part)))
+          parts2.push(part);
       }
-      const merged = parts.length === 1 ? parts[0] : foldObjects(parts) ?? { allOf: parts };
+      const merged = parts2.length === 1 ? parts2[0] : foldObjects(parts2) ?? { allOf: parts2 };
       assignProp(properties, key, merged);
     }
     for (const key of object2.required ?? [])
@@ -17231,9 +17255,9 @@ var objectProcessor = (schema, ctx, _json, params) => {
 var unionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
   const isExclusive = def.inclusive === false;
-  const options = def.options.map((x, i) => processSchema(x, ctx, {
+  const options = def.options.map((x, i2) => processSchema(x, ctx, {
     ...params,
-    path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
+    path: [...params.path, isExclusive ? "oneOf" : "anyOf", i2]
   }));
   if (isExclusive) {
     json2.oneOf = options;
@@ -17265,9 +17289,9 @@ var tupleProcessor = (schema, ctx, _json, params) => {
   json2.type = "array";
   const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
   const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
-  const prefixItems = def.items.map((x, i) => processSchema(x, ctx, {
+  const prefixItems = def.items.map((x, i2) => processSchema(x, ctx, {
     ...params,
-    path: [...params.path, prefixPath, i]
+    path: [...params.path, prefixPath, i2]
   }));
   const rest = def.rest ? processSchema(def.rest, ctx, {
     ...params,
@@ -17339,7 +17363,7 @@ function stringifyKeyNames(bySchema, json2, visited) {
     if (!Array.isArray(branches))
       continue;
     const mapped = branches.map((branch) => stringifyKeyNames(bySchema, branch, visited));
-    if (mapped.some((branch, i) => branch !== branches[i]))
+    if (mapped.some((branch, i2) => branch !== branches[i2]))
       json2 = { ...json2, [keyword]: mapped };
   }
   const types = Array.isArray(json2.type) ? json2.type : [json2.type];
@@ -18054,11 +18078,11 @@ var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
     globalRegistry.add(cl, { description });
     return cl;
   },
-  meta(...args) {
-    if (args.length === 0)
+  meta(...args2) {
+    if (args2.length === 0)
       return globalRegistry.get(this);
     const cl = this.clone();
-    globalRegistry.add(cl, args[0]);
+    globalRegistry.add(cl, args2[0]);
     return cl;
   },
   isOptional() {
@@ -18067,8 +18091,8 @@ var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   isNullable() {
     return this.safeParse(null).success;
   },
-  apply(fn, ...args) {
-    return args.length === 0 ? fn(this) : fn(this, ...args);
+  apply(fn, ...args2) {
+    return args2.length === 0 ? fn(this) : fn(this, ...args2);
   },
   // Overrides core's `~standard` to add `jsonSchema`. Must stay a prototype entry: redefining it per instance demotes instances to dictionary mode.
   get "~standard"() {
@@ -18156,29 +18180,29 @@ var _ZodString = /* @__PURE__ */ $constructor(
     minLength: (inst) => aggregateChecks(inst).minimum ?? null,
     maxLength: (inst) => aggregateChecks(inst).maximum ?? null
   }, {
-    regex(...args) {
-      return this.check(_regex(...args));
+    regex(...args2) {
+      return this.check(_regex(...args2));
     },
-    includes(...args) {
-      return this.check(_includes(...args));
+    includes(...args2) {
+      return this.check(_includes(...args2));
     },
-    startsWith(...args) {
-      return this.check(_startsWith(...args));
+    startsWith(...args2) {
+      return this.check(_startsWith(...args2));
     },
-    endsWith(...args) {
-      return this.check(_endsWith(...args));
+    endsWith(...args2) {
+      return this.check(_endsWith(...args2));
     },
-    min(...args) {
-      return this.check(_minLength(...args));
+    min(...args2) {
+      return this.check(_minLength(...args2));
     },
-    max(...args) {
-      return this.check(_maxLength(...args));
+    max(...args2) {
+      return this.check(_maxLength(...args2));
     },
-    length(...args) {
-      return this.check(_length(...args));
+    length(...args2) {
+      return this.check(_length(...args2));
     },
-    nonempty(...args) {
-      return this.check(_minLength(1, ...args));
+    nonempty(...args2) {
+      return this.check(_minLength(1, ...args2));
     },
     lowercase(params) {
       return this.check(_lowercase(params));
@@ -18189,8 +18213,8 @@ var _ZodString = /* @__PURE__ */ $constructor(
     trim() {
       return this.check(_trim());
     },
-    normalize(...args) {
-      return this.check(_normalize(...args));
+    normalize(...args2) {
+      return this.check(_normalize(...args2));
     },
     toLowerCase() {
       return this.check(_toLowerCase());
@@ -18812,14 +18836,14 @@ var ZodObject = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
   omit(mask) {
     return util_exports.omit(this, mask);
   },
-  partial(...args) {
-    return util_exports.partial(ZodOptional, this, args[0]);
+  partial(...args2) {
+    return util_exports.partial(ZodOptional, this, args2[0]);
   },
-  exactPartial(...args) {
-    return util_exports.partial(ZodExactOptional, this, args[0], "exactPartial");
+  exactPartial(...args2) {
+    return util_exports.partial(ZodExactOptional, this, args2[0], "exactPartial");
   },
-  required(...args) {
-    return util_exports.required(ZodNonOptional, this, args[0]);
+  required(...args2) {
+    return util_exports.required(ZodNonOptional, this, args2[0]);
   }
 });
 function object(shape, params) {
@@ -18979,10 +19003,10 @@ var ZodMap = /* @__PURE__ */ $constructor("ZodMap", (inst, def) => {
   inst._zod.processJSONSchema = (ctx, json2, params) => mapProcessor(inst, ctx, json2, params);
   inst.keyType = def.keyType;
   inst.valueType = def.valueType;
-  inst.min = (...args) => inst.check(_minSize(...args));
+  inst.min = (...args2) => inst.check(_minSize(...args2));
   inst.nonempty = (params) => inst.check(_minSize(1, params));
-  inst.max = (...args) => inst.check(_maxSize(...args));
-  inst.size = (...args) => inst.check(_size(...args));
+  inst.max = (...args2) => inst.check(_maxSize(...args2));
+  inst.size = (...args2) => inst.check(_size(...args2));
 });
 function map(keyType, valueType, params) {
   return new ZodMap({
@@ -18997,10 +19021,10 @@ var ZodSet = /* @__PURE__ */ $constructor("ZodSet", (inst, def) => {
   $ZodSet.init(inst, def);
   ZodType.init(inst, def);
   inst._zod.processJSONSchema = (ctx, json2, params) => setProcessor(inst, ctx, json2, params);
-  inst.min = (...args) => inst.check(_minSize(...args));
+  inst.min = (...args2) => inst.check(_minSize(...args2));
   inst.nonempty = (params) => inst.check(_minSize(1, params));
-  inst.max = (...args) => inst.check(_maxSize(...args));
-  inst.size = (...args) => inst.check(_size(...args));
+  inst.max = (...args2) => inst.check(_maxSize(...args2));
+  inst.size = (...args2) => inst.check(_size(...args2));
 });
 function set(valueType, params) {
   return new ZodSet({
@@ -19258,11 +19282,11 @@ var ZodPipe = /* @__PURE__ */ $constructor("ZodPipe", (inst, def) => {
   inst.in = def.in;
   inst.out = def.out;
 });
-function pipe(in_, out) {
+function pipe(in_, out2) {
   return new ZodPipe({
     type: "pipe",
     in: in_,
-    out
+    out: out2
     // ...util.normalizeParams(params),
   });
 }
@@ -19270,11 +19294,11 @@ var ZodCodec = /* @__PURE__ */ $constructor("ZodCodec", (inst, def) => {
   ZodPipe.init(inst, def);
   $ZodCodec.init(inst, def);
 });
-function codec(in_, out, params) {
+function codec(in_, out2, params) {
   return new ZodCodec({
     type: "pipe",
     in: in_,
-    out,
+    out: out2,
     transform: params.decode,
     reverseTransform: params.encode
   });
@@ -19310,10 +19334,10 @@ var ZodTemplateLiteral = /* @__PURE__ */ $constructor("ZodTemplateLiteral", (ins
   ZodType.init(inst, def);
   inst._zod.processJSONSchema = (ctx, json2, params) => templateLiteralProcessor(inst, ctx, json2, params);
 });
-function templateLiteral(parts, params) {
+function templateLiteral(parts2, params) {
   return new ZodTemplateLiteral({
     type: "template_literal",
-    parts,
+    parts: parts2,
     ...util_exports.normalizeParams(params)
   });
 }
@@ -19406,11 +19430,11 @@ function _instanceof(cls, params = {}) {
   };
   return inst;
 }
-var stringbool = (...args) => _stringbool({
+var stringbool = (...args2) => _stringbool({
   Codec: ZodCodec,
   Boolean: ZodBoolean,
   String: ZodString
-}, ...args);
+}, ...args2);
 function json(params) {
   const jsonSchema = lazy(() => {
     return union([string2(params), number2(), boolean2(), _null3(), array(jsonSchema), record(string2(), jsonSchema)]);
@@ -19653,24 +19677,24 @@ function canonicalKey(value, seen) {
   seen.add(value);
   try {
     if (Array.isArray(value)) {
-      const parts2 = [];
+      const parts3 = [];
       for (const item of value) {
         const key = canonicalKey(item, seen);
         if (key === null)
           return null;
-        parts2.push(key);
+        parts3.push(key);
       }
-      return `a${parts2.length}:[${parts2.join(",")}]`;
+      return `a${parts3.length}:[${parts3.join(",")}]`;
     }
     const keys = Object.keys(value).sort();
-    const parts = [];
+    const parts2 = [];
     for (const k of keys) {
       const key = canonicalKey(value[k], seen);
       if (key === null)
         return null;
-      parts.push(`${k.length}:${k}=${key}`);
+      parts2.push(`${k.length}:${k}=${key}`);
     }
-    return `o${parts.length}:{${parts.join(",")}}`;
+    return `o${parts2.length}:{${parts2.join(",")}}`;
   } finally {
     seen.delete(value);
   }
@@ -19726,20 +19750,20 @@ function checkArrayGuards(arraySchema, guards) {
       return;
     if (guards.uniqueItems === true) {
       const firstSeen = /* @__PURE__ */ new Map();
-      for (let i = 0; i < items.length; i++) {
-        const key = canonicalKey(items[i], /* @__PURE__ */ new Set());
+      for (let i2 = 0; i2 < items.length; i2++) {
+        const key = canonicalKey(items[i2], /* @__PURE__ */ new Set());
         if (key === null)
           continue;
         const first = firstSeen.get(key);
         if (first === void 0) {
-          firstSeen.set(key, i);
+          firstSeen.set(key, i2);
           continue;
         }
         payload.issues.push({
           code: "custom",
-          message: `Array items must be unique: element at index ${i} duplicates the one at index ${first}`,
+          message: `Array items must be unique: element at index ${i2} duplicates the one at index ${first}`,
           input: items,
-          path: [i],
+          path: [i2],
           continue: true
         });
       }
@@ -19995,8 +20019,8 @@ function convertBaseSchema(schema, ctx) {
           zodSchema = schemasToIntersect[0];
         } else {
           let result = z.intersection(schemasToIntersect[0], schemasToIntersect[1]);
-          for (let i = 2; i < schemasToIntersect.length; i++) {
-            result = z.intersection(result, schemasToIntersect[i]);
+          for (let i2 = 2; i2 < schemasToIntersect.length; i2++) {
+            result = z.intersection(result, schemasToIntersect[i2]);
           }
           zodSchema = result;
         }
@@ -20127,8 +20151,8 @@ function convertSchema(schema, ctx) {
     } else {
       let result = hasExplicitType ? baseSchema : convertSchema(schema.allOf[0], ctx);
       const startIdx = hasExplicitType ? 0 : 1;
-      for (let i = startIdx; i < schema.allOf.length; i++) {
-        result = z.intersection(result, convertSchema(schema.allOf[i], ctx));
+      for (let i2 = startIdx; i2 < schema.allOf.length; i2++) {
+        result = z.intersection(result, convertSchema(schema.allOf[i2], ctx));
       }
       baseSchema = result;
     }
@@ -20217,7 +20241,7 @@ function visit(schema, fnOrHandlers) {
     return h ? h(node2, rewritten) : node2;
   };
   const cache = /* @__PURE__ */ new Map();
-  function run(s) {
+  function run3(s) {
     const cached2 = cache.get(s);
     if (cached2 === RESOLVING) {
       return new $ZodLazy({
@@ -20243,21 +20267,21 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newShape = {};
         for (const k of keys) {
-          const mapped = run(oldShape[k]);
+          const mapped = run3(oldShape[k]);
           if (mapped !== oldShape[k])
             changed = true;
           newShape[k] = mapped;
         }
         let newCatchall = def.catchall;
         if (def.catchall) {
-          newCatchall = run(def.catchall);
+          newCatchall = run3(def.catchall);
           if (newCatchall !== def.catchall)
             changed = true;
         }
         return changed ? clone(s, { ...def, shape: newShape, catchall: newCatchall }) : s;
       }
       case "array": {
-        const mapped = run(def.element);
+        const mapped = run3(def.element);
         return mapped === def.element ? s : clone(s, { ...def, element: mapped });
       }
       case "tuple": {
@@ -20265,14 +20289,14 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newItems = [];
         for (const item of oldItems) {
-          const mapped = run(item);
+          const mapped = run3(item);
           if (mapped !== item)
             changed = true;
           newItems.push(mapped);
         }
         let newRest = def.rest;
         if (def.rest) {
-          newRest = run(def.rest);
+          newRest = run3(def.rest);
           if (newRest !== def.rest)
             changed = true;
         }
@@ -20280,12 +20304,12 @@ function visit(schema, fnOrHandlers) {
       }
       case "record":
       case "map": {
-        const newKey = run(def.keyType);
-        const newVal = run(def.valueType);
+        const newKey = run3(def.keyType);
+        const newVal = run3(def.valueType);
         return newKey === def.keyType && newVal === def.valueType ? s : clone(s, { ...def, keyType: newKey, valueType: newVal });
       }
       case "set": {
-        const newVal = run(def.valueType);
+        const newVal = run3(def.valueType);
         return newVal === def.valueType ? s : clone(s, { ...def, valueType: newVal });
       }
       case "union": {
@@ -20293,7 +20317,7 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newOptions = [];
         for (const opt of oldOptions) {
-          const mapped = run(opt);
+          const mapped = run3(opt);
           if (mapped !== opt)
             changed = true;
           newOptions.push(mapped);
@@ -20301,8 +20325,8 @@ function visit(schema, fnOrHandlers) {
         return changed ? clone(s, { ...def, options: newOptions }) : s;
       }
       case "intersection": {
-        const newLeft = run(def.left);
-        const newRight = run(def.right);
+        const newLeft = run3(def.left);
+        const newRight = run3(def.right);
         return newLeft === def.left && newRight === def.right ? s : clone(s, { ...def, left: newLeft, right: newRight });
       }
       case "optional":
@@ -20314,23 +20338,23 @@ function visit(schema, fnOrHandlers) {
       case "nonoptional":
       case "promise":
       case "success": {
-        const newInner = run(def.innerType);
+        const newInner = run3(def.innerType);
         return newInner === def.innerType ? s : clone(s, { ...def, innerType: newInner });
       }
       case "pipe": {
-        const newIn = run(def.in);
-        const newOut = run(def.out);
+        const newIn = run3(def.in);
+        const newOut = run3(def.out);
         return newIn === def.in && newOut === def.out ? s : clone(s, { ...def, in: newIn, out: newOut });
       }
       case "function": {
-        const newInput = run(def.input);
-        const newOutput = run(def.output);
+        const newInput = run3(def.input);
+        const newOutput = run3(def.output);
         return newInput === def.input && newOutput === def.output ? s : clone(s, { ...def, input: newInput, output: newOutput });
       }
       case "lazy": {
         const original = def.getter;
         const { _cachedInner, ...rest } = def;
-        return clone(s, { ...rest, getter: () => run(original()) });
+        return clone(s, { ...rest, getter: () => run3(original()) });
       }
       // A leaf by choice: `parts` are regex fragments, not data positions.
       case "template_literal":
@@ -20361,7 +20385,7 @@ function visit(schema, fnOrHandlers) {
       }
     }
   }
-  return run(schema);
+  return run3(schema);
 }
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/deep-partial.js
@@ -20429,6 +20453,6882 @@ function bigint3(params) {
 }
 function date4(params) {
   return _coercedDate(ZodDate, params);
+}
+
+// src/git/diff.ts
+var EXCLUDES = [
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/npm-shrinkwrap.json",
+  "**/*.lock",
+  "**/dist/**",
+  "**/build/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/*.min.*",
+  "**/*.generated.*",
+  "**/__generated__/**"
+].map((glob) => `:(exclude,glob)${glob}`);
+
+// src/git/identity.ts
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+function normalizeRepoPath(path) {
+  let p = resolve(path);
+  try {
+    p = realpathSync.native(p);
+  } catch {
+  }
+  p = p.replaceAll("\\", "/");
+  return process.platform === "win32" ? p.toLowerCase() : p;
+}
+
+// ../../node_modules/.pnpm/web-tree-sitter@0.27.2/node_modules/web-tree-sitter/web-tree-sitter.js
+var __defProp2 = Object.defineProperty;
+var __name = (target, value) => __defProp2(target, "name", { value, configurable: true });
+var Edit = class {
+  static {
+    __name(this, "Edit");
+  }
+  /** The start position of the change. */
+  startPosition;
+  /** The end position of the change before the edit. */
+  oldEndPosition;
+  /** The end position of the change after the edit. */
+  newEndPosition;
+  /** The start index of the change. */
+  startIndex;
+  /** The end index of the change before the edit. */
+  oldEndIndex;
+  /** The end index of the change after the edit. */
+  newEndIndex;
+  constructor({
+    startIndex,
+    oldEndIndex,
+    newEndIndex,
+    startPosition,
+    oldEndPosition,
+    newEndPosition
+  }) {
+    this.startIndex = startIndex >>> 0;
+    this.oldEndIndex = oldEndIndex >>> 0;
+    this.newEndIndex = newEndIndex >>> 0;
+    this.startPosition = startPosition;
+    this.oldEndPosition = oldEndPosition;
+    this.newEndPosition = newEndPosition;
+  }
+  /**
+   * Edit a point and index to keep it in-sync with source code that has been edited.
+   *
+   * This function updates a single point's byte offset and row/column position
+   * based on an edit operation. This is useful for editing points without
+   * requiring a tree or node instance.
+   */
+  editPoint(point2, index) {
+    let newIndex = index;
+    const newPoint = { ...point2 };
+    if (index >= this.oldEndIndex) {
+      newIndex = this.newEndIndex + (index - this.oldEndIndex);
+      const originalRow = point2.row;
+      newPoint.row = this.newEndPosition.row + (point2.row - this.oldEndPosition.row);
+      newPoint.column = originalRow === this.oldEndPosition.row ? this.newEndPosition.column + (point2.column - this.oldEndPosition.column) : point2.column;
+    } else if (index > this.startIndex) {
+      newIndex = this.newEndIndex;
+      newPoint.row = this.newEndPosition.row;
+      newPoint.column = this.newEndPosition.column;
+    }
+    return { point: newPoint, index: newIndex };
+  }
+  /**
+   * Edit a range to keep it in-sync with source code that has been edited.
+   *
+   * This function updates a range's start and end positions based on an edit
+   * operation. This is useful for editing ranges without requiring a tree
+   * or node instance.
+   */
+  editRange(range) {
+    const newRange = {
+      startIndex: range.startIndex,
+      startPosition: { ...range.startPosition },
+      endIndex: range.endIndex,
+      endPosition: { ...range.endPosition }
+    };
+    if (range.endIndex >= this.oldEndIndex) {
+      if (range.endIndex !== Number.MAX_SAFE_INTEGER) {
+        newRange.endIndex = this.newEndIndex + (range.endIndex - this.oldEndIndex);
+        newRange.endPosition = {
+          row: this.newEndPosition.row + (range.endPosition.row - this.oldEndPosition.row),
+          column: range.endPosition.row === this.oldEndPosition.row ? this.newEndPosition.column + (range.endPosition.column - this.oldEndPosition.column) : range.endPosition.column
+        };
+        if (newRange.endIndex < this.newEndIndex) {
+          newRange.endIndex = Number.MAX_SAFE_INTEGER;
+          newRange.endPosition = { row: Number.MAX_SAFE_INTEGER, column: Number.MAX_SAFE_INTEGER };
+        }
+      }
+    } else if (range.endIndex > this.startIndex) {
+      newRange.endIndex = this.startIndex;
+      newRange.endPosition = { ...this.startPosition };
+    }
+    if (range.startIndex >= this.oldEndIndex) {
+      newRange.startIndex = this.newEndIndex + (range.startIndex - this.oldEndIndex);
+      newRange.startPosition = {
+        row: this.newEndPosition.row + (range.startPosition.row - this.oldEndPosition.row),
+        column: range.startPosition.row === this.oldEndPosition.row ? this.newEndPosition.column + (range.startPosition.column - this.oldEndPosition.column) : range.startPosition.column
+      };
+      if (newRange.startIndex < this.newEndIndex) {
+        newRange.startIndex = Number.MAX_SAFE_INTEGER;
+        newRange.startPosition = { row: Number.MAX_SAFE_INTEGER, column: Number.MAX_SAFE_INTEGER };
+      }
+    } else if (range.startIndex > this.startIndex) {
+      newRange.startIndex = this.startIndex;
+      newRange.startPosition = { ...this.startPosition };
+    }
+    return newRange;
+  }
+};
+var SIZE_OF_SHORT = 2;
+var SIZE_OF_INT = 4;
+var SIZE_OF_CURSOR = 4 * SIZE_OF_INT;
+var SIZE_OF_NODE = 5 * SIZE_OF_INT;
+var SIZE_OF_POINT = 2 * SIZE_OF_INT;
+var SIZE_OF_RANGE = 2 * SIZE_OF_INT + 2 * SIZE_OF_POINT;
+var ZERO_POINT = { row: 0, column: 0 };
+var INTERNAL = /* @__PURE__ */ Symbol("INTERNAL");
+function assertInternal(x) {
+  if (x !== INTERNAL) throw new Error("Illegal constructor");
+}
+__name(assertInternal, "assertInternal");
+function isPoint(point2) {
+  return !!point2 && typeof point2.row === "number" && typeof point2.column === "number";
+}
+__name(isPoint, "isPoint");
+function setModule(module2) {
+  C = module2;
+}
+__name(setModule, "setModule");
+var C;
+function newFinalizer(handler) {
+  try {
+    return new FinalizationRegistry(handler);
+  } catch (e) {
+    console.error("Unsupported FinalizationRegistry:", e);
+    return;
+  }
+}
+__name(newFinalizer, "newFinalizer");
+var finalizer = newFinalizer((address) => {
+  C._ts_lookahead_iterator_delete(address);
+});
+var LookaheadIterator = class {
+  static {
+    __name(this, "LookaheadIterator");
+  }
+  /** @internal */
+  [0] = 0;
+  // Internal handle for Wasm
+  /** @internal */
+  language;
+  /** @internal */
+  positioned = false;
+  /** @internal */
+  constructor(internal, address, language) {
+    assertInternal(internal);
+    this[0] = address;
+    this.language = language;
+    finalizer?.register(this, address, this);
+  }
+  /**
+   * Get the current symbol of the lookahead iterator.
+   *
+   * Returns `null` if the iterator is not positioned on a symbol:
+   *
+   * - Before the first iteration step
+   * - After the iterator is exhausted
+   * - After a {@link reset} or {@link resetState} call
+   */
+  get currentTypeId() {
+    return this.positioned ? C._ts_lookahead_iterator_current_symbol(this[0]) : null;
+  }
+  /**
+   * Get the current symbol name of the lookahead iterator.
+   *
+   * Returns `null` if the iterator is not positioned on a symbol.
+   */
+  get currentType() {
+    const id = this.currentTypeId;
+    if (id === null) return null;
+    return this.language.types[id] ?? C.UTF8ToString(C._ts_language_symbol_name(this.language[0], id));
+  }
+  /** Delete the lookahead iterator, freeing its resources. */
+  delete() {
+    finalizer?.unregister(this);
+    C._ts_lookahead_iterator_delete(this[0]);
+    this[0] = 0;
+  }
+  /**
+   * Reset the lookahead iterator.
+   *
+   * This returns `true` if the language was set successfully and `false`
+   * otherwise.
+   */
+  reset(language, stateId) {
+    if (C._ts_lookahead_iterator_reset(this[0], language[0], stateId)) {
+      this.language = language;
+      this.positioned = false;
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Reset the lookahead iterator to another state.
+   *
+   * This returns `true` if the iterator was reset to the given state and
+   * `false` otherwise.
+   */
+  resetState(stateId) {
+    if (!C._ts_lookahead_iterator_reset_state(this[0], stateId)) return false;
+    this.positioned = false;
+    return true;
+  }
+  /**
+   * Returns an iterator that iterates over the symbols of the lookahead iterator.
+   *
+   * The iterator will yield the current symbol name as a string for each step
+   * until there are no more symbols to iterate over.
+   */
+  [Symbol.iterator]() {
+    return {
+      next: /* @__PURE__ */ __name(() => {
+        this.positioned = Boolean(C._ts_lookahead_iterator_next(this[0]));
+        const value = this.currentType;
+        return value === null ? { done: true, value: "" } : { done: false, value };
+      }, "next")
+    };
+  }
+};
+function getText(tree, startIndex, endIndex, startPosition) {
+  const length = endIndex - startIndex;
+  let result = tree.textCallback(startIndex, startPosition);
+  if (result) {
+    startIndex += result.length;
+    while (startIndex < endIndex) {
+      const string4 = tree.textCallback(startIndex, startPosition);
+      if (string4 && string4.length > 0) {
+        startIndex += string4.length;
+        result += string4;
+      } else {
+        break;
+      }
+    }
+    if (startIndex > endIndex) {
+      result = result.slice(0, length);
+    }
+  }
+  return result ?? "";
+}
+__name(getText, "getText");
+var finalizer2 = newFinalizer((address) => {
+  C._ts_tree_delete(address);
+});
+var Tree = class _Tree {
+  static {
+    __name(this, "Tree");
+  }
+  /** @internal */
+  [0] = 0;
+  // Internal handle for Wasm
+  /** @internal */
+  textCallback;
+  /** The language that was used to parse the syntax tree. */
+  language;
+  /** @internal */
+  constructor(internal, address, language, textCallback) {
+    assertInternal(internal);
+    this[0] = address;
+    this.language = language;
+    this.textCallback = textCallback;
+    finalizer2?.register(this, address, this);
+  }
+  /** Create a shallow copy of the syntax tree. This is very fast. */
+  copy() {
+    const address = C._ts_tree_copy(this[0]);
+    return new _Tree(INTERNAL, address, this.language, this.textCallback);
+  }
+  /** Delete the syntax tree, freeing its resources. */
+  delete() {
+    finalizer2?.unregister(this);
+    C._ts_tree_delete(this[0]);
+    this[0] = 0;
+  }
+  /** Get the root node of the syntax tree. */
+  get rootNode() {
+    C._ts_tree_root_node_wasm(this[0]);
+    return unmarshalNode(this);
+  }
+  /**
+   * Get the root node of the syntax tree, but with its position shifted
+   * forward by the given offset.
+   */
+  rootNodeWithOffset(offsetBytes, offsetExtent) {
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    C.setValue(address, offsetBytes, "i32");
+    marshalPoint(address + SIZE_OF_INT, offsetExtent);
+    C._ts_tree_root_node_with_offset_wasm(this[0]);
+    return unmarshalNode(this);
+  }
+  /**
+   * Edit the syntax tree to keep it in sync with source code that has been
+   * edited.
+   *
+   * You must describe the edit both in terms of byte offsets and in terms of
+   * row/column coordinates.
+   */
+  edit(edit) {
+    marshalEdit(edit);
+    C._ts_tree_edit_wasm(this[0]);
+  }
+  /** Create a new {@link TreeCursor} starting from the root of the tree. */
+  walk() {
+    return this.rootNode.walk();
+  }
+  /**
+   * Compare this old edited syntax tree to a new syntax tree representing
+   * the same document, returning a sequence of ranges whose syntactic
+   * structure has changed.
+   *
+   * For this to work correctly, this syntax tree must have been edited such
+   * that its ranges match up to the new tree. Generally, you'll want to
+   * call this method right after calling one of the [`Parser::parse`]
+   * functions. Call it on the old tree that was passed to parse, and
+   * pass the new tree that was returned from `parse`.
+   */
+  getChangedRanges(other) {
+    if (!(other instanceof _Tree)) {
+      throw new TypeError("Argument must be a Tree");
+    }
+    C._ts_tree_get_changed_ranges_wasm(this[0], other[0]);
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(count);
+    if (count > 0) {
+      let address = buffer;
+      for (let i2 = 0; i2 < count; i2++) {
+        result[i2] = unmarshalRange(address);
+        address += SIZE_OF_RANGE;
+      }
+      C._free(buffer);
+    }
+    return result;
+  }
+  /** Get the included ranges that were used to parse the syntax tree. */
+  getIncludedRanges() {
+    C._ts_tree_included_ranges_wasm(this[0]);
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(count);
+    if (count > 0) {
+      let address = buffer;
+      for (let i2 = 0; i2 < count; i2++) {
+        result[i2] = unmarshalRange(address);
+        address += SIZE_OF_RANGE;
+      }
+      C._free(buffer);
+    }
+    return result;
+  }
+};
+var finalizer3 = newFinalizer((handles) => {
+  marshalTreeCursor({ handles });
+  C._ts_tree_cursor_delete_wasm(0);
+});
+var TreeCursor = class _TreeCursor {
+  static {
+    __name(this, "TreeCursor");
+  }
+  /** @internal */
+  handles = [0, 0, 0, 0];
+  // Internal handles for Wasm, shared with the finalizer.
+  /** @internal */
+  tree;
+  /** @internal */
+  constructor(internal, tree) {
+    assertInternal(internal);
+    this.tree = tree;
+    unmarshalTreeCursor(this);
+    finalizer3?.register(this, this.handles, this);
+  }
+  /** Creates a deep copy of the tree cursor. This allocates new memory. */
+  copy() {
+    marshalTreeCursor(this);
+    C._ts_tree_cursor_copy_wasm(this.tree[0]);
+    return new _TreeCursor(INTERNAL, this.tree);
+  }
+  /** Delete the tree cursor, freeing its resources. */
+  delete() {
+    finalizer3?.unregister(this);
+    marshalTreeCursor(this);
+    C._ts_tree_cursor_delete_wasm(this.tree[0]);
+    this.handles.fill(0);
+  }
+  /** Get the tree cursor's current {@link Node}. */
+  get currentNode() {
+    marshalTreeCursor(this);
+    C._ts_tree_cursor_current_node_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get the numerical field id of this tree cursor's current node.
+   *
+   * See also {@link TreeCursor#currentFieldName}.
+   */
+  get currentFieldId() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_field_id_wasm(this.tree[0]);
+  }
+  /** Get the field name of this tree cursor's current node. */
+  get currentFieldName() {
+    return this.tree.language.fields[this.currentFieldId];
+  }
+  /**
+   * Get the depth of the cursor's current node relative to the original
+   * node that the cursor was constructed with.
+   */
+  get currentDepth() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_depth_wasm(this.tree[0]);
+  }
+  /**
+   * Get the index of the cursor's current node out of all of the
+   * descendants of the original node that the cursor was constructed with.
+   */
+  get currentDescendantIndex() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_descendant_index_wasm(this.tree[0]);
+  }
+  /** Get the type of the cursor's current node. */
+  get nodeType() {
+    return this.tree.language.types[this.nodeTypeId] || "ERROR";
+  }
+  /** Get the type id of the cursor's current node. */
+  get nodeTypeId() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_node_type_id_wasm(this.tree[0]);
+  }
+  /** Get the state id of the cursor's current node. */
+  get nodeStateId() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_node_state_id_wasm(this.tree[0]);
+  }
+  /** Get the id of the cursor's current node. */
+  get nodeId() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_node_id_wasm(this.tree[0]);
+  }
+  /**
+   * Check if the cursor's current node is *named*.
+   *
+   * Named nodes correspond to named rules in the grammar, whereas
+   * *anonymous* nodes correspond to string literals in the grammar.
+   */
+  get nodeIsNamed() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_node_is_named_wasm(this.tree[0]) === 1;
+  }
+  /**
+   * Check if the cursor's current node is *missing*.
+   *
+   * Missing nodes are inserted by the parser in order to recover from
+   * certain kinds of syntax errors.
+   */
+  get nodeIsMissing() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_current_node_is_missing_wasm(this.tree[0]) === 1;
+  }
+  /** Get the string content of the cursor's current node. */
+  get nodeText() {
+    marshalTreeCursor(this);
+    const startIndex = C._ts_tree_cursor_start_index_wasm(this.tree[0]);
+    const endIndex = C._ts_tree_cursor_end_index_wasm(this.tree[0]);
+    C._ts_tree_cursor_start_position_wasm(this.tree[0]);
+    const startPosition = unmarshalPoint(TRANSFER_BUFFER);
+    return getText(this.tree, startIndex, endIndex, startPosition);
+  }
+  /** Get the start position of the cursor's current node. */
+  get startPosition() {
+    marshalTreeCursor(this);
+    C._ts_tree_cursor_start_position_wasm(this.tree[0]);
+    return unmarshalPoint(TRANSFER_BUFFER);
+  }
+  /** Get the end position of the cursor's current node. */
+  get endPosition() {
+    marshalTreeCursor(this);
+    C._ts_tree_cursor_end_position_wasm(this.tree[0]);
+    return unmarshalPoint(TRANSFER_BUFFER);
+  }
+  /** Get the start index of the cursor's current node. */
+  get startIndex() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_start_index_wasm(this.tree[0]);
+  }
+  /** Get the end index of the cursor's current node. */
+  get endIndex() {
+    marshalTreeCursor(this);
+    return C._ts_tree_cursor_end_index_wasm(this.tree[0]);
+  }
+  /**
+   * Move this cursor to the first child of its current node.
+   *
+   * This returns `true` if the cursor successfully moved, and returns
+   * `false` if there were no children.
+   */
+  gotoFirstChild() {
+    marshalTreeCursor(this);
+    const result = C._ts_tree_cursor_goto_first_child_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Move this cursor to the last child of its current node.
+   *
+   * This returns `true` if the cursor successfully moved, and returns
+   * `false` if there were no children.
+   *
+   * Note that this function may be slower than
+   * {@link TreeCursor#gotoFirstChild} because it needs to
+   * iterate through all the children to compute the child's position.
+   */
+  gotoLastChild() {
+    marshalTreeCursor(this);
+    const result = C._ts_tree_cursor_goto_last_child_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Move this cursor to the parent of its current node.
+   *
+   * This returns `true` if the cursor successfully moved, and returns
+   * `false` if there was no parent node (the cursor was already on the
+   * root node).
+   *
+   * Note that the node the cursor was constructed with is considered the root
+   * of the cursor, and the cursor cannot walk outside this node.
+   */
+  gotoParent() {
+    marshalTreeCursor(this);
+    const result = C._ts_tree_cursor_goto_parent_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Move this cursor to the next sibling of its current node.
+   *
+   * This returns `true` if the cursor successfully moved, and returns
+   * `false` if there was no next sibling node.
+   *
+   * Note that the node the cursor was constructed with is considered the root
+   * of the cursor, and the cursor cannot walk outside this node.
+   */
+  gotoNextSibling() {
+    marshalTreeCursor(this);
+    const result = C._ts_tree_cursor_goto_next_sibling_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Move this cursor to the previous sibling of its current node.
+   *
+   * This returns `true` if the cursor successfully moved, and returns
+   * `false` if there was no previous sibling node.
+   *
+   * Note that this function may be slower than
+   * {@link TreeCursor#gotoNextSibling} due to how node
+   * positions are stored. In the worst case, this will need to iterate
+   * through all the children up to the previous sibling node to recalculate
+   * its position. Also note that the node the cursor was constructed with is
+   * considered the root of the cursor, and the cursor cannot walk outside this node.
+   */
+  gotoPreviousSibling() {
+    marshalTreeCursor(this);
+    const result = C._ts_tree_cursor_goto_previous_sibling_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Move the cursor to the node that is the nth descendant of
+   * the original node that the cursor was constructed with, where
+   * zero represents the original node itself.
+   */
+  gotoDescendant(goalDescendantIndex) {
+    marshalTreeCursor(this);
+    C._ts_tree_cursor_goto_descendant_wasm(this.tree[0], goalDescendantIndex);
+    unmarshalTreeCursor(this);
+  }
+  /**
+   * Move this cursor to the first child of its current node that contains or
+   * starts after the given byte offset.
+   *
+   * This returns `true` if the cursor successfully moved to a child node, and returns
+   * `false` if no such child was found.
+   */
+  gotoFirstChildForIndex(goalIndex) {
+    marshalTreeCursor(this);
+    C.setValue(TRANSFER_BUFFER + SIZE_OF_CURSOR, goalIndex, "i32");
+    const result = C._ts_tree_cursor_goto_first_child_for_index_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Move this cursor to the first child of its current node that contains or
+   * starts after the given position.
+   *
+   * This returns `true` if the cursor successfully moved to a child node, and returns
+   * `false` if no such child was found.
+   */
+  gotoFirstChildForPosition(goalPosition) {
+    marshalTreeCursor(this);
+    marshalPoint(TRANSFER_BUFFER + SIZE_OF_CURSOR, goalPosition);
+    const result = C._ts_tree_cursor_goto_first_child_for_position_wasm(this.tree[0]);
+    unmarshalTreeCursor(this);
+    return result === 1;
+  }
+  /**
+   * Re-initialize this tree cursor to start at the original node that the
+   * cursor was constructed with.
+   */
+  reset(node2) {
+    marshalNode(node2);
+    marshalTreeCursor(this, TRANSFER_BUFFER + SIZE_OF_NODE);
+    C._ts_tree_cursor_reset_wasm(node2.tree[0]);
+    unmarshalTreeCursor(this);
+    this.tree = node2.tree;
+  }
+  /**
+   * Re-initialize a tree cursor to the same position as another cursor.
+   *
+   * Unlike {@link TreeCursor#reset}, this will not lose parent
+   * information and allows reusing already created cursors.
+   */
+  resetTo(cursor) {
+    marshalTreeCursor(this, TRANSFER_BUFFER);
+    marshalTreeCursor(cursor, TRANSFER_BUFFER + SIZE_OF_CURSOR);
+    C._ts_tree_cursor_reset_to_wasm(this.tree[0], cursor.tree[0]);
+    unmarshalTreeCursor(this);
+    this.tree = cursor.tree;
+  }
+};
+var Node = class {
+  static {
+    __name(this, "Node");
+  }
+  /** @internal */
+  // @ts-expect-error: never read
+  [0] = 0;
+  // Internal handle for Wasm
+  /** @internal */
+  _children;
+  /** @internal */
+  _namedChildren;
+  /** @internal */
+  constructor(internal, {
+    id,
+    tree,
+    startIndex,
+    startPosition,
+    other
+  }) {
+    assertInternal(internal);
+    this[0] = other;
+    this.id = id;
+    this.tree = tree;
+    this.startIndex = startIndex;
+    this.startPosition = startPosition;
+  }
+  /**
+   * The numeric id for this node that is unique.
+   *
+   * Within a given syntax tree, no two nodes have the same id. However:
+   *
+   * * If a new tree is created based on an older tree, and a node from the old tree is reused in
+   *   the process, then that node will have the same id in both trees.
+   *
+   * * A node not marked as having changes does not guarantee it was reused.
+   *
+   * * If a node is marked as having changed in the old tree, it will not be reused.
+   */
+  id;
+  /** The byte index where this node starts. */
+  startIndex;
+  /** The position where this node starts. */
+  startPosition;
+  /** The tree that this node belongs to. */
+  tree;
+  /** Get this node's type as a numerical id. */
+  get typeId() {
+    marshalNode(this);
+    return C._ts_node_symbol_wasm(this.tree[0]);
+  }
+  /**
+   * Get the node's type as a numerical id as it appears in the grammar,
+   * ignoring aliases.
+   */
+  get grammarId() {
+    marshalNode(this);
+    return C._ts_node_grammar_symbol_wasm(this.tree[0]);
+  }
+  /** Get this node's type as a string. */
+  get type() {
+    return this.tree.language.types[this.typeId] || "ERROR";
+  }
+  /**
+   * Get this node's symbol name as it appears in the grammar, ignoring
+   * aliases as a string.
+   */
+  get grammarType() {
+    return this.tree.language.types[this.grammarId] || "ERROR";
+  }
+  /**
+   * Check if this node is *named*.
+   *
+   * Named nodes correspond to named rules in the grammar, whereas
+   * *anonymous* nodes correspond to string literals in the grammar.
+   */
+  get isNamed() {
+    marshalNode(this);
+    return C._ts_node_is_named_wasm(this.tree[0]) === 1;
+  }
+  /**
+   * Check if this node is *extra*.
+   *
+   * Extra nodes represent things like comments, which are not required
+   * by the grammar, but can appear anywhere.
+   */
+  get isExtra() {
+    marshalNode(this);
+    return C._ts_node_is_extra_wasm(this.tree[0]) === 1;
+  }
+  /**
+   * Check if this node represents a syntax error.
+   *
+   * Syntax errors represent parts of the code that could not be incorporated
+   * into a valid syntax tree.
+   */
+  get isError() {
+    marshalNode(this);
+    return C._ts_node_is_error_wasm(this.tree[0]) === 1;
+  }
+  /**
+   * Check if this node is *missing*.
+   *
+   * Missing nodes are inserted by the parser in order to recover from
+   * certain kinds of syntax errors.
+   */
+  get isMissing() {
+    marshalNode(this);
+    return C._ts_node_is_missing_wasm(this.tree[0]) === 1;
+  }
+  /** Check if this node has been edited. */
+  get hasChanges() {
+    marshalNode(this);
+    return C._ts_node_has_changes_wasm(this.tree[0]) === 1;
+  }
+  /**
+   * Check if this node represents a syntax error or contains any syntax
+   * errors anywhere within it.
+   */
+  get hasError() {
+    marshalNode(this);
+    return C._ts_node_has_error_wasm(this.tree[0]) === 1;
+  }
+  /** Get the byte index where this node ends. */
+  get endIndex() {
+    marshalNode(this);
+    return C._ts_node_end_index_wasm(this.tree[0]);
+  }
+  /** Get the position where this node ends. */
+  get endPosition() {
+    marshalNode(this);
+    C._ts_node_end_point_wasm(this.tree[0]);
+    return unmarshalPoint(TRANSFER_BUFFER);
+  }
+  /** Get the string content of this node. */
+  get text() {
+    return getText(this.tree, this.startIndex, this.endIndex, this.startPosition);
+  }
+  /** Get this node's parse state. */
+  get parseState() {
+    marshalNode(this);
+    return C._ts_node_parse_state_wasm(this.tree[0]);
+  }
+  /** Get the parse state after this node. */
+  get nextParseState() {
+    marshalNode(this);
+    return C._ts_node_next_parse_state_wasm(this.tree[0]);
+  }
+  /** Check if this node is equal to another node. */
+  equals(other) {
+    return this.tree === other.tree && this.id === other.id;
+  }
+  /**
+   * Get the node's child at the given index, where zero represents the first child.
+   *
+   * This method is fairly fast, but its cost is technically log(n), so if
+   * you might be iterating over a long list of children, you should use
+   * {@link Node#children} instead.
+   */
+  child(index) {
+    marshalNode(this);
+    C._ts_node_child_wasm(this.tree[0], index);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get this node's *named* child at the given index.
+   *
+   * See also {@link Node#isNamed}.
+   * This method is fairly fast, but its cost is technically log(n), so if
+   * you might be iterating over a long list of children, you should use
+   * {@link Node#namedChildren} instead.
+   */
+  namedChild(index) {
+    marshalNode(this);
+    C._ts_node_named_child_wasm(this.tree[0], index);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get this node's child with the given numerical field id.
+   *
+   * See also {@link Node#childForFieldName}. You can
+   * convert a field name to an id using {@link Language#fieldIdForName}.
+   */
+  childForFieldId(fieldId) {
+    marshalNode(this);
+    C._ts_node_child_by_field_id_wasm(this.tree[0], fieldId);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get the first child with the given field name.
+   *
+   * If multiple children may have the same field name, access them using
+   * {@link Node#childrenForFieldName}.
+   */
+  childForFieldName(fieldName) {
+    const fieldId = this.tree.language.fields.indexOf(fieldName);
+    if (fieldId !== -1) return this.childForFieldId(fieldId);
+    return null;
+  }
+  /** Get the field name of this node's child at the given index. */
+  fieldNameForChild(index) {
+    marshalNode(this);
+    const address = C._ts_node_field_name_for_child_wasm(this.tree[0], index);
+    if (!address) return null;
+    return C.AsciiToString(address);
+  }
+  /** Get the field name of this node's named child at the given index. */
+  fieldNameForNamedChild(index) {
+    marshalNode(this);
+    const address = C._ts_node_field_name_for_named_child_wasm(this.tree[0], index);
+    if (!address) return null;
+    return C.AsciiToString(address);
+  }
+  /**
+   * Get an array of this node's children with a given field name.
+   *
+   * See also {@link Node#children}.
+   */
+  childrenForFieldName(fieldName) {
+    const fieldId = this.tree.language.fields.indexOf(fieldName);
+    if (fieldId !== -1 && fieldId !== 0) return this.childrenForFieldId(fieldId);
+    return [];
+  }
+  /**
+    * Get an array of this node's children with a given field id.
+    *
+    * See also {@link Node#childrenForFieldName}.
+    */
+  childrenForFieldId(fieldId) {
+    marshalNode(this);
+    C._ts_node_children_by_field_id_wasm(this.tree[0], fieldId);
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(count);
+    if (count > 0) {
+      let address = buffer;
+      for (let i2 = 0; i2 < count; i2++) {
+        result[i2] = unmarshalNode(this.tree, address);
+        address += SIZE_OF_NODE;
+      }
+      C._free(buffer);
+    }
+    return result;
+  }
+  /** Get the node's first child that contains or starts after the given byte offset. */
+  firstChildForIndex(index) {
+    marshalNode(this);
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    C.setValue(address, index, "i32");
+    C._ts_node_first_child_for_byte_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get the node's first named child that contains or starts after the given byte offset. */
+  firstNamedChildForIndex(index) {
+    marshalNode(this);
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    C.setValue(address, index, "i32");
+    C._ts_node_first_named_child_for_byte_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get this node's number of children. */
+  get childCount() {
+    marshalNode(this);
+    return C._ts_node_child_count_wasm(this.tree[0]);
+  }
+  /**
+   * Get this node's number of *named* children.
+   *
+   * See also {@link Node#isNamed}.
+   */
+  get namedChildCount() {
+    marshalNode(this);
+    return C._ts_node_named_child_count_wasm(this.tree[0]);
+  }
+  /** Get this node's first child. */
+  get firstChild() {
+    return this.child(0);
+  }
+  /**
+   * Get this node's first named child.
+   *
+   * See also {@link Node#isNamed}.
+   */
+  get firstNamedChild() {
+    return this.namedChild(0);
+  }
+  /** Get this node's last child. */
+  get lastChild() {
+    return this.child(this.childCount - 1);
+  }
+  /**
+   * Get this node's last named child.
+   *
+   * See also {@link Node#isNamed}.
+   */
+  get lastNamedChild() {
+    return this.namedChild(this.namedChildCount - 1);
+  }
+  /**
+   * Iterate over this node's children.
+   *
+   * If you're walking the tree recursively, you may want to use the
+   * {@link TreeCursor} APIs directly instead.
+   */
+  get children() {
+    if (!this._children) {
+      marshalNode(this);
+      C._ts_node_children_wasm(this.tree[0]);
+      const count = C.getValue(TRANSFER_BUFFER, "i32");
+      const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+      this._children = new Array(count);
+      if (count > 0) {
+        let address = buffer;
+        for (let i2 = 0; i2 < count; i2++) {
+          this._children[i2] = unmarshalNode(this.tree, address);
+          address += SIZE_OF_NODE;
+        }
+        C._free(buffer);
+      }
+    }
+    return this._children;
+  }
+  /**
+   * Iterate over this node's named children.
+   *
+   * See also {@link Node#children}.
+   */
+  get namedChildren() {
+    if (!this._namedChildren) {
+      marshalNode(this);
+      C._ts_node_named_children_wasm(this.tree[0]);
+      const count = C.getValue(TRANSFER_BUFFER, "i32");
+      const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+      this._namedChildren = new Array(count);
+      if (count > 0) {
+        let address = buffer;
+        for (let i2 = 0; i2 < count; i2++) {
+          this._namedChildren[i2] = unmarshalNode(this.tree, address);
+          address += SIZE_OF_NODE;
+        }
+        C._free(buffer);
+      }
+    }
+    return this._namedChildren;
+  }
+  /**
+   * Get the descendants of this node that are the given type, or in the given types array.
+   *
+   * The types array should contain node type strings, which can be retrieved from {@link Language#types}.
+   *
+   * Additionally, a `startPosition` and `endPosition` can be passed in to restrict the search to a byte range.
+   */
+  descendantsOfType(types, startPosition = ZERO_POINT, endPosition = ZERO_POINT) {
+    if (!Array.isArray(types)) types = [types];
+    const symbols = [];
+    const typesBySymbol = this.tree.language.types;
+    for (let i2 = 0, n = typesBySymbol.length; i2 < n; i2++) {
+      if (types.includes(typesBySymbol[i2])) {
+        symbols.push(i2);
+      }
+    }
+    if (types.includes("ERROR")) {
+      symbols.push(65535);
+    }
+    const symbolsAddress = C._malloc(SIZE_OF_INT * symbols.length);
+    for (let i2 = 0, n = symbols.length; i2 < n; i2++) {
+      C.setValue(symbolsAddress + i2 * SIZE_OF_INT, symbols[i2], "i32");
+    }
+    marshalNode(this);
+    C._ts_node_descendants_of_type_wasm(
+      this.tree[0],
+      symbolsAddress,
+      symbols.length,
+      startPosition.row,
+      startPosition.column,
+      endPosition.row,
+      endPosition.column
+    );
+    const descendantCount = C.getValue(TRANSFER_BUFFER, "i32");
+    const descendantAddress = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(descendantCount);
+    if (descendantCount > 0) {
+      let address = descendantAddress;
+      for (let i2 = 0; i2 < descendantCount; i2++) {
+        result[i2] = unmarshalNode(this.tree, address);
+        address += SIZE_OF_NODE;
+      }
+    }
+    C._free(descendantAddress);
+    C._free(symbolsAddress);
+    return result;
+  }
+  /** Get this node's next sibling. */
+  get nextSibling() {
+    marshalNode(this);
+    C._ts_node_next_sibling_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get this node's previous sibling. */
+  get previousSibling() {
+    marshalNode(this);
+    C._ts_node_prev_sibling_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get this node's next *named* sibling.
+   *
+   * See also {@link Node#isNamed}.
+   */
+  get nextNamedSibling() {
+    marshalNode(this);
+    C._ts_node_next_named_sibling_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get this node's previous *named* sibling.
+   *
+   * See also {@link Node#isNamed}.
+   */
+  get previousNamedSibling() {
+    marshalNode(this);
+    C._ts_node_prev_named_sibling_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get the node's number of descendants, including one for the node itself. */
+  get descendantCount() {
+    marshalNode(this);
+    return C._ts_node_descendant_count_wasm(this.tree[0]);
+  }
+  /**
+   * Get this node's immediate parent.
+   * Prefer {@link Node#childWithDescendant} for iterating over this node's ancestors.
+   */
+  get parent() {
+    marshalNode(this);
+    C._ts_node_parent_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Get the node that contains `descendant`.
+   *
+   * Note that this can return `descendant` itself.
+   */
+  childWithDescendant(descendant) {
+    marshalNode(this);
+    marshalNode(descendant, 1);
+    C._ts_node_child_with_descendant_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get the smallest node within this node that spans the given byte range. */
+  descendantForIndex(start2, end = start2) {
+    if (typeof start2 !== "number" || typeof end !== "number") {
+      throw new Error("Arguments must be numbers");
+    }
+    marshalNode(this);
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    C.setValue(address, start2, "i32");
+    C.setValue(address + SIZE_OF_INT, end, "i32");
+    C._ts_node_descendant_for_index_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get the smallest named node within this node that spans the given byte range. */
+  namedDescendantForIndex(start2, end = start2) {
+    if (typeof start2 !== "number" || typeof end !== "number") {
+      throw new Error("Arguments must be numbers");
+    }
+    marshalNode(this);
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    C.setValue(address, start2, "i32");
+    C.setValue(address + SIZE_OF_INT, end, "i32");
+    C._ts_node_named_descendant_for_index_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get the smallest node within this node that spans the given point range. */
+  descendantForPosition(start2, end = start2) {
+    if (!isPoint(start2) || !isPoint(end)) {
+      throw new Error("Arguments must be {row, column} objects");
+    }
+    marshalNode(this);
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    marshalPoint(address, start2);
+    marshalPoint(address + SIZE_OF_POINT, end);
+    C._ts_node_descendant_for_position_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /** Get the smallest named node within this node that spans the given point range. */
+  namedDescendantForPosition(start2, end = start2) {
+    if (!isPoint(start2) || !isPoint(end)) {
+      throw new Error("Arguments must be {row, column} objects");
+    }
+    marshalNode(this);
+    const address = TRANSFER_BUFFER + SIZE_OF_NODE;
+    marshalPoint(address, start2);
+    marshalPoint(address + SIZE_OF_POINT, end);
+    C._ts_node_named_descendant_for_position_wasm(this.tree[0]);
+    return unmarshalNode(this.tree);
+  }
+  /**
+   * Create a new {@link TreeCursor} starting from this node.
+   *
+   * Note that the given node is considered the root of the cursor,
+   * and the cursor cannot walk outside this node.
+   */
+  walk() {
+    marshalNode(this);
+    C._ts_tree_cursor_new_wasm(this.tree[0]);
+    return new TreeCursor(INTERNAL, this.tree);
+  }
+  /**
+   * Edit this node to keep it in-sync with source code that has been edited.
+   *
+   * This function is only rarely needed. When you edit a syntax tree with
+   * the {@link Tree#edit} method, all of the nodes that you retrieve from
+   * the tree afterward will already reflect the edit. You only need to
+   * use {@link Node#edit} when you have a specific {@link Node} instance that
+   * you want to keep and continue to use after an edit.
+   */
+  edit(edit) {
+    const { point: point2, index } = edit.editPoint(this.startPosition, this.startIndex);
+    this.startPosition = point2;
+    this.startIndex = index;
+  }
+  /** Get the S-expression representation of this node. */
+  toString() {
+    marshalNode(this);
+    const address = C._ts_node_to_string_wasm(this.tree[0]);
+    const result = C.AsciiToString(address);
+    C._free(address);
+    return result;
+  }
+};
+function unmarshalCaptures(query, tree, address, patternIndex, result) {
+  for (let i2 = 0, n = result.length; i2 < n; i2++) {
+    const captureIndex = C.getValue(address, "i32");
+    address += SIZE_OF_INT;
+    const node2 = unmarshalNode(tree, address);
+    address += SIZE_OF_NODE;
+    result[i2] = { patternIndex, name: query.captureNames[captureIndex], node: node2 };
+  }
+  return address;
+}
+__name(unmarshalCaptures, "unmarshalCaptures");
+function marshalNode(node2, index = 0) {
+  let address = TRANSFER_BUFFER + index * SIZE_OF_NODE;
+  C.setValue(address, node2.id, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, node2.startIndex, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, node2.startPosition.row, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, node2.startPosition.column, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, node2[0], "i32");
+}
+__name(marshalNode, "marshalNode");
+function unmarshalNode(tree, address = TRANSFER_BUFFER) {
+  const id = C.getValue(address, "i32");
+  address += SIZE_OF_INT;
+  if (id === 0) return null;
+  const index = C.getValue(address, "i32");
+  address += SIZE_OF_INT;
+  const row = C.getValue(address, "i32");
+  address += SIZE_OF_INT;
+  const column = C.getValue(address, "i32");
+  address += SIZE_OF_INT;
+  const other = C.getValue(address, "i32");
+  const result = new Node(INTERNAL, {
+    id,
+    tree,
+    startIndex: index,
+    startPosition: { row, column },
+    other
+  });
+  return result;
+}
+__name(unmarshalNode, "unmarshalNode");
+function marshalTreeCursor({ handles }, address = TRANSFER_BUFFER) {
+  C.setValue(address + 0 * SIZE_OF_INT, handles[0], "i32");
+  C.setValue(address + 1 * SIZE_OF_INT, handles[1], "i32");
+  C.setValue(address + 2 * SIZE_OF_INT, handles[2], "i32");
+  C.setValue(address + 3 * SIZE_OF_INT, handles[3], "i32");
+}
+__name(marshalTreeCursor, "marshalTreeCursor");
+function unmarshalTreeCursor({ handles }) {
+  handles[0] = C.getValue(TRANSFER_BUFFER + 0 * SIZE_OF_INT, "i32");
+  handles[1] = C.getValue(TRANSFER_BUFFER + 1 * SIZE_OF_INT, "i32");
+  handles[2] = C.getValue(TRANSFER_BUFFER + 2 * SIZE_OF_INT, "i32");
+  handles[3] = C.getValue(TRANSFER_BUFFER + 3 * SIZE_OF_INT, "i32");
+}
+__name(unmarshalTreeCursor, "unmarshalTreeCursor");
+function marshalPoint(address, point2) {
+  C.setValue(address, point2.row, "i32");
+  C.setValue(address + SIZE_OF_INT, point2.column, "i32");
+}
+__name(marshalPoint, "marshalPoint");
+function unmarshalPoint(address) {
+  const result = {
+    row: C.getValue(address, "i32") >>> 0,
+    column: C.getValue(address + SIZE_OF_INT, "i32") >>> 0
+  };
+  return result;
+}
+__name(unmarshalPoint, "unmarshalPoint");
+function marshalRange(address, range) {
+  marshalPoint(address, range.startPosition);
+  address += SIZE_OF_POINT;
+  marshalPoint(address, range.endPosition);
+  address += SIZE_OF_POINT;
+  C.setValue(address, range.startIndex, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, range.endIndex, "i32");
+  address += SIZE_OF_INT;
+}
+__name(marshalRange, "marshalRange");
+function unmarshalRange(address) {
+  const result = {};
+  result.startPosition = unmarshalPoint(address);
+  address += SIZE_OF_POINT;
+  result.endPosition = unmarshalPoint(address);
+  address += SIZE_OF_POINT;
+  result.startIndex = C.getValue(address, "i32") >>> 0;
+  address += SIZE_OF_INT;
+  result.endIndex = C.getValue(address, "i32") >>> 0;
+  return result;
+}
+__name(unmarshalRange, "unmarshalRange");
+function marshalEdit(edit, address = TRANSFER_BUFFER) {
+  marshalPoint(address, edit.startPosition);
+  address += SIZE_OF_POINT;
+  marshalPoint(address, edit.oldEndPosition);
+  address += SIZE_OF_POINT;
+  marshalPoint(address, edit.newEndPosition);
+  address += SIZE_OF_POINT;
+  C.setValue(address, edit.startIndex, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, edit.oldEndIndex, "i32");
+  address += SIZE_OF_INT;
+  C.setValue(address, edit.newEndIndex, "i32");
+  address += SIZE_OF_INT;
+}
+__name(marshalEdit, "marshalEdit");
+function unmarshalLanguageMetadata(address) {
+  const major_version = C.getValue(address, "i32");
+  const minor_version = C.getValue(address += SIZE_OF_INT, "i32");
+  const patch_version = C.getValue(address += SIZE_OF_INT, "i32");
+  return { major_version, minor_version, patch_version };
+}
+__name(unmarshalLanguageMetadata, "unmarshalLanguageMetadata");
+var LANGUAGE_FUNCTION_REGEX = /^tree_sitter_\w+$/;
+var Language = class _Language {
+  static {
+    __name(this, "Language");
+  }
+  /** @internal */
+  [0] = 0;
+  // Internal handle for Wasm
+  /**
+   * A list of all node types in the language. The index of each type in this
+   * array is its node type id.
+   */
+  types;
+  /**
+   * A list of all field names in the language. The index of each field name in
+   * this array is its field id.
+   */
+  fields;
+  /** @internal */
+  constructor(internal, address) {
+    assertInternal(internal);
+    this[0] = address;
+    this.types = new Array(C._ts_language_symbol_count(this[0]));
+    for (let i2 = 0, n = this.types.length; i2 < n; i2++) {
+      if (C._ts_language_symbol_type(this[0], i2) < 2) {
+        this.types[i2] = C.UTF8ToString(C._ts_language_symbol_name(this[0], i2));
+      }
+    }
+    this.fields = new Array(C._ts_language_field_count(this[0]) + 1);
+    for (let i2 = 0, n = this.fields.length; i2 < n; i2++) {
+      const fieldName = C._ts_language_field_name_for_id(this[0], i2);
+      if (fieldName !== 0) {
+        this.fields[i2] = C.UTF8ToString(fieldName);
+      } else {
+        this.fields[i2] = null;
+      }
+    }
+  }
+  /**
+   * Gets the name of the language.
+   */
+  get name() {
+    const ptr = C._ts_language_name(this[0]);
+    if (ptr === 0) return null;
+    return C.UTF8ToString(ptr);
+  }
+  /**
+   * Gets the ABI version of the language.
+   */
+  get abiVersion() {
+    return C._ts_language_abi_version(this[0]);
+  }
+  /**
+  * Get the metadata for this language. This information is generated by the
+  * CLI, and relies on the language author providing the correct metadata in
+  * the language's `tree-sitter.json` file.
+  */
+  get metadata() {
+    C._ts_language_metadata_wasm(this[0]);
+    const length = C.getValue(TRANSFER_BUFFER, "i32");
+    if (length === 0) return null;
+    return unmarshalLanguageMetadata(TRANSFER_BUFFER + SIZE_OF_INT);
+  }
+  /**
+   * Gets the number of fields in the language.
+   */
+  get fieldCount() {
+    return this.fields.length - 1;
+  }
+  /**
+   * Gets the number of states in the language.
+   */
+  get stateCount() {
+    return C._ts_language_state_count(this[0]);
+  }
+  /**
+   * Get the field id for a field name.
+   */
+  fieldIdForName(fieldName) {
+    const result = this.fields.indexOf(fieldName);
+    return result !== -1 ? result : null;
+  }
+  /**
+   * Get the field name for a field id.
+   */
+  fieldNameForId(fieldId) {
+    return this.fields[fieldId] ?? null;
+  }
+  /**
+   * Get the node type id for a node type name.
+   */
+  idForNodeType(type, named) {
+    const typeLength = C.lengthBytesUTF8(type);
+    const typeAddress = C._malloc(typeLength + 1);
+    C.stringToUTF8(type, typeAddress, typeLength + 1);
+    const result = C._ts_language_symbol_for_name(this[0], typeAddress, typeLength, named ? 1 : 0);
+    C._free(typeAddress);
+    return result || null;
+  }
+  /**
+   * Gets the number of node types in the language.
+   */
+  get nodeTypeCount() {
+    return C._ts_language_symbol_count(this[0]);
+  }
+  /**
+   * Get the node type name for a node type id.
+   */
+  nodeTypeForId(typeId) {
+    const name2 = C._ts_language_symbol_name(this[0], typeId);
+    return name2 ? C.UTF8ToString(name2) : null;
+  }
+  /**
+   * Check if a node type is named.
+   *
+   * @see {@link https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes}
+   */
+  nodeTypeIsNamed(typeId) {
+    return C._ts_language_type_is_named_wasm(this[0], typeId) ? true : false;
+  }
+  /**
+   * Check if a node type is visible.
+   */
+  nodeTypeIsVisible(typeId) {
+    return C._ts_language_type_is_visible_wasm(this[0], typeId) ? true : false;
+  }
+  /**
+   * Get the supertypes ids of this language.
+   *
+   * @see {@link https://tree-sitter.github.io/tree-sitter/using-parsers/6-static-node-types.html?highlight=supertype#supertype-nodes}
+   */
+  get supertypes() {
+    C._ts_language_supertypes_wasm(this[0]);
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(count);
+    if (count > 0) {
+      let address = buffer;
+      for (let i2 = 0; i2 < count; i2++) {
+        result[i2] = C.getValue(address, "i16");
+        address += SIZE_OF_SHORT;
+      }
+    }
+    return result;
+  }
+  /**
+   * Get the subtype ids for a given supertype node id.
+   */
+  subtypes(supertype) {
+    C._ts_language_subtypes_wasm(this[0], supertype);
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(count);
+    if (count > 0) {
+      let address = buffer;
+      for (let i2 = 0; i2 < count; i2++) {
+        result[i2] = C.getValue(address, "i16");
+        address += SIZE_OF_SHORT;
+      }
+    }
+    return result;
+  }
+  /**
+   * Get the next state id for a given state id and node type id.
+   */
+  nextState(stateId, typeId) {
+    return C._ts_language_next_state(this[0], stateId, typeId);
+  }
+  /**
+   * Create a new lookahead iterator for this language and parse state.
+   *
+   * This returns `null` if state is invalid for this language.
+   *
+   * Iterating {@link LookaheadIterator} will yield valid symbols in the given
+   * parse state. A newly created iterator is not positioned on a symbol, so
+   * {@link LookaheadIterator#currentType} returns `null` until the first
+   * iteration step.
+   *
+   * Lookahead iterators can be useful for generating suggestions and improving
+   * syntax error diagnostics. To get symbols valid in an `ERROR` node, use the
+   * lookahead iterator on its first leaf node state. For `MISSING` nodes, a
+   * lookahead iterator created on the previous non-extra leaf node may be
+   * appropriate.
+   */
+  lookaheadIterator(stateId) {
+    const address = C._ts_lookahead_iterator_new(this[0], stateId);
+    if (address) return new LookaheadIterator(INTERNAL, address, this);
+    return null;
+  }
+  /**
+   * Load a language from a WebAssembly module.
+   * The module can be provided as a path to a file, a `URL` to a file, or as a
+   * buffer.
+   */
+  static async load(input2) {
+    let binary2;
+    if (input2 instanceof Uint8Array) {
+      binary2 = input2;
+    } else if (globalThis.process?.versions.node) {
+      const fs2 = await import("fs/promises");
+      binary2 = await fs2.readFile(input2);
+    } else {
+      const response = await fetch(input2);
+      if (!response.ok) {
+        const body2 = await response.text();
+        throw new Error(`Language.load failed with status ${response.status}.
+
+${body2}`);
+      }
+      const retryResp = response.clone();
+      try {
+        binary2 = await WebAssembly.compileStreaming(response);
+      } catch (reason) {
+        console.error("wasm streaming compile failed:", reason);
+        console.error("falling back to ArrayBuffer instantiation");
+        binary2 = new Uint8Array(await retryResp.arrayBuffer());
+      }
+    }
+    const mod = await C.loadWebAssemblyModule(binary2, { loadAsync: true });
+    return _Language.loadFromWasmExports(mod, { sync: false });
+  }
+  static loadFromWasmExports(mod, { sync }) {
+    const symbolNames = Object.keys(mod);
+    const functionName = symbolNames.find((key) => LANGUAGE_FUNCTION_REGEX.test(key) && !key.includes("external_scanner_"));
+    if (!functionName) {
+      console.log(`Couldn't find language function in Wasm file. Symbols:
+${JSON.stringify(symbolNames, null, 2)}`);
+      throw new Error(`Language.${sync ? "loadSync" : "load"} failed: no language function found in Wasm file`);
+    }
+    const languageAddress = mod[functionName]();
+    return new _Language(INTERNAL, languageAddress);
+  }
+  /**
+   * Load a language synchronously from a pre-compiled WebAssembly module.
+   * Use this when the host environment provides a `WebAssembly.Module` directly.
+   */
+  static loadSync(wasmModule) {
+    const mod = C.loadWebAssemblyModule(wasmModule, { loadAsync: false });
+    return _Language.loadFromWasmExports(mod, { sync: true });
+  }
+};
+async function Module2(moduleArg = {}) {
+  var moduleRtn;
+  var Module = moduleArg;
+  var ENVIRONMENT_IS_WEB = typeof window == "object";
+  var ENVIRONMENT_IS_WORKER = typeof WorkerGlobalScope != "undefined";
+  var ENVIRONMENT_IS_NODE = typeof process == "object" && process.versions?.node && process.type != "renderer";
+  if (ENVIRONMENT_IS_NODE) {
+    const { createRequire } = await import("module");
+    var require = createRequire(import.meta.url);
+  }
+  Module.currentQueryProgressCallback = null;
+  Module.currentProgressCallback = null;
+  Module.currentLogCallback = null;
+  Module.currentParseCallback = null;
+  var arguments_ = [];
+  var thisProgram = "./this.program";
+  var quit_ = /* @__PURE__ */ __name((status, toThrow) => {
+    throw toThrow;
+  }, "quit_");
+  var _scriptName = import.meta.url;
+  var scriptDirectory = "";
+  function locateFile(path) {
+    if (Module["locateFile"]) {
+      return Module["locateFile"](path, scriptDirectory);
+    }
+    return scriptDirectory + path;
+  }
+  __name(locateFile, "locateFile");
+  var readAsync, readBinary;
+  if (ENVIRONMENT_IS_NODE) {
+    var fs = require("fs");
+    if (_scriptName.startsWith("file:")) {
+      scriptDirectory = require("path").dirname(require("url").fileURLToPath(_scriptName)) + "/";
+    }
+    readBinary = /* @__PURE__ */ __name((filename) => {
+      filename = isFileURI(filename) ? new URL(filename) : filename;
+      var ret = fs.readFileSync(filename);
+      return ret;
+    }, "readBinary");
+    readAsync = /* @__PURE__ */ __name(async (filename, binary2 = true) => {
+      filename = isFileURI(filename) ? new URL(filename) : filename;
+      var ret = fs.readFileSync(filename, binary2 ? void 0 : "utf8");
+      return ret;
+    }, "readAsync");
+    if (process.argv.length > 1) {
+      thisProgram = process.argv[1].replace(/\\/g, "/");
+    }
+    arguments_ = process.argv.slice(2);
+    quit_ = /* @__PURE__ */ __name((status, toThrow) => {
+      process.exitCode = status;
+      throw toThrow;
+    }, "quit_");
+  } else if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
+    try {
+      scriptDirectory = new URL(".", _scriptName).href;
+    } catch {
+    }
+    {
+      if (ENVIRONMENT_IS_WORKER) {
+        readBinary = /* @__PURE__ */ __name((url2) => {
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", url2, false);
+          xhr.responseType = "arraybuffer";
+          xhr.send(null);
+          return new Uint8Array(
+            /** @type{!ArrayBuffer} */
+            xhr.response
+          );
+        }, "readBinary");
+      }
+      readAsync = /* @__PURE__ */ __name(async (url2) => {
+        if (isFileURI(url2)) {
+          return new Promise((resolve3, reject) => {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", url2, true);
+            xhr.responseType = "arraybuffer";
+            xhr.onload = () => {
+              if (xhr.status == 200 || xhr.status == 0 && xhr.response) {
+                resolve3(xhr.response);
+                return;
+              }
+              reject(xhr.status);
+            };
+            xhr.onerror = reject;
+            xhr.send(null);
+          });
+        }
+        var response = await fetch(url2, {
+          credentials: "same-origin"
+        });
+        if (response.ok) {
+          return response.arrayBuffer();
+        }
+        throw new Error(response.status + " : " + response.url);
+      }, "readAsync");
+    }
+  } else {
+  }
+  var out = console.log.bind(console);
+  var err = console.error.bind(console);
+  var dynamicLibraries = [];
+  var wasmBinary;
+  var ABORT = false;
+  var EXITSTATUS;
+  var isFileURI = /* @__PURE__ */ __name((filename) => filename.startsWith("file://"), "isFileURI");
+  var readyPromiseResolve, readyPromiseReject;
+  var wasmMemory;
+  var HEAP8, HEAPU8, HEAP16, HEAPU16, HEAP32, HEAPU32, HEAPF32, HEAPF64;
+  var HEAP64, HEAPU64;
+  var HEAP_DATA_VIEW;
+  var runtimeInitialized = false;
+  function updateMemoryViews() {
+    var b = wasmMemory.buffer;
+    Module["HEAP8"] = HEAP8 = new Int8Array(b);
+    Module["HEAP16"] = HEAP16 = new Int16Array(b);
+    Module["HEAPU8"] = HEAPU8 = new Uint8Array(b);
+    Module["HEAPU16"] = HEAPU16 = new Uint16Array(b);
+    Module["HEAP32"] = HEAP32 = new Int32Array(b);
+    Module["HEAPU32"] = HEAPU32 = new Uint32Array(b);
+    Module["HEAPF32"] = HEAPF32 = new Float32Array(b);
+    Module["HEAPF64"] = HEAPF64 = new Float64Array(b);
+    Module["HEAP64"] = HEAP64 = new BigInt64Array(b);
+    Module["HEAPU64"] = HEAPU64 = new BigUint64Array(b);
+    Module["HEAP_DATA_VIEW"] = HEAP_DATA_VIEW = new DataView(b);
+    LE_HEAP_UPDATE();
+  }
+  __name(updateMemoryViews, "updateMemoryViews");
+  function initMemory() {
+    if (Module["wasmMemory"]) {
+      wasmMemory = Module["wasmMemory"];
+    } else {
+      var INITIAL_MEMORY = Module["INITIAL_MEMORY"] || 33554432;
+      wasmMemory = new WebAssembly.Memory({
+        "initial": INITIAL_MEMORY / 65536,
+        // In theory we should not need to emit the maximum if we want "unlimited"
+        // or 4GB of memory, but VMs error on that atm, see
+        // https://github.com/emscripten-core/emscripten/issues/14130
+        // And in the pthreads case we definitely need to emit a maximum. So
+        // always emit one.
+        "maximum": 32768
+      });
+    }
+    updateMemoryViews();
+  }
+  __name(initMemory, "initMemory");
+  var __RELOC_FUNCS__ = [];
+  function preRun() {
+    if (Module["preRun"]) {
+      if (typeof Module["preRun"] == "function") Module["preRun"] = [Module["preRun"]];
+      while (Module["preRun"].length) {
+        addOnPreRun(Module["preRun"].shift());
+      }
+    }
+    callRuntimeCallbacks(onPreRuns);
+  }
+  __name(preRun, "preRun");
+  function initRuntime() {
+    runtimeInitialized = true;
+    callRuntimeCallbacks(__RELOC_FUNCS__);
+    wasmExports["__wasm_call_ctors"]();
+    callRuntimeCallbacks(onPostCtors);
+  }
+  __name(initRuntime, "initRuntime");
+  function preMain() {
+  }
+  __name(preMain, "preMain");
+  function postRun() {
+    if (Module["postRun"]) {
+      if (typeof Module["postRun"] == "function") Module["postRun"] = [Module["postRun"]];
+      while (Module["postRun"].length) {
+        addOnPostRun(Module["postRun"].shift());
+      }
+    }
+    callRuntimeCallbacks(onPostRuns);
+  }
+  __name(postRun, "postRun");
+  function abort(what) {
+    Module["onAbort"]?.(what);
+    what = "Aborted(" + what + ")";
+    err(what);
+    ABORT = true;
+    what += ". Build with -sASSERTIONS for more info.";
+    var e = new WebAssembly.RuntimeError(what);
+    readyPromiseReject?.(e);
+    throw e;
+  }
+  __name(abort, "abort");
+  var wasmBinaryFile;
+  function findWasmBinary() {
+    if (Module["locateFile"]) {
+      return locateFile("web-tree-sitter.wasm");
+    }
+    return new URL("web-tree-sitter.wasm", import.meta.url).href;
+  }
+  __name(findWasmBinary, "findWasmBinary");
+  function getBinarySync(file2) {
+    if (file2 == wasmBinaryFile && wasmBinary) {
+      return new Uint8Array(wasmBinary);
+    }
+    if (readBinary) {
+      return readBinary(file2);
+    }
+    throw "both async and sync fetching of the wasm failed";
+  }
+  __name(getBinarySync, "getBinarySync");
+  async function getWasmBinary(binaryFile) {
+    if (!wasmBinary) {
+      try {
+        var response = await readAsync(binaryFile);
+        return new Uint8Array(response);
+      } catch {
+      }
+    }
+    return getBinarySync(binaryFile);
+  }
+  __name(getWasmBinary, "getWasmBinary");
+  async function instantiateArrayBuffer(binaryFile, imports) {
+    try {
+      var binary2 = await getWasmBinary(binaryFile);
+      var instance2 = await WebAssembly.instantiate(binary2, imports);
+      return instance2;
+    } catch (reason) {
+      err(`failed to asynchronously prepare wasm: ${reason}`);
+      abort(reason);
+    }
+  }
+  __name(instantiateArrayBuffer, "instantiateArrayBuffer");
+  async function instantiateAsync(binary2, binaryFile, imports) {
+    if (!binary2 && !isFileURI(binaryFile) && !ENVIRONMENT_IS_NODE) {
+      try {
+        var response = fetch(binaryFile, {
+          credentials: "same-origin"
+        });
+        var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
+        return instantiationResult;
+      } catch (reason) {
+        err(`wasm streaming compile failed: ${reason}`);
+        err("falling back to ArrayBuffer instantiation");
+      }
+    }
+    return instantiateArrayBuffer(binaryFile, imports);
+  }
+  __name(instantiateAsync, "instantiateAsync");
+  function getWasmImports() {
+    return {
+      "env": wasmImports,
+      "wasi_snapshot_preview1": wasmImports,
+      "GOT.mem": new Proxy(wasmImports, GOTHandler),
+      "GOT.func": new Proxy(wasmImports, GOTHandler)
+    };
+  }
+  __name(getWasmImports, "getWasmImports");
+  async function createWasm() {
+    function receiveInstance(instance2, module2) {
+      wasmExports = instance2.exports;
+      wasmExports = relocateExports(wasmExports, 1024);
+      var metadata2 = getDylinkMetadata(module2);
+      if (metadata2.neededDynlibs) {
+        dynamicLibraries = metadata2.neededDynlibs.concat(dynamicLibraries);
+      }
+      mergeLibSymbols(wasmExports, "main");
+      LDSO.init();
+      loadDylibs();
+      __RELOC_FUNCS__.push(wasmExports["__wasm_apply_data_relocs"]);
+      assignWasmExports(wasmExports);
+      return wasmExports;
+    }
+    __name(receiveInstance, "receiveInstance");
+    function receiveInstantiationResult(result2) {
+      return receiveInstance(result2["instance"], result2["module"]);
+    }
+    __name(receiveInstantiationResult, "receiveInstantiationResult");
+    var info2 = getWasmImports();
+    if (Module["instantiateWasm"]) {
+      return new Promise((resolve3, reject) => {
+        Module["instantiateWasm"](info2, (mod, inst) => {
+          resolve3(receiveInstance(mod, inst));
+        });
+      });
+    }
+    wasmBinaryFile ??= findWasmBinary();
+    var result = await instantiateAsync(wasmBinary, wasmBinaryFile, info2);
+    var exports = receiveInstantiationResult(result);
+    return exports;
+  }
+  __name(createWasm, "createWasm");
+  class ExitStatus {
+    static {
+      __name(this, "ExitStatus");
+    }
+    name = "ExitStatus";
+    constructor(status) {
+      this.message = `Program terminated with exit(${status})`;
+      this.status = status;
+    }
+  }
+  var GOT = {};
+  var currentModuleWeakSymbols = /* @__PURE__ */ new Set([]);
+  var GOTHandler = {
+    get(obj, symName) {
+      var rtn = GOT[symName];
+      if (!rtn) {
+        rtn = GOT[symName] = new WebAssembly.Global({
+          "value": "i32",
+          "mutable": true
+        });
+      }
+      if (!currentModuleWeakSymbols.has(symName)) {
+        rtn.required = true;
+      }
+      return rtn;
+    }
+  };
+  var LE_ATOMICS_NATIVE_BYTE_ORDER = [];
+  var LE_HEAP_LOAD_F32 = /* @__PURE__ */ __name((byteOffset) => HEAP_DATA_VIEW.getFloat32(byteOffset, true), "LE_HEAP_LOAD_F32");
+  var LE_HEAP_LOAD_F64 = /* @__PURE__ */ __name((byteOffset) => HEAP_DATA_VIEW.getFloat64(byteOffset, true), "LE_HEAP_LOAD_F64");
+  var LE_HEAP_LOAD_I16 = /* @__PURE__ */ __name((byteOffset) => HEAP_DATA_VIEW.getInt16(byteOffset, true), "LE_HEAP_LOAD_I16");
+  var LE_HEAP_LOAD_I32 = /* @__PURE__ */ __name((byteOffset) => HEAP_DATA_VIEW.getInt32(byteOffset, true), "LE_HEAP_LOAD_I32");
+  var LE_HEAP_LOAD_I64 = /* @__PURE__ */ __name((byteOffset) => HEAP_DATA_VIEW.getBigInt64(byteOffset, true), "LE_HEAP_LOAD_I64");
+  var LE_HEAP_LOAD_U32 = /* @__PURE__ */ __name((byteOffset) => HEAP_DATA_VIEW.getUint32(byteOffset, true), "LE_HEAP_LOAD_U32");
+  var LE_HEAP_STORE_F32 = /* @__PURE__ */ __name((byteOffset, value) => HEAP_DATA_VIEW.setFloat32(byteOffset, value, true), "LE_HEAP_STORE_F32");
+  var LE_HEAP_STORE_F64 = /* @__PURE__ */ __name((byteOffset, value) => HEAP_DATA_VIEW.setFloat64(byteOffset, value, true), "LE_HEAP_STORE_F64");
+  var LE_HEAP_STORE_I16 = /* @__PURE__ */ __name((byteOffset, value) => HEAP_DATA_VIEW.setInt16(byteOffset, value, true), "LE_HEAP_STORE_I16");
+  var LE_HEAP_STORE_I32 = /* @__PURE__ */ __name((byteOffset, value) => HEAP_DATA_VIEW.setInt32(byteOffset, value, true), "LE_HEAP_STORE_I32");
+  var LE_HEAP_STORE_I64 = /* @__PURE__ */ __name((byteOffset, value) => HEAP_DATA_VIEW.setBigInt64(byteOffset, value, true), "LE_HEAP_STORE_I64");
+  var LE_HEAP_STORE_U32 = /* @__PURE__ */ __name((byteOffset, value) => HEAP_DATA_VIEW.setUint32(byteOffset, value, true), "LE_HEAP_STORE_U32");
+  var callRuntimeCallbacks = /* @__PURE__ */ __name((callbacks) => {
+    while (callbacks.length > 0) {
+      callbacks.shift()(Module);
+    }
+  }, "callRuntimeCallbacks");
+  var onPostRuns = [];
+  var addOnPostRun = /* @__PURE__ */ __name((cb) => onPostRuns.push(cb), "addOnPostRun");
+  var onPreRuns = [];
+  var addOnPreRun = /* @__PURE__ */ __name((cb) => onPreRuns.push(cb), "addOnPreRun");
+  var UTF8Decoder = typeof TextDecoder != "undefined" ? new TextDecoder() : void 0;
+  var findStringEnd = /* @__PURE__ */ __name((heapOrArray, idx, maxBytesToRead, ignoreNul) => {
+    var maxIdx = idx + maxBytesToRead;
+    if (ignoreNul) return maxIdx;
+    while (heapOrArray[idx] && !(idx >= maxIdx)) ++idx;
+    return idx;
+  }, "findStringEnd");
+  var UTF8ArrayToString = /* @__PURE__ */ __name((heapOrArray, idx = 0, maxBytesToRead, ignoreNul) => {
+    var endPtr = findStringEnd(heapOrArray, idx, maxBytesToRead, ignoreNul);
+    if (endPtr - idx > 16 && heapOrArray.buffer && UTF8Decoder) {
+      return UTF8Decoder.decode(heapOrArray.subarray(idx, endPtr));
+    }
+    var str = "";
+    while (idx < endPtr) {
+      var u0 = heapOrArray[idx++];
+      if (!(u0 & 128)) {
+        str += String.fromCharCode(u0);
+        continue;
+      }
+      var u1 = heapOrArray[idx++] & 63;
+      if ((u0 & 224) == 192) {
+        str += String.fromCharCode((u0 & 31) << 6 | u1);
+        continue;
+      }
+      var u2 = heapOrArray[idx++] & 63;
+      if ((u0 & 240) == 224) {
+        u0 = (u0 & 15) << 12 | u1 << 6 | u2;
+      } else {
+        u0 = (u0 & 7) << 18 | u1 << 12 | u2 << 6 | heapOrArray[idx++] & 63;
+      }
+      if (u0 < 65536) {
+        str += String.fromCharCode(u0);
+      } else {
+        var ch = u0 - 65536;
+        str += String.fromCharCode(55296 | ch >> 10, 56320 | ch & 1023);
+      }
+    }
+    return str;
+  }, "UTF8ArrayToString");
+  var getDylinkMetadata = /* @__PURE__ */ __name((binary2) => {
+    var offset = 0;
+    var end = 0;
+    function getU8() {
+      return binary2[offset++];
+    }
+    __name(getU8, "getU8");
+    function getLEB() {
+      var ret = 0;
+      var mul = 1;
+      while (1) {
+        var byte = binary2[offset++];
+        ret += (byte & 127) * mul;
+        mul *= 128;
+        if (!(byte & 128)) break;
+      }
+      return ret;
+    }
+    __name(getLEB, "getLEB");
+    function getString() {
+      var len = getLEB();
+      offset += len;
+      return UTF8ArrayToString(binary2, offset - len, len);
+    }
+    __name(getString, "getString");
+    function getStringList() {
+      var count2 = getLEB();
+      var rtn = [];
+      while (count2--) rtn.push(getString());
+      return rtn;
+    }
+    __name(getStringList, "getStringList");
+    function failIf(condition, message) {
+      if (condition) throw new Error(message);
+    }
+    __name(failIf, "failIf");
+    if (binary2 instanceof WebAssembly.Module) {
+      var dylinkSection = WebAssembly.Module.customSections(binary2, "dylink.0");
+      failIf(dylinkSection.length === 0, "need dylink section");
+      binary2 = new Uint8Array(dylinkSection[0]);
+      end = binary2.length;
+    } else {
+      var int32View = new Uint32Array(new Uint8Array(binary2.subarray(0, 24)).buffer);
+      var magicNumberFound = int32View[0] == 1836278016 || int32View[0] == 6386541;
+      failIf(!magicNumberFound, "need to see wasm magic number");
+      failIf(binary2[8] !== 0, "need the dylink section to be first");
+      offset = 9;
+      var section_size = getLEB();
+      end = offset + section_size;
+      var name2 = getString();
+      failIf(name2 !== "dylink.0");
+    }
+    var customSection = {
+      neededDynlibs: [],
+      tlsExports: /* @__PURE__ */ new Set(),
+      weakImports: /* @__PURE__ */ new Set(),
+      runtimePaths: []
+    };
+    var WASM_DYLINK_MEM_INFO = 1;
+    var WASM_DYLINK_NEEDED = 2;
+    var WASM_DYLINK_EXPORT_INFO = 3;
+    var WASM_DYLINK_IMPORT_INFO = 4;
+    var WASM_DYLINK_RUNTIME_PATH = 5;
+    var WASM_SYMBOL_TLS = 256;
+    var WASM_SYMBOL_BINDING_MASK = 3;
+    var WASM_SYMBOL_BINDING_WEAK = 1;
+    while (offset < end) {
+      var subsectionType = getU8();
+      var subsectionSize = getLEB();
+      if (subsectionType === WASM_DYLINK_MEM_INFO) {
+        customSection.memorySize = getLEB();
+        customSection.memoryAlign = getLEB();
+        customSection.tableSize = getLEB();
+        customSection.tableAlign = getLEB();
+      } else if (subsectionType === WASM_DYLINK_NEEDED) {
+        customSection.neededDynlibs = getStringList();
+      } else if (subsectionType === WASM_DYLINK_EXPORT_INFO) {
+        var count = getLEB();
+        while (count--) {
+          var symname = getString();
+          var flags2 = getLEB();
+          if (flags2 & WASM_SYMBOL_TLS) {
+            customSection.tlsExports.add(symname);
+          }
+        }
+      } else if (subsectionType === WASM_DYLINK_IMPORT_INFO) {
+        var count = getLEB();
+        while (count--) {
+          var modname = getString();
+          var symname = getString();
+          var flags2 = getLEB();
+          if ((flags2 & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_WEAK) {
+            customSection.weakImports.add(symname);
+          }
+        }
+      } else if (subsectionType === WASM_DYLINK_RUNTIME_PATH) {
+        customSection.runtimePaths = getStringList();
+      } else {
+        offset += subsectionSize;
+      }
+    }
+    return customSection;
+  }, "getDylinkMetadata");
+  function getValue(ptr, type = "i8") {
+    if (type.endsWith("*")) type = "*";
+    switch (type) {
+      case "i1":
+        return HEAP8[ptr];
+      case "i8":
+        return HEAP8[ptr];
+      case "i16":
+        return LE_HEAP_LOAD_I16((ptr >> 1) * 2);
+      case "i32":
+        return LE_HEAP_LOAD_I32((ptr >> 2) * 4);
+      case "i64":
+        return LE_HEAP_LOAD_I64((ptr >> 3) * 8);
+      case "float":
+        return LE_HEAP_LOAD_F32((ptr >> 2) * 4);
+      case "double":
+        return LE_HEAP_LOAD_F64((ptr >> 3) * 8);
+      case "*":
+        return LE_HEAP_LOAD_U32((ptr >> 2) * 4);
+      default:
+        abort(`invalid type for getValue: ${type}`);
+    }
+  }
+  __name(getValue, "getValue");
+  var newDSO = /* @__PURE__ */ __name((name2, handle2, syms) => {
+    var dso = {
+      refcount: Infinity,
+      name: name2,
+      exports: syms,
+      global: true
+    };
+    LDSO.loadedLibsByName[name2] = dso;
+    if (handle2 != void 0) {
+      LDSO.loadedLibsByHandle[handle2] = dso;
+    }
+    return dso;
+  }, "newDSO");
+  var LDSO = {
+    loadedLibsByName: {},
+    loadedLibsByHandle: {},
+    init() {
+      newDSO("__main__", 0, wasmImports);
+    }
+  };
+  var ___heap_base = 82240;
+  var alignMemory = /* @__PURE__ */ __name((size, alignment) => Math.ceil(size / alignment) * alignment, "alignMemory");
+  var getMemory = /* @__PURE__ */ __name((size) => {
+    if (runtimeInitialized) {
+      return _calloc(size, 1);
+    }
+    var ret = ___heap_base;
+    var end = ret + alignMemory(size, 16);
+    ___heap_base = end;
+    GOT["__heap_base"].value = end;
+    return ret;
+  }, "getMemory");
+  var isInternalSym = /* @__PURE__ */ __name((symName) => ["__cpp_exception", "__c_longjmp", "__wasm_apply_data_relocs", "__dso_handle", "__tls_size", "__tls_align", "__set_stack_limits", "_emscripten_tls_init", "__wasm_init_tls", "__wasm_call_ctors", "__start_em_asm", "__stop_em_asm", "__start_em_js", "__stop_em_js"].includes(symName) || symName.startsWith("__em_js__"), "isInternalSym");
+  var uleb128EncodeWithLen = /* @__PURE__ */ __name((arr) => {
+    const n = arr.length;
+    return [n % 128 | 128, n >> 7, ...arr];
+  }, "uleb128EncodeWithLen");
+  var wasmTypeCodes = {
+    "i": 127,
+    // i32
+    "p": 127,
+    // i32
+    "j": 126,
+    // i64
+    "f": 125,
+    // f32
+    "d": 124,
+    // f64
+    "e": 111
+  };
+  var generateTypePack = /* @__PURE__ */ __name((types) => uleb128EncodeWithLen(Array.from(types, (type) => {
+    var code = wasmTypeCodes[type];
+    return code;
+  })), "generateTypePack");
+  var convertJsFunctionToWasm = /* @__PURE__ */ __name((func2, sig) => {
+    var bytes = Uint8Array.of(
+      0,
+      97,
+      115,
+      109,
+      // magic ("\0asm")
+      1,
+      0,
+      0,
+      0,
+      // version: 1
+      1,
+      ...uleb128EncodeWithLen([
+        1,
+        // count: 1
+        96,
+        // param types
+        ...generateTypePack(sig.slice(1)),
+        // return types (for now only supporting [] if `void` and single [T] otherwise)
+        ...generateTypePack(sig[0] === "v" ? "" : sig[0])
+      ]),
+      // The rest of the module is static
+      2,
+      7,
+      // import section
+      // (import "e" "f" (func 0 (type 0)))
+      1,
+      1,
+      101,
+      1,
+      102,
+      0,
+      0,
+      7,
+      5,
+      // export section
+      // (export "f" (func 0 (type 0)))
+      1,
+      1,
+      102,
+      0,
+      0
+    );
+    var module2 = new WebAssembly.Module(bytes);
+    var instance2 = new WebAssembly.Instance(module2, {
+      "e": {
+        "f": func2
+      }
+    });
+    var wrappedFunc = instance2.exports["f"];
+    return wrappedFunc;
+  }, "convertJsFunctionToWasm");
+  var wasmTableMirror = [];
+  var wasmTable = new WebAssembly.Table({
+    "initial": 31,
+    "element": "anyfunc"
+  });
+  var getWasmTableEntry = /* @__PURE__ */ __name((funcPtr) => {
+    var func2 = wasmTableMirror[funcPtr];
+    if (!func2) {
+      wasmTableMirror[funcPtr] = func2 = wasmTable.get(funcPtr);
+    }
+    return func2;
+  }, "getWasmTableEntry");
+  var updateTableMap = /* @__PURE__ */ __name((offset, count) => {
+    if (functionsInTableMap) {
+      for (var i2 = offset; i2 < offset + count; i2++) {
+        var item = getWasmTableEntry(i2);
+        if (item) {
+          functionsInTableMap.set(item, i2);
+        }
+      }
+    }
+  }, "updateTableMap");
+  var functionsInTableMap;
+  var getFunctionAddress = /* @__PURE__ */ __name((func2) => {
+    if (!functionsInTableMap) {
+      functionsInTableMap = /* @__PURE__ */ new WeakMap();
+      updateTableMap(0, wasmTable.length);
+    }
+    return functionsInTableMap.get(func2) || 0;
+  }, "getFunctionAddress");
+  var freeTableIndexes = [];
+  var getEmptyTableSlot = /* @__PURE__ */ __name(() => {
+    if (freeTableIndexes.length) {
+      return freeTableIndexes.pop();
+    }
+    return wasmTable["grow"](1);
+  }, "getEmptyTableSlot");
+  var setWasmTableEntry = /* @__PURE__ */ __name((idx, func2) => {
+    wasmTable.set(idx, func2);
+    wasmTableMirror[idx] = wasmTable.get(idx);
+  }, "setWasmTableEntry");
+  var addFunction = /* @__PURE__ */ __name((func2, sig) => {
+    var rtn = getFunctionAddress(func2);
+    if (rtn) {
+      return rtn;
+    }
+    var ret = getEmptyTableSlot();
+    try {
+      setWasmTableEntry(ret, func2);
+    } catch (err2) {
+      if (!(err2 instanceof TypeError)) {
+        throw err2;
+      }
+      var wrapped = convertJsFunctionToWasm(func2, sig);
+      setWasmTableEntry(ret, wrapped);
+    }
+    functionsInTableMap.set(func2, ret);
+    return ret;
+  }, "addFunction");
+  var updateGOT = /* @__PURE__ */ __name((exports, replace) => {
+    for (var symName in exports) {
+      if (isInternalSym(symName)) {
+        continue;
+      }
+      var value = exports[symName];
+      GOT[symName] ||= new WebAssembly.Global({
+        "value": "i32",
+        "mutable": true
+      });
+      if (replace || GOT[symName].value == 0) {
+        if (typeof value == "function") {
+          GOT[symName].value = addFunction(value);
+        } else if (typeof value == "number") {
+          GOT[symName].value = value;
+        } else {
+          err(`unhandled export type for '${symName}': ${typeof value}`);
+        }
+      }
+    }
+  }, "updateGOT");
+  var relocateExports = /* @__PURE__ */ __name((exports, memoryBase2, replace) => {
+    var relocated = {};
+    for (var e in exports) {
+      var value = exports[e];
+      if (typeof value == "object") {
+        value = value.value;
+      }
+      if (typeof value == "number") {
+        value += memoryBase2;
+      }
+      relocated[e] = value;
+    }
+    updateGOT(relocated, replace);
+    return relocated;
+  }, "relocateExports");
+  var isSymbolDefined = /* @__PURE__ */ __name((symName) => {
+    var existing = wasmImports[symName];
+    if (!existing || existing.stub) {
+      return false;
+    }
+    return true;
+  }, "isSymbolDefined");
+  var dynCall = /* @__PURE__ */ __name((sig, ptr, args2 = [], promising = false) => {
+    var func2 = getWasmTableEntry(ptr);
+    var rtn = func2(...args2);
+    function convert(rtn2) {
+      return rtn2;
+    }
+    __name(convert, "convert");
+    return convert(rtn);
+  }, "dynCall");
+  var stackSave = /* @__PURE__ */ __name(() => _emscripten_stack_get_current(), "stackSave");
+  var stackRestore = /* @__PURE__ */ __name((val) => __emscripten_stack_restore(val), "stackRestore");
+  var createInvokeFunction = /* @__PURE__ */ __name((sig) => (ptr, ...args2) => {
+    var sp = stackSave();
+    try {
+      return dynCall(sig, ptr, args2);
+    } catch (e) {
+      stackRestore(sp);
+      if (e !== e + 0) throw e;
+      _setThrew(1, 0);
+      if (sig[0] == "j") return 0n;
+    }
+  }, "createInvokeFunction");
+  var resolveGlobalSymbol = /* @__PURE__ */ __name((symName, direct = false) => {
+    var sym;
+    if (isSymbolDefined(symName)) {
+      sym = wasmImports[symName];
+    } else if (symName.startsWith("invoke_")) {
+      sym = wasmImports[symName] = createInvokeFunction(symName.split("_")[1]);
+    }
+    return {
+      sym,
+      name: symName
+    };
+  }, "resolveGlobalSymbol");
+  var onPostCtors = [];
+  var addOnPostCtor = /* @__PURE__ */ __name((cb) => onPostCtors.push(cb), "addOnPostCtor");
+  var UTF8ToString = /* @__PURE__ */ __name((ptr, maxBytesToRead, ignoreNul) => ptr ? UTF8ArrayToString(HEAPU8, ptr, maxBytesToRead, ignoreNul) : "", "UTF8ToString");
+  var loadWebAssemblyModule = /* @__PURE__ */ __name((binary, flags, libName, localScope, handle) => {
+    var metadata = getDylinkMetadata(binary);
+    function loadModule() {
+      var memAlign = Math.pow(2, metadata.memoryAlign);
+      var memoryBase = metadata.memorySize ? alignMemory(getMemory(metadata.memorySize + memAlign), memAlign) : 0;
+      var tableBase = metadata.tableSize ? wasmTable.length : 0;
+      if (handle) {
+        HEAP8[handle + 8] = 1;
+        LE_HEAP_STORE_U32((handle + 12 >> 2) * 4, memoryBase);
+        LE_HEAP_STORE_I32((handle + 16 >> 2) * 4, metadata.memorySize);
+        LE_HEAP_STORE_U32((handle + 20 >> 2) * 4, tableBase);
+        LE_HEAP_STORE_I32((handle + 24 >> 2) * 4, metadata.tableSize);
+      }
+      if (metadata.tableSize) {
+        wasmTable.grow(metadata.tableSize);
+      }
+      var moduleExports;
+      function resolveSymbol(sym) {
+        var resolved = resolveGlobalSymbol(sym).sym;
+        if (!resolved && localScope) {
+          resolved = localScope[sym];
+        }
+        if (!resolved) {
+          resolved = moduleExports[sym];
+        }
+        return resolved;
+      }
+      __name(resolveSymbol, "resolveSymbol");
+      var proxyHandler = {
+        get(stubs, prop) {
+          switch (prop) {
+            case "__memory_base":
+              return memoryBase;
+            case "__table_base":
+              return tableBase;
+          }
+          if (prop in wasmImports && !wasmImports[prop].stub) {
+            var res = wasmImports[prop];
+            return res;
+          }
+          if (!(prop in stubs)) {
+            var resolved;
+            stubs[prop] = (...args2) => {
+              resolved ||= resolveSymbol(prop);
+              return resolved(...args2);
+            };
+          }
+          return stubs[prop];
+        }
+      };
+      var proxy = new Proxy({}, proxyHandler);
+      currentModuleWeakSymbols = metadata.weakImports;
+      var info = {
+        "GOT.mem": new Proxy({}, GOTHandler),
+        "GOT.func": new Proxy({}, GOTHandler),
+        "env": proxy,
+        "wasi_snapshot_preview1": proxy
+      };
+      function postInstantiation(module, instance) {
+        updateTableMap(tableBase, metadata.tableSize);
+        moduleExports = relocateExports(instance.exports, memoryBase);
+        if (!flags.allowUndefined) {
+          reportUndefinedSymbols();
+        }
+        function addEmAsm(addr, body) {
+          var args = [];
+          var arity = 0;
+          for (; arity < 16; arity++) {
+            if (body.indexOf("$" + arity) != -1) {
+              args.push("$" + arity);
+            } else {
+              break;
+            }
+          }
+          args = args.join(",");
+          var func = `(${args}) => { ${body} };`;
+          ASM_CONSTS[start] = eval(func);
+        }
+        __name(addEmAsm, "addEmAsm");
+        if ("__start_em_asm" in moduleExports) {
+          var start = moduleExports["__start_em_asm"];
+          var stop = moduleExports["__stop_em_asm"];
+          while (start < stop) {
+            var jsString = UTF8ToString(start);
+            addEmAsm(start, jsString);
+            start = HEAPU8.indexOf(0, start) + 1;
+          }
+        }
+        function addEmJs(name, cSig, body) {
+          var jsArgs = [];
+          cSig = cSig.slice(1, -1);
+          if (cSig != "void") {
+            cSig = cSig.split(",");
+            for (var i in cSig) {
+              var jsArg = cSig[i].split(" ").pop();
+              jsArgs.push(jsArg.replace("*", ""));
+            }
+          }
+          var func = `(${jsArgs}) => ${body};`;
+          moduleExports[name] = eval(func);
+        }
+        __name(addEmJs, "addEmJs");
+        for (var name in moduleExports) {
+          if (name.startsWith("__em_js__")) {
+            var start = moduleExports[name];
+            var jsString = UTF8ToString(start);
+            var parts = jsString.split("<::>");
+            addEmJs(name.replace("__em_js__", ""), parts[0], parts[1]);
+            delete moduleExports[name];
+          }
+        }
+        var applyRelocs = moduleExports["__wasm_apply_data_relocs"];
+        if (applyRelocs) {
+          if (runtimeInitialized) {
+            applyRelocs();
+          } else {
+            __RELOC_FUNCS__.push(applyRelocs);
+          }
+        }
+        var init = moduleExports["__wasm_call_ctors"];
+        if (init) {
+          if (runtimeInitialized) {
+            init();
+          } else {
+            addOnPostCtor(init);
+          }
+        }
+        return moduleExports;
+      }
+      __name(postInstantiation, "postInstantiation");
+      if (flags.loadAsync) {
+        return (async () => {
+          var instance2;
+          if (binary instanceof WebAssembly.Module) {
+            instance2 = new WebAssembly.Instance(binary, info);
+          } else {
+            ({ module: binary, instance: instance2 } = await WebAssembly.instantiate(binary, info));
+          }
+          return postInstantiation(binary, instance2);
+        })();
+      }
+      var module = binary instanceof WebAssembly.Module ? binary : new WebAssembly.Module(binary);
+      var instance = new WebAssembly.Instance(module, info);
+      return postInstantiation(module, instance);
+    }
+    __name(loadModule, "loadModule");
+    flags = {
+      ...flags,
+      rpath: {
+        parentLibPath: libName,
+        paths: metadata.runtimePaths
+      }
+    };
+    if (flags.loadAsync) {
+      return metadata.neededDynlibs.reduce((chain, dynNeeded) => chain.then(() => loadDynamicLibrary(dynNeeded, flags, localScope)), Promise.resolve()).then(loadModule);
+    }
+    metadata.neededDynlibs.forEach((needed) => loadDynamicLibrary(needed, flags, localScope));
+    return loadModule();
+  }, "loadWebAssemblyModule");
+  var mergeLibSymbols = /* @__PURE__ */ __name((exports, libName2) => {
+    for (var [sym, exp] of Object.entries(exports)) {
+      const setImport = /* @__PURE__ */ __name((target) => {
+        if (!isSymbolDefined(target)) {
+          wasmImports[target] = exp;
+        }
+      }, "setImport");
+      setImport(sym);
+      const main_alias = "__main_argc_argv";
+      if (sym == "main") {
+        setImport(main_alias);
+      }
+      if (sym == main_alias) {
+        setImport("main");
+      }
+    }
+  }, "mergeLibSymbols");
+  var asyncLoad = /* @__PURE__ */ __name(async (url2) => {
+    var arrayBuffer = await readAsync(url2);
+    return new Uint8Array(arrayBuffer);
+  }, "asyncLoad");
+  function loadDynamicLibrary(libName2, flags2 = {
+    global: true,
+    nodelete: true
+  }, localScope2, handle2) {
+    var dso = LDSO.loadedLibsByName[libName2];
+    if (dso) {
+      if (!flags2.global) {
+        if (localScope2) {
+          Object.assign(localScope2, dso.exports);
+        }
+      } else if (!dso.global) {
+        dso.global = true;
+        mergeLibSymbols(dso.exports, libName2);
+      }
+      if (flags2.nodelete && dso.refcount !== Infinity) {
+        dso.refcount = Infinity;
+      }
+      dso.refcount++;
+      if (handle2) {
+        LDSO.loadedLibsByHandle[handle2] = dso;
+      }
+      return flags2.loadAsync ? Promise.resolve(true) : true;
+    }
+    dso = newDSO(libName2, handle2, "loading");
+    dso.refcount = flags2.nodelete ? Infinity : 1;
+    dso.global = flags2.global;
+    function loadLibData() {
+      if (handle2) {
+        var data = LE_HEAP_LOAD_U32((handle2 + 28 >> 2) * 4);
+        var dataSize = LE_HEAP_LOAD_U32((handle2 + 32 >> 2) * 4);
+        if (data && dataSize) {
+          var libData = HEAP8.slice(data, data + dataSize);
+          return flags2.loadAsync ? Promise.resolve(libData) : libData;
+        }
+      }
+      var libFile = locateFile(libName2);
+      if (flags2.loadAsync) {
+        return asyncLoad(libFile);
+      }
+      if (!readBinary) {
+        throw new Error(`${libFile}: file not found, and synchronous loading of external files is not available`);
+      }
+      return readBinary(libFile);
+    }
+    __name(loadLibData, "loadLibData");
+    function getExports() {
+      if (flags2.loadAsync) {
+        return loadLibData().then((libData) => loadWebAssemblyModule(libData, flags2, libName2, localScope2, handle2));
+      }
+      return loadWebAssemblyModule(loadLibData(), flags2, libName2, localScope2, handle2);
+    }
+    __name(getExports, "getExports");
+    function moduleLoaded(exports) {
+      if (dso.global) {
+        mergeLibSymbols(exports, libName2);
+      } else if (localScope2) {
+        Object.assign(localScope2, exports);
+      }
+      dso.exports = exports;
+    }
+    __name(moduleLoaded, "moduleLoaded");
+    if (flags2.loadAsync) {
+      return getExports().then((exports) => {
+        moduleLoaded(exports);
+        return true;
+      });
+    }
+    moduleLoaded(getExports());
+    return true;
+  }
+  __name(loadDynamicLibrary, "loadDynamicLibrary");
+  var reportUndefinedSymbols = /* @__PURE__ */ __name(() => {
+    for (var [symName, entry] of Object.entries(GOT)) {
+      if (entry.value == 0) {
+        var value = resolveGlobalSymbol(symName, true).sym;
+        if (!value && !entry.required) {
+          continue;
+        }
+        if (typeof value == "function") {
+          entry.value = addFunction(value, value.sig);
+        } else if (typeof value == "number") {
+          entry.value = value;
+        } else {
+          throw new Error(`bad export type for '${symName}': ${typeof value}`);
+        }
+      }
+    }
+  }, "reportUndefinedSymbols");
+  var runDependencies = 0;
+  var dependenciesFulfilled = null;
+  var removeRunDependency = /* @__PURE__ */ __name((id) => {
+    runDependencies--;
+    Module["monitorRunDependencies"]?.(runDependencies);
+    if (runDependencies == 0) {
+      if (dependenciesFulfilled) {
+        var callback = dependenciesFulfilled;
+        dependenciesFulfilled = null;
+        callback();
+      }
+    }
+  }, "removeRunDependency");
+  var addRunDependency = /* @__PURE__ */ __name((id) => {
+    runDependencies++;
+    Module["monitorRunDependencies"]?.(runDependencies);
+  }, "addRunDependency");
+  var loadDylibs = /* @__PURE__ */ __name(async () => {
+    if (!dynamicLibraries.length) {
+      reportUndefinedSymbols();
+      return;
+    }
+    addRunDependency("loadDylibs");
+    for (var lib of dynamicLibraries) {
+      await loadDynamicLibrary(lib, {
+        loadAsync: true,
+        global: true,
+        nodelete: true,
+        allowUndefined: true
+      });
+    }
+    reportUndefinedSymbols();
+    removeRunDependency("loadDylibs");
+  }, "loadDylibs");
+  var noExitRuntime = true;
+  function setValue(ptr, value, type = "i8") {
+    if (type.endsWith("*")) type = "*";
+    switch (type) {
+      case "i1":
+        HEAP8[ptr] = value;
+        break;
+      case "i8":
+        HEAP8[ptr] = value;
+        break;
+      case "i16":
+        LE_HEAP_STORE_I16((ptr >> 1) * 2, value);
+        break;
+      case "i32":
+        LE_HEAP_STORE_I32((ptr >> 2) * 4, value);
+        break;
+      case "i64":
+        LE_HEAP_STORE_I64((ptr >> 3) * 8, BigInt(value));
+        break;
+      case "float":
+        LE_HEAP_STORE_F32((ptr >> 2) * 4, value);
+        break;
+      case "double":
+        LE_HEAP_STORE_F64((ptr >> 3) * 8, value);
+        break;
+      case "*":
+        LE_HEAP_STORE_U32((ptr >> 2) * 4, value);
+        break;
+      default:
+        abort(`invalid type for setValue: ${type}`);
+    }
+  }
+  __name(setValue, "setValue");
+  var ___memory_base = new WebAssembly.Global({
+    "value": "i32",
+    "mutable": false
+  }, 1024);
+  var ___stack_high = 82240;
+  var ___stack_low = 16704;
+  var ___stack_pointer = new WebAssembly.Global({
+    "value": "i32",
+    "mutable": true
+  }, 82240);
+  var ___table_base = new WebAssembly.Global({
+    "value": "i32",
+    "mutable": false
+  }, 1);
+  var __abort_js = /* @__PURE__ */ __name(() => abort(""), "__abort_js");
+  __abort_js.sig = "v";
+  var getHeapMax = /* @__PURE__ */ __name(() => (
+    // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
+    // full 4GB Wasm memories, the size will wrap back to 0 bytes in Wasm side
+    // for any code that deals with heap sizes, which would require special
+    // casing all heap size related code to treat 0 specially.
+    2147483648
+  ), "getHeapMax");
+  var growMemory = /* @__PURE__ */ __name((size) => {
+    var oldHeapSize = wasmMemory.buffer.byteLength;
+    var pages = (size - oldHeapSize + 65535) / 65536 | 0;
+    try {
+      wasmMemory.grow(pages);
+      updateMemoryViews();
+      return 1;
+    } catch (e) {
+    }
+  }, "growMemory");
+  var _emscripten_resize_heap = /* @__PURE__ */ __name((requestedSize) => {
+    var oldSize = HEAPU8.length;
+    requestedSize >>>= 0;
+    var maxHeapSize = getHeapMax();
+    if (requestedSize > maxHeapSize) {
+      return false;
+    }
+    for (var cutDown = 1; cutDown <= 4; cutDown *= 2) {
+      var overGrownHeapSize = oldSize * (1 + 0.2 / cutDown);
+      overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296);
+      var newSize = Math.min(maxHeapSize, alignMemory(Math.max(requestedSize, overGrownHeapSize), 65536));
+      var replacement = growMemory(newSize);
+      if (replacement) {
+        return true;
+      }
+    }
+    return false;
+  }, "_emscripten_resize_heap");
+  _emscripten_resize_heap.sig = "ip";
+  var _fd_close = /* @__PURE__ */ __name((fd) => 52, "_fd_close");
+  _fd_close.sig = "ii";
+  var INT53_MAX = 9007199254740992;
+  var INT53_MIN = -9007199254740992;
+  var bigintToI53Checked = /* @__PURE__ */ __name((num) => num < INT53_MIN || num > INT53_MAX ? NaN : Number(num), "bigintToI53Checked");
+  function _fd_seek(fd, offset, whence, newOffset) {
+    offset = bigintToI53Checked(offset);
+    return 70;
+  }
+  __name(_fd_seek, "_fd_seek");
+  _fd_seek.sig = "iijip";
+  var printCharBuffers = [null, [], []];
+  var printChar = /* @__PURE__ */ __name((stream, curr) => {
+    var buffer = printCharBuffers[stream];
+    if (curr === 0 || curr === 10) {
+      (stream === 1 ? out : err)(UTF8ArrayToString(buffer));
+      buffer.length = 0;
+    } else {
+      buffer.push(curr);
+    }
+  }, "printChar");
+  var _fd_write = /* @__PURE__ */ __name((fd, iov, iovcnt, pnum) => {
+    var num = 0;
+    for (var i2 = 0; i2 < iovcnt; i2++) {
+      var ptr = LE_HEAP_LOAD_U32((iov >> 2) * 4);
+      var len = LE_HEAP_LOAD_U32((iov + 4 >> 2) * 4);
+      iov += 8;
+      for (var j = 0; j < len; j++) {
+        printChar(fd, HEAPU8[ptr + j]);
+      }
+      num += len;
+    }
+    LE_HEAP_STORE_U32((pnum >> 2) * 4, num);
+    return 0;
+  }, "_fd_write");
+  _fd_write.sig = "iippp";
+  function _tree_sitter_log_callback(isLexMessage, messageAddress) {
+    if (Module.currentLogCallback) {
+      const message = UTF8ToString(messageAddress);
+      Module.currentLogCallback(message, isLexMessage !== 0);
+    }
+  }
+  __name(_tree_sitter_log_callback, "_tree_sitter_log_callback");
+  function _tree_sitter_parse_callback(inputBufferAddress, index, row, column, lengthAddress) {
+    const INPUT_BUFFER_SIZE = 10 * 1024;
+    const string4 = Module.currentParseCallback(index, {
+      row,
+      column
+    });
+    if (typeof string4 === "string") {
+      setValue(lengthAddress, string4.length, "i32");
+      stringToUTF16(string4, inputBufferAddress, INPUT_BUFFER_SIZE);
+    } else {
+      setValue(lengthAddress, 0, "i32");
+    }
+  }
+  __name(_tree_sitter_parse_callback, "_tree_sitter_parse_callback");
+  function _tree_sitter_progress_callback(currentOffset, hasError) {
+    if (Module.currentProgressCallback) {
+      return Module.currentProgressCallback({
+        currentOffset,
+        hasError
+      });
+    }
+    return false;
+  }
+  __name(_tree_sitter_progress_callback, "_tree_sitter_progress_callback");
+  function _tree_sitter_query_progress_callback(currentOffset) {
+    if (Module.currentQueryProgressCallback) {
+      return Module.currentQueryProgressCallback({
+        currentOffset
+      });
+    }
+    return false;
+  }
+  __name(_tree_sitter_query_progress_callback, "_tree_sitter_query_progress_callback");
+  var runtimeKeepaliveCounter = 0;
+  var keepRuntimeAlive = /* @__PURE__ */ __name(() => noExitRuntime || runtimeKeepaliveCounter > 0, "keepRuntimeAlive");
+  var _proc_exit = /* @__PURE__ */ __name((code) => {
+    EXITSTATUS = code;
+    if (!keepRuntimeAlive()) {
+      Module["onExit"]?.(code);
+      ABORT = true;
+    }
+    quit_(code, new ExitStatus(code));
+  }, "_proc_exit");
+  _proc_exit.sig = "vi";
+  var exitJS = /* @__PURE__ */ __name((status, implicit) => {
+    EXITSTATUS = status;
+    _proc_exit(status);
+  }, "exitJS");
+  var handleException = /* @__PURE__ */ __name((e) => {
+    if (e instanceof ExitStatus || e == "unwind") {
+      return EXITSTATUS;
+    }
+    quit_(1, e);
+  }, "handleException");
+  var lengthBytesUTF8 = /* @__PURE__ */ __name((str) => {
+    var len = 0;
+    for (var i2 = 0; i2 < str.length; ++i2) {
+      var c = str.charCodeAt(i2);
+      if (c <= 127) {
+        len++;
+      } else if (c <= 2047) {
+        len += 2;
+      } else if (c >= 55296 && c <= 57343) {
+        len += 4;
+        ++i2;
+      } else {
+        len += 3;
+      }
+    }
+    return len;
+  }, "lengthBytesUTF8");
+  var stringToUTF8Array = /* @__PURE__ */ __name((str, heap, outIdx, maxBytesToWrite) => {
+    if (!(maxBytesToWrite > 0)) return 0;
+    var startIdx = outIdx;
+    var endIdx = outIdx + maxBytesToWrite - 1;
+    for (var i2 = 0; i2 < str.length; ++i2) {
+      var u = str.codePointAt(i2);
+      if (u <= 127) {
+        if (outIdx >= endIdx) break;
+        heap[outIdx++] = u;
+      } else if (u <= 2047) {
+        if (outIdx + 1 >= endIdx) break;
+        heap[outIdx++] = 192 | u >> 6;
+        heap[outIdx++] = 128 | u & 63;
+      } else if (u <= 65535) {
+        if (outIdx + 2 >= endIdx) break;
+        heap[outIdx++] = 224 | u >> 12;
+        heap[outIdx++] = 128 | u >> 6 & 63;
+        heap[outIdx++] = 128 | u & 63;
+      } else {
+        if (outIdx + 3 >= endIdx) break;
+        heap[outIdx++] = 240 | u >> 18;
+        heap[outIdx++] = 128 | u >> 12 & 63;
+        heap[outIdx++] = 128 | u >> 6 & 63;
+        heap[outIdx++] = 128 | u & 63;
+        i2++;
+      }
+    }
+    heap[outIdx] = 0;
+    return outIdx - startIdx;
+  }, "stringToUTF8Array");
+  var stringToUTF8 = /* @__PURE__ */ __name((str, outPtr, maxBytesToWrite) => stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite), "stringToUTF8");
+  var stackAlloc = /* @__PURE__ */ __name((sz) => __emscripten_stack_alloc(sz), "stackAlloc");
+  var stringToUTF8OnStack = /* @__PURE__ */ __name((str) => {
+    var size = lengthBytesUTF8(str) + 1;
+    var ret = stackAlloc(size);
+    stringToUTF8(str, ret, size);
+    return ret;
+  }, "stringToUTF8OnStack");
+  var AsciiToString = /* @__PURE__ */ __name((ptr) => {
+    var str = "";
+    while (1) {
+      var ch = HEAPU8[ptr++];
+      if (!ch) return str;
+      str += String.fromCharCode(ch);
+    }
+  }, "AsciiToString");
+  var stringToUTF16 = /* @__PURE__ */ __name((str, outPtr, maxBytesToWrite) => {
+    maxBytesToWrite ??= 2147483647;
+    if (maxBytesToWrite < 2) return 0;
+    maxBytesToWrite -= 2;
+    var startPtr = outPtr;
+    var numCharsToWrite = maxBytesToWrite < str.length * 2 ? maxBytesToWrite / 2 : str.length;
+    for (var i2 = 0; i2 < numCharsToWrite; ++i2) {
+      var codeUnit = str.charCodeAt(i2);
+      LE_HEAP_STORE_I16((outPtr >> 1) * 2, codeUnit);
+      outPtr += 2;
+    }
+    LE_HEAP_STORE_I16((outPtr >> 1) * 2, 0);
+    return outPtr - startPtr;
+  }, "stringToUTF16");
+  LE_ATOMICS_NATIVE_BYTE_ORDER = new Int8Array(new Int16Array([1]).buffer)[0] === 1 ? [
+    /* little endian */
+    ((x) => x),
+    ((x) => x),
+    void 0,
+    ((x) => x)
+  ] : [
+    /* big endian */
+    ((x) => x),
+    ((x) => ((x & 65280) << 8 | (x & 255) << 24) >> 16),
+    void 0,
+    ((x) => x >> 24 & 255 | x >> 8 & 65280 | (x & 65280) << 8 | (x & 255) << 24)
+  ];
+  function LE_HEAP_UPDATE() {
+    HEAPU16.unsigned = ((x) => x & 65535);
+    HEAPU32.unsigned = ((x) => x >>> 0);
+  }
+  __name(LE_HEAP_UPDATE, "LE_HEAP_UPDATE");
+  {
+    initMemory();
+    if (Module["noExitRuntime"]) noExitRuntime = Module["noExitRuntime"];
+    if (Module["print"]) out = Module["print"];
+    if (Module["printErr"]) err = Module["printErr"];
+    if (Module["dynamicLibraries"]) dynamicLibraries = Module["dynamicLibraries"];
+    if (Module["wasmBinary"]) wasmBinary = Module["wasmBinary"];
+    if (Module["arguments"]) arguments_ = Module["arguments"];
+    if (Module["thisProgram"]) thisProgram = Module["thisProgram"];
+    if (Module["preInit"]) {
+      if (typeof Module["preInit"] == "function") Module["preInit"] = [Module["preInit"]];
+      while (Module["preInit"].length > 0) {
+        Module["preInit"].shift()();
+      }
+    }
+  }
+  Module["setValue"] = setValue;
+  Module["getValue"] = getValue;
+  Module["UTF8ToString"] = UTF8ToString;
+  Module["stringToUTF8"] = stringToUTF8;
+  Module["lengthBytesUTF8"] = lengthBytesUTF8;
+  Module["AsciiToString"] = AsciiToString;
+  Module["stringToUTF16"] = stringToUTF16;
+  Module["loadWebAssemblyModule"] = loadWebAssemblyModule;
+  Module["LE_HEAP_STORE_I64"] = LE_HEAP_STORE_I64;
+  var ASM_CONSTS = {};
+  var _malloc, _calloc, _realloc, _free, _ts_range_edit, _memcmp, _ts_language_symbol_count, _ts_language_state_count, _ts_language_abi_version, _ts_language_name, _ts_language_field_count, _ts_language_next_state, _ts_language_symbol_name, _ts_language_symbol_for_name, _strncmp, _strlen, _ts_language_symbol_type, _ts_language_field_name_for_id, _ts_lookahead_iterator_new, _ts_lookahead_iterator_delete, _ts_lookahead_iterator_reset_state, _ts_lookahead_iterator_reset, _ts_lookahead_iterator_next, _ts_lookahead_iterator_current_symbol, _ts_point_edit, _ts_parser_delete, _ts_parser_reset, _ts_parser_set_language, _ts_parser_set_included_ranges, _ts_query_new, _ts_query_delete, _iswspace, _iswalnum, _ts_query_copy, _ts_query_pattern_count, _ts_query_capture_count, _ts_query_string_count, _ts_query_capture_name_for_id, _ts_query_capture_quantifier_for_id, _ts_query_string_value_for_id, _ts_query_predicates_for_pattern, _ts_query_start_byte_for_pattern, _ts_query_end_byte_for_pattern, _ts_query_is_pattern_rooted, _ts_query_is_pattern_non_local, _ts_query_is_pattern_guaranteed_at_step, _ts_query_disable_capture, _ts_query_disable_pattern, _ts_tree_copy, _ts_tree_delete, _ts_init, _ts_parser_new_wasm, _ts_parser_enable_logger_wasm, _ts_parser_parse_wasm, _ts_parser_included_ranges_wasm, _ts_language_type_is_named_wasm, _ts_language_type_is_visible_wasm, _ts_language_metadata_wasm, _ts_language_supertypes_wasm, _ts_language_subtypes_wasm, _ts_tree_root_node_wasm, _ts_tree_root_node_with_offset_wasm, _ts_tree_edit_wasm, _ts_tree_included_ranges_wasm, _ts_tree_get_changed_ranges_wasm, _ts_tree_cursor_new_wasm, _ts_tree_cursor_copy_wasm, _ts_tree_cursor_delete_wasm, _ts_tree_cursor_reset_wasm, _ts_tree_cursor_reset_to_wasm, _ts_tree_cursor_goto_first_child_wasm, _ts_tree_cursor_goto_last_child_wasm, _ts_tree_cursor_goto_first_child_for_index_wasm, _ts_tree_cursor_goto_first_child_for_position_wasm, _ts_tree_cursor_goto_next_sibling_wasm, _ts_tree_cursor_goto_previous_sibling_wasm, _ts_tree_cursor_goto_descendant_wasm, _ts_tree_cursor_goto_parent_wasm, _ts_tree_cursor_current_node_type_id_wasm, _ts_tree_cursor_current_node_state_id_wasm, _ts_tree_cursor_current_node_is_named_wasm, _ts_tree_cursor_current_node_is_missing_wasm, _ts_tree_cursor_current_node_id_wasm, _ts_tree_cursor_start_position_wasm, _ts_tree_cursor_end_position_wasm, _ts_tree_cursor_start_index_wasm, _ts_tree_cursor_end_index_wasm, _ts_tree_cursor_current_field_id_wasm, _ts_tree_cursor_current_depth_wasm, _ts_tree_cursor_current_descendant_index_wasm, _ts_tree_cursor_current_node_wasm, _ts_node_symbol_wasm, _ts_node_field_name_for_child_wasm, _ts_node_field_name_for_named_child_wasm, _ts_node_children_by_field_id_wasm, _ts_node_first_child_for_byte_wasm, _ts_node_first_named_child_for_byte_wasm, _ts_node_grammar_symbol_wasm, _ts_node_child_count_wasm, _ts_node_named_child_count_wasm, _ts_node_child_wasm, _ts_node_named_child_wasm, _ts_node_child_by_field_id_wasm, _ts_node_next_sibling_wasm, _ts_node_prev_sibling_wasm, _ts_node_next_named_sibling_wasm, _ts_node_prev_named_sibling_wasm, _ts_node_descendant_count_wasm, _ts_node_parent_wasm, _ts_node_child_with_descendant_wasm, _ts_node_descendant_for_index_wasm, _ts_node_named_descendant_for_index_wasm, _ts_node_descendant_for_position_wasm, _ts_node_named_descendant_for_position_wasm, _ts_node_start_point_wasm, _ts_node_end_point_wasm, _ts_node_start_index_wasm, _ts_node_end_index_wasm, _ts_node_to_string_wasm, _ts_node_children_wasm, _ts_node_named_children_wasm, _ts_node_descendants_of_type_wasm, _ts_node_is_named_wasm, _ts_node_has_changes_wasm, _ts_node_has_error_wasm, _ts_node_is_error_wasm, _ts_node_is_missing_wasm, _ts_node_is_extra_wasm, _ts_node_parse_state_wasm, _ts_node_next_parse_state_wasm, _ts_query_matches_wasm, _ts_query_captures_wasm, _memset, _memcpy, _memmove, _iswalpha, _iswblank, _iswdigit, _iswlower, _iswpunct, _iswupper, _iswxdigit, _memchr, _strcmp, _strncat, _strncpy, _towlower, _towupper, _setThrew, __emscripten_stack_restore, __emscripten_stack_alloc, _emscripten_stack_get_current, ___wasm_apply_data_relocs;
+  function assignWasmExports(wasmExports2) {
+    Module["_malloc"] = _malloc = wasmExports2["malloc"];
+    Module["_calloc"] = _calloc = wasmExports2["calloc"];
+    Module["_realloc"] = _realloc = wasmExports2["realloc"];
+    Module["_free"] = _free = wasmExports2["free"];
+    Module["_ts_range_edit"] = _ts_range_edit = wasmExports2["ts_range_edit"];
+    Module["_memcmp"] = _memcmp = wasmExports2["memcmp"];
+    Module["_ts_language_symbol_count"] = _ts_language_symbol_count = wasmExports2["ts_language_symbol_count"];
+    Module["_ts_language_state_count"] = _ts_language_state_count = wasmExports2["ts_language_state_count"];
+    Module["_ts_language_abi_version"] = _ts_language_abi_version = wasmExports2["ts_language_abi_version"];
+    Module["_ts_language_name"] = _ts_language_name = wasmExports2["ts_language_name"];
+    Module["_ts_language_field_count"] = _ts_language_field_count = wasmExports2["ts_language_field_count"];
+    Module["_ts_language_next_state"] = _ts_language_next_state = wasmExports2["ts_language_next_state"];
+    Module["_ts_language_symbol_name"] = _ts_language_symbol_name = wasmExports2["ts_language_symbol_name"];
+    Module["_ts_language_symbol_for_name"] = _ts_language_symbol_for_name = wasmExports2["ts_language_symbol_for_name"];
+    Module["_strncmp"] = _strncmp = wasmExports2["strncmp"];
+    Module["_strlen"] = _strlen = wasmExports2["strlen"];
+    Module["_ts_language_symbol_type"] = _ts_language_symbol_type = wasmExports2["ts_language_symbol_type"];
+    Module["_ts_language_field_name_for_id"] = _ts_language_field_name_for_id = wasmExports2["ts_language_field_name_for_id"];
+    Module["_ts_lookahead_iterator_new"] = _ts_lookahead_iterator_new = wasmExports2["ts_lookahead_iterator_new"];
+    Module["_ts_lookahead_iterator_delete"] = _ts_lookahead_iterator_delete = wasmExports2["ts_lookahead_iterator_delete"];
+    Module["_ts_lookahead_iterator_reset_state"] = _ts_lookahead_iterator_reset_state = wasmExports2["ts_lookahead_iterator_reset_state"];
+    Module["_ts_lookahead_iterator_reset"] = _ts_lookahead_iterator_reset = wasmExports2["ts_lookahead_iterator_reset"];
+    Module["_ts_lookahead_iterator_next"] = _ts_lookahead_iterator_next = wasmExports2["ts_lookahead_iterator_next"];
+    Module["_ts_lookahead_iterator_current_symbol"] = _ts_lookahead_iterator_current_symbol = wasmExports2["ts_lookahead_iterator_current_symbol"];
+    Module["_ts_point_edit"] = _ts_point_edit = wasmExports2["ts_point_edit"];
+    Module["_ts_parser_delete"] = _ts_parser_delete = wasmExports2["ts_parser_delete"];
+    Module["_ts_parser_reset"] = _ts_parser_reset = wasmExports2["ts_parser_reset"];
+    Module["_ts_parser_set_language"] = _ts_parser_set_language = wasmExports2["ts_parser_set_language"];
+    Module["_ts_parser_set_included_ranges"] = _ts_parser_set_included_ranges = wasmExports2["ts_parser_set_included_ranges"];
+    Module["_ts_query_new"] = _ts_query_new = wasmExports2["ts_query_new"];
+    Module["_ts_query_delete"] = _ts_query_delete = wasmExports2["ts_query_delete"];
+    Module["_iswspace"] = _iswspace = wasmExports2["iswspace"];
+    Module["_iswalnum"] = _iswalnum = wasmExports2["iswalnum"];
+    Module["_ts_query_copy"] = _ts_query_copy = wasmExports2["ts_query_copy"];
+    Module["_ts_query_pattern_count"] = _ts_query_pattern_count = wasmExports2["ts_query_pattern_count"];
+    Module["_ts_query_capture_count"] = _ts_query_capture_count = wasmExports2["ts_query_capture_count"];
+    Module["_ts_query_string_count"] = _ts_query_string_count = wasmExports2["ts_query_string_count"];
+    Module["_ts_query_capture_name_for_id"] = _ts_query_capture_name_for_id = wasmExports2["ts_query_capture_name_for_id"];
+    Module["_ts_query_capture_quantifier_for_id"] = _ts_query_capture_quantifier_for_id = wasmExports2["ts_query_capture_quantifier_for_id"];
+    Module["_ts_query_string_value_for_id"] = _ts_query_string_value_for_id = wasmExports2["ts_query_string_value_for_id"];
+    Module["_ts_query_predicates_for_pattern"] = _ts_query_predicates_for_pattern = wasmExports2["ts_query_predicates_for_pattern"];
+    Module["_ts_query_start_byte_for_pattern"] = _ts_query_start_byte_for_pattern = wasmExports2["ts_query_start_byte_for_pattern"];
+    Module["_ts_query_end_byte_for_pattern"] = _ts_query_end_byte_for_pattern = wasmExports2["ts_query_end_byte_for_pattern"];
+    Module["_ts_query_is_pattern_rooted"] = _ts_query_is_pattern_rooted = wasmExports2["ts_query_is_pattern_rooted"];
+    Module["_ts_query_is_pattern_non_local"] = _ts_query_is_pattern_non_local = wasmExports2["ts_query_is_pattern_non_local"];
+    Module["_ts_query_is_pattern_guaranteed_at_step"] = _ts_query_is_pattern_guaranteed_at_step = wasmExports2["ts_query_is_pattern_guaranteed_at_step"];
+    Module["_ts_query_disable_capture"] = _ts_query_disable_capture = wasmExports2["ts_query_disable_capture"];
+    Module["_ts_query_disable_pattern"] = _ts_query_disable_pattern = wasmExports2["ts_query_disable_pattern"];
+    Module["_ts_tree_copy"] = _ts_tree_copy = wasmExports2["ts_tree_copy"];
+    Module["_ts_tree_delete"] = _ts_tree_delete = wasmExports2["ts_tree_delete"];
+    Module["_ts_init"] = _ts_init = wasmExports2["ts_init"];
+    Module["_ts_parser_new_wasm"] = _ts_parser_new_wasm = wasmExports2["ts_parser_new_wasm"];
+    Module["_ts_parser_enable_logger_wasm"] = _ts_parser_enable_logger_wasm = wasmExports2["ts_parser_enable_logger_wasm"];
+    Module["_ts_parser_parse_wasm"] = _ts_parser_parse_wasm = wasmExports2["ts_parser_parse_wasm"];
+    Module["_ts_parser_included_ranges_wasm"] = _ts_parser_included_ranges_wasm = wasmExports2["ts_parser_included_ranges_wasm"];
+    Module["_ts_language_type_is_named_wasm"] = _ts_language_type_is_named_wasm = wasmExports2["ts_language_type_is_named_wasm"];
+    Module["_ts_language_type_is_visible_wasm"] = _ts_language_type_is_visible_wasm = wasmExports2["ts_language_type_is_visible_wasm"];
+    Module["_ts_language_metadata_wasm"] = _ts_language_metadata_wasm = wasmExports2["ts_language_metadata_wasm"];
+    Module["_ts_language_supertypes_wasm"] = _ts_language_supertypes_wasm = wasmExports2["ts_language_supertypes_wasm"];
+    Module["_ts_language_subtypes_wasm"] = _ts_language_subtypes_wasm = wasmExports2["ts_language_subtypes_wasm"];
+    Module["_ts_tree_root_node_wasm"] = _ts_tree_root_node_wasm = wasmExports2["ts_tree_root_node_wasm"];
+    Module["_ts_tree_root_node_with_offset_wasm"] = _ts_tree_root_node_with_offset_wasm = wasmExports2["ts_tree_root_node_with_offset_wasm"];
+    Module["_ts_tree_edit_wasm"] = _ts_tree_edit_wasm = wasmExports2["ts_tree_edit_wasm"];
+    Module["_ts_tree_included_ranges_wasm"] = _ts_tree_included_ranges_wasm = wasmExports2["ts_tree_included_ranges_wasm"];
+    Module["_ts_tree_get_changed_ranges_wasm"] = _ts_tree_get_changed_ranges_wasm = wasmExports2["ts_tree_get_changed_ranges_wasm"];
+    Module["_ts_tree_cursor_new_wasm"] = _ts_tree_cursor_new_wasm = wasmExports2["ts_tree_cursor_new_wasm"];
+    Module["_ts_tree_cursor_copy_wasm"] = _ts_tree_cursor_copy_wasm = wasmExports2["ts_tree_cursor_copy_wasm"];
+    Module["_ts_tree_cursor_delete_wasm"] = _ts_tree_cursor_delete_wasm = wasmExports2["ts_tree_cursor_delete_wasm"];
+    Module["_ts_tree_cursor_reset_wasm"] = _ts_tree_cursor_reset_wasm = wasmExports2["ts_tree_cursor_reset_wasm"];
+    Module["_ts_tree_cursor_reset_to_wasm"] = _ts_tree_cursor_reset_to_wasm = wasmExports2["ts_tree_cursor_reset_to_wasm"];
+    Module["_ts_tree_cursor_goto_first_child_wasm"] = _ts_tree_cursor_goto_first_child_wasm = wasmExports2["ts_tree_cursor_goto_first_child_wasm"];
+    Module["_ts_tree_cursor_goto_last_child_wasm"] = _ts_tree_cursor_goto_last_child_wasm = wasmExports2["ts_tree_cursor_goto_last_child_wasm"];
+    Module["_ts_tree_cursor_goto_first_child_for_index_wasm"] = _ts_tree_cursor_goto_first_child_for_index_wasm = wasmExports2["ts_tree_cursor_goto_first_child_for_index_wasm"];
+    Module["_ts_tree_cursor_goto_first_child_for_position_wasm"] = _ts_tree_cursor_goto_first_child_for_position_wasm = wasmExports2["ts_tree_cursor_goto_first_child_for_position_wasm"];
+    Module["_ts_tree_cursor_goto_next_sibling_wasm"] = _ts_tree_cursor_goto_next_sibling_wasm = wasmExports2["ts_tree_cursor_goto_next_sibling_wasm"];
+    Module["_ts_tree_cursor_goto_previous_sibling_wasm"] = _ts_tree_cursor_goto_previous_sibling_wasm = wasmExports2["ts_tree_cursor_goto_previous_sibling_wasm"];
+    Module["_ts_tree_cursor_goto_descendant_wasm"] = _ts_tree_cursor_goto_descendant_wasm = wasmExports2["ts_tree_cursor_goto_descendant_wasm"];
+    Module["_ts_tree_cursor_goto_parent_wasm"] = _ts_tree_cursor_goto_parent_wasm = wasmExports2["ts_tree_cursor_goto_parent_wasm"];
+    Module["_ts_tree_cursor_current_node_type_id_wasm"] = _ts_tree_cursor_current_node_type_id_wasm = wasmExports2["ts_tree_cursor_current_node_type_id_wasm"];
+    Module["_ts_tree_cursor_current_node_state_id_wasm"] = _ts_tree_cursor_current_node_state_id_wasm = wasmExports2["ts_tree_cursor_current_node_state_id_wasm"];
+    Module["_ts_tree_cursor_current_node_is_named_wasm"] = _ts_tree_cursor_current_node_is_named_wasm = wasmExports2["ts_tree_cursor_current_node_is_named_wasm"];
+    Module["_ts_tree_cursor_current_node_is_missing_wasm"] = _ts_tree_cursor_current_node_is_missing_wasm = wasmExports2["ts_tree_cursor_current_node_is_missing_wasm"];
+    Module["_ts_tree_cursor_current_node_id_wasm"] = _ts_tree_cursor_current_node_id_wasm = wasmExports2["ts_tree_cursor_current_node_id_wasm"];
+    Module["_ts_tree_cursor_start_position_wasm"] = _ts_tree_cursor_start_position_wasm = wasmExports2["ts_tree_cursor_start_position_wasm"];
+    Module["_ts_tree_cursor_end_position_wasm"] = _ts_tree_cursor_end_position_wasm = wasmExports2["ts_tree_cursor_end_position_wasm"];
+    Module["_ts_tree_cursor_start_index_wasm"] = _ts_tree_cursor_start_index_wasm = wasmExports2["ts_tree_cursor_start_index_wasm"];
+    Module["_ts_tree_cursor_end_index_wasm"] = _ts_tree_cursor_end_index_wasm = wasmExports2["ts_tree_cursor_end_index_wasm"];
+    Module["_ts_tree_cursor_current_field_id_wasm"] = _ts_tree_cursor_current_field_id_wasm = wasmExports2["ts_tree_cursor_current_field_id_wasm"];
+    Module["_ts_tree_cursor_current_depth_wasm"] = _ts_tree_cursor_current_depth_wasm = wasmExports2["ts_tree_cursor_current_depth_wasm"];
+    Module["_ts_tree_cursor_current_descendant_index_wasm"] = _ts_tree_cursor_current_descendant_index_wasm = wasmExports2["ts_tree_cursor_current_descendant_index_wasm"];
+    Module["_ts_tree_cursor_current_node_wasm"] = _ts_tree_cursor_current_node_wasm = wasmExports2["ts_tree_cursor_current_node_wasm"];
+    Module["_ts_node_symbol_wasm"] = _ts_node_symbol_wasm = wasmExports2["ts_node_symbol_wasm"];
+    Module["_ts_node_field_name_for_child_wasm"] = _ts_node_field_name_for_child_wasm = wasmExports2["ts_node_field_name_for_child_wasm"];
+    Module["_ts_node_field_name_for_named_child_wasm"] = _ts_node_field_name_for_named_child_wasm = wasmExports2["ts_node_field_name_for_named_child_wasm"];
+    Module["_ts_node_children_by_field_id_wasm"] = _ts_node_children_by_field_id_wasm = wasmExports2["ts_node_children_by_field_id_wasm"];
+    Module["_ts_node_first_child_for_byte_wasm"] = _ts_node_first_child_for_byte_wasm = wasmExports2["ts_node_first_child_for_byte_wasm"];
+    Module["_ts_node_first_named_child_for_byte_wasm"] = _ts_node_first_named_child_for_byte_wasm = wasmExports2["ts_node_first_named_child_for_byte_wasm"];
+    Module["_ts_node_grammar_symbol_wasm"] = _ts_node_grammar_symbol_wasm = wasmExports2["ts_node_grammar_symbol_wasm"];
+    Module["_ts_node_child_count_wasm"] = _ts_node_child_count_wasm = wasmExports2["ts_node_child_count_wasm"];
+    Module["_ts_node_named_child_count_wasm"] = _ts_node_named_child_count_wasm = wasmExports2["ts_node_named_child_count_wasm"];
+    Module["_ts_node_child_wasm"] = _ts_node_child_wasm = wasmExports2["ts_node_child_wasm"];
+    Module["_ts_node_named_child_wasm"] = _ts_node_named_child_wasm = wasmExports2["ts_node_named_child_wasm"];
+    Module["_ts_node_child_by_field_id_wasm"] = _ts_node_child_by_field_id_wasm = wasmExports2["ts_node_child_by_field_id_wasm"];
+    Module["_ts_node_next_sibling_wasm"] = _ts_node_next_sibling_wasm = wasmExports2["ts_node_next_sibling_wasm"];
+    Module["_ts_node_prev_sibling_wasm"] = _ts_node_prev_sibling_wasm = wasmExports2["ts_node_prev_sibling_wasm"];
+    Module["_ts_node_next_named_sibling_wasm"] = _ts_node_next_named_sibling_wasm = wasmExports2["ts_node_next_named_sibling_wasm"];
+    Module["_ts_node_prev_named_sibling_wasm"] = _ts_node_prev_named_sibling_wasm = wasmExports2["ts_node_prev_named_sibling_wasm"];
+    Module["_ts_node_descendant_count_wasm"] = _ts_node_descendant_count_wasm = wasmExports2["ts_node_descendant_count_wasm"];
+    Module["_ts_node_parent_wasm"] = _ts_node_parent_wasm = wasmExports2["ts_node_parent_wasm"];
+    Module["_ts_node_child_with_descendant_wasm"] = _ts_node_child_with_descendant_wasm = wasmExports2["ts_node_child_with_descendant_wasm"];
+    Module["_ts_node_descendant_for_index_wasm"] = _ts_node_descendant_for_index_wasm = wasmExports2["ts_node_descendant_for_index_wasm"];
+    Module["_ts_node_named_descendant_for_index_wasm"] = _ts_node_named_descendant_for_index_wasm = wasmExports2["ts_node_named_descendant_for_index_wasm"];
+    Module["_ts_node_descendant_for_position_wasm"] = _ts_node_descendant_for_position_wasm = wasmExports2["ts_node_descendant_for_position_wasm"];
+    Module["_ts_node_named_descendant_for_position_wasm"] = _ts_node_named_descendant_for_position_wasm = wasmExports2["ts_node_named_descendant_for_position_wasm"];
+    Module["_ts_node_start_point_wasm"] = _ts_node_start_point_wasm = wasmExports2["ts_node_start_point_wasm"];
+    Module["_ts_node_end_point_wasm"] = _ts_node_end_point_wasm = wasmExports2["ts_node_end_point_wasm"];
+    Module["_ts_node_start_index_wasm"] = _ts_node_start_index_wasm = wasmExports2["ts_node_start_index_wasm"];
+    Module["_ts_node_end_index_wasm"] = _ts_node_end_index_wasm = wasmExports2["ts_node_end_index_wasm"];
+    Module["_ts_node_to_string_wasm"] = _ts_node_to_string_wasm = wasmExports2["ts_node_to_string_wasm"];
+    Module["_ts_node_children_wasm"] = _ts_node_children_wasm = wasmExports2["ts_node_children_wasm"];
+    Module["_ts_node_named_children_wasm"] = _ts_node_named_children_wasm = wasmExports2["ts_node_named_children_wasm"];
+    Module["_ts_node_descendants_of_type_wasm"] = _ts_node_descendants_of_type_wasm = wasmExports2["ts_node_descendants_of_type_wasm"];
+    Module["_ts_node_is_named_wasm"] = _ts_node_is_named_wasm = wasmExports2["ts_node_is_named_wasm"];
+    Module["_ts_node_has_changes_wasm"] = _ts_node_has_changes_wasm = wasmExports2["ts_node_has_changes_wasm"];
+    Module["_ts_node_has_error_wasm"] = _ts_node_has_error_wasm = wasmExports2["ts_node_has_error_wasm"];
+    Module["_ts_node_is_error_wasm"] = _ts_node_is_error_wasm = wasmExports2["ts_node_is_error_wasm"];
+    Module["_ts_node_is_missing_wasm"] = _ts_node_is_missing_wasm = wasmExports2["ts_node_is_missing_wasm"];
+    Module["_ts_node_is_extra_wasm"] = _ts_node_is_extra_wasm = wasmExports2["ts_node_is_extra_wasm"];
+    Module["_ts_node_parse_state_wasm"] = _ts_node_parse_state_wasm = wasmExports2["ts_node_parse_state_wasm"];
+    Module["_ts_node_next_parse_state_wasm"] = _ts_node_next_parse_state_wasm = wasmExports2["ts_node_next_parse_state_wasm"];
+    Module["_ts_query_matches_wasm"] = _ts_query_matches_wasm = wasmExports2["ts_query_matches_wasm"];
+    Module["_ts_query_captures_wasm"] = _ts_query_captures_wasm = wasmExports2["ts_query_captures_wasm"];
+    Module["_memset"] = _memset = wasmExports2["memset"];
+    Module["_memcpy"] = _memcpy = wasmExports2["memcpy"];
+    Module["_memmove"] = _memmove = wasmExports2["memmove"];
+    Module["_iswalpha"] = _iswalpha = wasmExports2["iswalpha"];
+    Module["_iswblank"] = _iswblank = wasmExports2["iswblank"];
+    Module["_iswdigit"] = _iswdigit = wasmExports2["iswdigit"];
+    Module["_iswlower"] = _iswlower = wasmExports2["iswlower"];
+    Module["_iswpunct"] = _iswpunct = wasmExports2["iswpunct"];
+    Module["_iswupper"] = _iswupper = wasmExports2["iswupper"];
+    Module["_iswxdigit"] = _iswxdigit = wasmExports2["iswxdigit"];
+    Module["_memchr"] = _memchr = wasmExports2["memchr"];
+    Module["_strcmp"] = _strcmp = wasmExports2["strcmp"];
+    Module["_strncat"] = _strncat = wasmExports2["strncat"];
+    Module["_strncpy"] = _strncpy = wasmExports2["strncpy"];
+    Module["_towlower"] = _towlower = wasmExports2["towlower"];
+    Module["_towupper"] = _towupper = wasmExports2["towupper"];
+    _setThrew = wasmExports2["setThrew"];
+    __emscripten_stack_restore = wasmExports2["_emscripten_stack_restore"];
+    __emscripten_stack_alloc = wasmExports2["_emscripten_stack_alloc"];
+    _emscripten_stack_get_current = wasmExports2["emscripten_stack_get_current"];
+    ___wasm_apply_data_relocs = wasmExports2["__wasm_apply_data_relocs"];
+  }
+  __name(assignWasmExports, "assignWasmExports");
+  var wasmImports = {
+    /** @export */
+    __heap_base: ___heap_base,
+    /** @export */
+    __indirect_function_table: wasmTable,
+    /** @export */
+    __memory_base: ___memory_base,
+    /** @export */
+    __stack_high: ___stack_high,
+    /** @export */
+    __stack_low: ___stack_low,
+    /** @export */
+    __stack_pointer: ___stack_pointer,
+    /** @export */
+    __table_base: ___table_base,
+    /** @export */
+    _abort_js: __abort_js,
+    /** @export */
+    emscripten_resize_heap: _emscripten_resize_heap,
+    /** @export */
+    fd_close: _fd_close,
+    /** @export */
+    fd_seek: _fd_seek,
+    /** @export */
+    fd_write: _fd_write,
+    /** @export */
+    memory: wasmMemory,
+    /** @export */
+    tree_sitter_log_callback: _tree_sitter_log_callback,
+    /** @export */
+    tree_sitter_parse_callback: _tree_sitter_parse_callback,
+    /** @export */
+    tree_sitter_progress_callback: _tree_sitter_progress_callback,
+    /** @export */
+    tree_sitter_query_progress_callback: _tree_sitter_query_progress_callback
+  };
+  function callMain(args2 = []) {
+    var entryFunction = resolveGlobalSymbol("main").sym;
+    if (!entryFunction) return;
+    args2.unshift(thisProgram);
+    var argc = args2.length;
+    var argv = stackAlloc((argc + 1) * 4);
+    var argv_ptr = argv;
+    args2.forEach((arg) => {
+      LE_HEAP_STORE_U32((argv_ptr >> 2) * 4, stringToUTF8OnStack(arg));
+      argv_ptr += 4;
+    });
+    LE_HEAP_STORE_U32((argv_ptr >> 2) * 4, 0);
+    try {
+      var ret = entryFunction(argc, argv);
+      exitJS(
+        ret,
+        /* implicit = */
+        true
+      );
+      return ret;
+    } catch (e) {
+      return handleException(e);
+    }
+  }
+  __name(callMain, "callMain");
+  function run(args2 = arguments_) {
+    if (runDependencies > 0) {
+      dependenciesFulfilled = run;
+      return;
+    }
+    preRun();
+    if (runDependencies > 0) {
+      dependenciesFulfilled = run;
+      return;
+    }
+    function doRun() {
+      Module["calledRun"] = true;
+      if (ABORT) return;
+      initRuntime();
+      preMain();
+      readyPromiseResolve?.(Module);
+      Module["onRuntimeInitialized"]?.();
+      var noInitialRun = Module["noInitialRun"] || false;
+      if (!noInitialRun) callMain(args2);
+      postRun();
+    }
+    __name(doRun, "doRun");
+    if (Module["setStatus"]) {
+      Module["setStatus"]("Running...");
+      setTimeout(() => {
+        setTimeout(() => Module["setStatus"](""), 1);
+        doRun();
+      }, 1);
+    } else {
+      doRun();
+    }
+  }
+  __name(run, "run");
+  var wasmExports;
+  wasmExports = await createWasm();
+  run();
+  if (runtimeInitialized) {
+    moduleRtn = Module;
+  } else {
+    moduleRtn = new Promise((resolve3, reject) => {
+      readyPromiseResolve = resolve3;
+      readyPromiseReject = reject;
+    });
+  }
+  return moduleRtn;
+}
+__name(Module2, "Module");
+var web_tree_sitter_default = Module2;
+var Module3 = null;
+async function initializeBinding(moduleOptions) {
+  return Module3 ??= await web_tree_sitter_default(moduleOptions);
+}
+__name(initializeBinding, "initializeBinding");
+function checkModule() {
+  return !!Module3;
+}
+__name(checkModule, "checkModule");
+var TRANSFER_BUFFER;
+var LANGUAGE_VERSION;
+var MIN_COMPATIBLE_VERSION;
+var finalizer4 = newFinalizer((addresses) => {
+  C._ts_parser_delete(addresses[0]);
+  C._free(addresses[1]);
+});
+var Parser = class {
+  static {
+    __name(this, "Parser");
+  }
+  /** @internal */
+  [0] = 0;
+  // Internal handle for Wasm
+  /** @internal */
+  [1] = 0;
+  // Internal handle for Wasm
+  /** @internal */
+  logCallback = null;
+  /** The parser's current language. */
+  language = null;
+  /**
+   * This must always be called before creating a Parser.
+   *
+   * You can optionally pass in options to configure the Wasm module, the most common
+   * one being `locateFile` to help the module find the `.wasm` file.
+   */
+  static async init(moduleOptions) {
+    setModule(await initializeBinding(moduleOptions));
+    TRANSFER_BUFFER = C._ts_init();
+    LANGUAGE_VERSION = C.getValue(TRANSFER_BUFFER, "i32");
+    MIN_COMPATIBLE_VERSION = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+  }
+  /**
+   * Create a new parser.
+   */
+  constructor() {
+    this.initialize();
+    finalizer4?.register(this, [this[0], this[1]], this);
+  }
+  /** @internal */
+  initialize() {
+    if (!checkModule()) {
+      throw new Error("cannot construct a Parser before calling `init()`");
+    }
+    C._ts_parser_new_wasm();
+    this[0] = C.getValue(TRANSFER_BUFFER, "i32");
+    this[1] = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+  }
+  /** Delete the parser, freeing its resources. */
+  delete() {
+    finalizer4?.unregister(this);
+    C._ts_parser_delete(this[0]);
+    C._free(this[1]);
+    this[0] = 0;
+    this[1] = 0;
+  }
+  /**
+   * Set the language that the parser should use for parsing.
+   *
+   * If the language was not successfully assigned, an error will be thrown.
+   * This happens if the language was generated with an incompatible
+   * version of the Tree-sitter CLI. Check the language's version using
+   * {@link Language#version} and compare it to this library's
+   * {@link LANGUAGE_VERSION} and {@link MIN_COMPATIBLE_VERSION} constants.
+   */
+  setLanguage(language) {
+    let address;
+    if (!language) {
+      address = 0;
+      this.language = null;
+    } else if (language.constructor === Language) {
+      address = language[0];
+      const version2 = C._ts_language_abi_version(address);
+      if (version2 < MIN_COMPATIBLE_VERSION || LANGUAGE_VERSION < version2) {
+        throw new Error(
+          `Incompatible language version ${version2}. Compatibility range ${MIN_COMPATIBLE_VERSION} through ${LANGUAGE_VERSION}.`
+        );
+      }
+      this.language = language;
+    } else {
+      throw new Error("Argument must be a Language");
+    }
+    C._ts_parser_set_language(this[0], address);
+    return this;
+  }
+  /**
+   * Parse a slice of UTF8 text.
+   *
+   * @param {string | ParseCallback} callback - The UTF8-encoded text to parse or a callback function.
+   *
+   * @param {Tree | null} [oldTree] - A previous syntax tree parsed from the same document. If the text of the
+   *   document has changed since `oldTree` was created, then you must edit `oldTree` to match
+   *   the new text using {@link Tree#edit}.
+   *
+   * @param {ParseOptions} [options] - Options for parsing the text.
+   *  This can be used to set the included ranges, or a progress callback.
+   *
+   * @returns {Tree | null} A {@link Tree} if parsing succeeded, or `null` if:
+   *  - The parser has not yet had a language assigned with {@link Parser#setLanguage}.
+   *  - The progress callback returned true.
+   */
+  parse(callback, oldTree, options) {
+    if (typeof callback === "string") {
+      C.currentParseCallback = (index) => callback.slice(index);
+    } else if (typeof callback === "function") {
+      C.currentParseCallback = callback;
+    } else {
+      throw new Error("Argument must be a string or a function");
+    }
+    if (options?.progressCallback) {
+      C.currentProgressCallback = options.progressCallback;
+    } else {
+      C.currentProgressCallback = null;
+    }
+    if (this.logCallback) {
+      C.currentLogCallback = this.logCallback;
+      C._ts_parser_enable_logger_wasm(this[0], 1);
+    } else {
+      C.currentLogCallback = null;
+      C._ts_parser_enable_logger_wasm(this[0], 0);
+    }
+    let rangeCount = 0;
+    let rangeAddress = 0;
+    if (options?.includedRanges) {
+      rangeCount = options.includedRanges.length;
+      rangeAddress = C._calloc(rangeCount, SIZE_OF_RANGE);
+      let address = rangeAddress;
+      for (let i2 = 0; i2 < rangeCount; i2++) {
+        marshalRange(address, options.includedRanges[i2]);
+        address += SIZE_OF_RANGE;
+      }
+    }
+    const treeAddress = C._ts_parser_parse_wasm(
+      this[0],
+      this[1],
+      oldTree ? oldTree[0] : 0,
+      rangeAddress,
+      rangeCount
+    );
+    if (!treeAddress) {
+      C.currentParseCallback = null;
+      C.currentLogCallback = null;
+      C.currentProgressCallback = null;
+      return null;
+    }
+    if (!this.language) {
+      throw new Error("Parser must have a language to parse");
+    }
+    const result = new Tree(INTERNAL, treeAddress, this.language, C.currentParseCallback);
+    C.currentParseCallback = null;
+    C.currentLogCallback = null;
+    C.currentProgressCallback = null;
+    return result;
+  }
+  /**
+   * Instruct the parser to start the next parse from the beginning.
+   *
+   * If the parser previously failed because of a callback, 
+   * then by default, it will resume where it left off on the
+   * next call to {@link Parser#parse} or other parsing functions.
+   * If you don't want to resume, and instead intend to use this parser to
+   * parse some other document, you must call `reset` first.
+   */
+  reset() {
+    C._ts_parser_reset(this[0]);
+  }
+  /** Get the ranges of text that the parser will include when parsing. */
+  getIncludedRanges() {
+    C._ts_parser_included_ranges_wasm(this[0]);
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const buffer = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const result = new Array(count);
+    if (count > 0) {
+      let address = buffer;
+      for (let i2 = 0; i2 < count; i2++) {
+        result[i2] = unmarshalRange(address);
+        address += SIZE_OF_RANGE;
+      }
+      C._free(buffer);
+    }
+    return result;
+  }
+  /** Set the logging callback that a parser should use during parsing. */
+  setLogger(callback) {
+    if (!callback) {
+      this.logCallback = null;
+    } else if (typeof callback !== "function") {
+      throw new Error("Logger callback must be a function");
+    } else {
+      this.logCallback = callback;
+    }
+    return this;
+  }
+  /** Get the parser's current logger. */
+  getLogger() {
+    return this.logCallback;
+  }
+};
+var PREDICATE_STEP_TYPE_CAPTURE = 1;
+var PREDICATE_STEP_TYPE_STRING = 2;
+var QUERY_WORD_REGEX = /[\w-]+/g;
+var CaptureQuantifier = {
+  Zero: 0,
+  ZeroOrOne: 1,
+  ZeroOrMore: 2,
+  One: 3,
+  OneOrMore: 4
+};
+var isCaptureStep = /* @__PURE__ */ __name((step) => step.type === "capture", "isCaptureStep");
+var isStringStep = /* @__PURE__ */ __name((step) => step.type === "string", "isStringStep");
+var QueryErrorKind = {
+  Syntax: 1,
+  NodeName: 2,
+  FieldName: 3,
+  CaptureName: 4,
+  PatternStructure: 5
+};
+var QueryError = class _QueryError extends Error {
+  constructor(kind, info2, index, length) {
+    super(_QueryError.formatMessage(kind, info2));
+    this.kind = kind;
+    this.info = info2;
+    this.index = index;
+    this.length = length;
+    this.name = "QueryError";
+  }
+  kind;
+  info;
+  index;
+  length;
+  static {
+    __name(this, "QueryError");
+  }
+  /** Formats an error message based on the error kind and info */
+  static formatMessage(kind, info2) {
+    switch (kind) {
+      case QueryErrorKind.NodeName:
+        return `Bad node name '${info2.word}'`;
+      case QueryErrorKind.FieldName:
+        return `Bad field name '${info2.word}'`;
+      case QueryErrorKind.CaptureName:
+        return `Bad capture name @${info2.word}`;
+      case QueryErrorKind.PatternStructure:
+        return `Bad pattern structure at offset ${info2.suffix}`;
+      case QueryErrorKind.Syntax:
+        return `Bad syntax at offset ${info2.suffix}`;
+    }
+  }
+};
+function parseAnyPredicate(steps, index, operator, textPredicates) {
+  if (steps.length !== 3) {
+    throw new Error(
+      `Wrong number of arguments to \`#${operator}\` predicate. Expected 2, got ${steps.length - 1}`
+    );
+  }
+  if (!isCaptureStep(steps[1])) {
+    throw new Error(
+      `First argument of \`#${operator}\` predicate must be a capture. Got "${steps[1].value}"`
+    );
+  }
+  const isPositive = operator === "eq?" || operator === "any-eq?";
+  const matchAll = !operator.startsWith("any-");
+  if (isCaptureStep(steps[2])) {
+    const captureName1 = steps[1].name;
+    const captureName2 = steps[2].name;
+    textPredicates[index].push((captures) => {
+      const nodes1 = [];
+      const nodes2 = [];
+      for (const c of captures) {
+        if (c.name === captureName1) nodes1.push(c.node);
+        if (c.name === captureName2) nodes2.push(c.node);
+      }
+      const compare = /* @__PURE__ */ __name((n1, n2, positive) => {
+        return positive ? n1.text === n2.text : n1.text !== n2.text;
+      }, "compare");
+      return matchAll ? nodes1.every((n1) => nodes2.some((n2) => compare(n1, n2, isPositive))) : nodes1.some((n1) => nodes2.some((n2) => compare(n1, n2, isPositive)));
+    });
+  } else {
+    const captureName = steps[1].name;
+    const stringValue = steps[2].value;
+    const matches = /* @__PURE__ */ __name((n) => n.text === stringValue, "matches");
+    const doesNotMatch = /* @__PURE__ */ __name((n) => n.text !== stringValue, "doesNotMatch");
+    textPredicates[index].push((captures) => {
+      const nodes = [];
+      for (const c of captures) {
+        if (c.name === captureName) nodes.push(c.node);
+      }
+      const test = isPositive ? matches : doesNotMatch;
+      return matchAll ? nodes.every(test) : nodes.some(test);
+    });
+  }
+}
+__name(parseAnyPredicate, "parseAnyPredicate");
+function parseMatchPredicate(steps, index, operator, textPredicates) {
+  if (steps.length !== 3) {
+    throw new Error(
+      `Wrong number of arguments to \`#${operator}\` predicate. Expected 2, got ${steps.length - 1}.`
+    );
+  }
+  if (steps[1].type !== "capture") {
+    throw new Error(
+      `First argument of \`#${operator}\` predicate must be a capture. Got "${steps[1].value}".`
+    );
+  }
+  if (steps[2].type !== "string") {
+    throw new Error(
+      `Second argument of \`#${operator}\` predicate must be a string. Got @${steps[2].name}.`
+    );
+  }
+  const isPositive = operator === "match?" || operator === "any-match?";
+  const matchAll = !operator.startsWith("any-");
+  const captureName = steps[1].name;
+  const regex = new RegExp(steps[2].value);
+  textPredicates[index].push((captures) => {
+    const nodes = [];
+    for (const c of captures) {
+      if (c.name === captureName) nodes.push(c.node.text);
+    }
+    const test = /* @__PURE__ */ __name((text2, positive) => {
+      return positive ? regex.test(text2) : !regex.test(text2);
+    }, "test");
+    if (nodes.length === 0) return !isPositive;
+    return matchAll ? nodes.every((text2) => test(text2, isPositive)) : nodes.some((text2) => test(text2, isPositive));
+  });
+}
+__name(parseMatchPredicate, "parseMatchPredicate");
+function parseAnyOfPredicate(steps, index, operator, textPredicates) {
+  if (steps.length < 2) {
+    throw new Error(
+      `Wrong number of arguments to \`#${operator}\` predicate. Expected at least 1. Got ${steps.length - 1}.`
+    );
+  }
+  if (steps[1].type !== "capture") {
+    throw new Error(
+      `First argument of \`#${operator}\` predicate must be a capture. Got "${steps[1].value}".`
+    );
+  }
+  const isPositive = operator === "any-of?";
+  const captureName = steps[1].name;
+  const stringSteps = steps.slice(2);
+  if (!stringSteps.every(isStringStep)) {
+    throw new Error(
+      `Arguments to \`#${operator}\` predicate must be strings.".`
+    );
+  }
+  const values = stringSteps.map((s) => s.value);
+  textPredicates[index].push((captures) => {
+    const nodes = [];
+    for (const c of captures) {
+      if (c.name === captureName) nodes.push(c.node.text);
+    }
+    if (nodes.length === 0) return !isPositive;
+    return nodes.every((text2) => values.includes(text2)) === isPositive;
+  });
+}
+__name(parseAnyOfPredicate, "parseAnyOfPredicate");
+function parseIsPredicate(steps, index, operator, assertedProperties, refutedProperties) {
+  if (steps.length < 2 || steps.length > 3) {
+    throw new Error(
+      `Wrong number of arguments to \`#${operator}\` predicate. Expected 1 or 2. Got ${steps.length - 1}.`
+    );
+  }
+  if (!steps.every(isStringStep)) {
+    throw new Error(
+      `Arguments to \`#${operator}\` predicate must be strings.".`
+    );
+  }
+  const properties = operator === "is?" ? assertedProperties : refutedProperties;
+  if (!properties[index]) properties[index] = {};
+  properties[index][steps[1].value] = steps[2]?.value ?? null;
+}
+__name(parseIsPredicate, "parseIsPredicate");
+function parseSetDirective(steps, index, setProperties) {
+  if (steps.length < 2 || steps.length > 3) {
+    throw new Error(`Wrong number of arguments to \`#set!\` predicate. Expected 1 or 2. Got ${steps.length - 1}.`);
+  }
+  if (!steps.every(isStringStep)) {
+    throw new Error(`Arguments to \`#set!\` predicate must be strings.".`);
+  }
+  if (!setProperties[index]) setProperties[index] = {};
+  setProperties[index][steps[1].value] = steps[2]?.value ?? null;
+}
+__name(parseSetDirective, "parseSetDirective");
+function parsePattern(index, stepType, stepValueId, captureNames, stringValues, steps, textPredicates, predicates, setProperties, assertedProperties, refutedProperties) {
+  if (stepType === PREDICATE_STEP_TYPE_CAPTURE) {
+    const name2 = captureNames[stepValueId];
+    steps.push({ type: "capture", name: name2 });
+  } else if (stepType === PREDICATE_STEP_TYPE_STRING) {
+    steps.push({ type: "string", value: stringValues[stepValueId] });
+  } else if (steps.length > 0) {
+    if (steps[0].type !== "string") {
+      throw new Error("Predicates must begin with a literal value");
+    }
+    const operator = steps[0].value;
+    switch (operator) {
+      case "any-not-eq?":
+      case "not-eq?":
+      case "any-eq?":
+      case "eq?":
+        parseAnyPredicate(steps, index, operator, textPredicates);
+        break;
+      case "any-not-match?":
+      case "not-match?":
+      case "any-match?":
+      case "match?":
+        parseMatchPredicate(steps, index, operator, textPredicates);
+        break;
+      case "not-any-of?":
+      case "any-of?":
+        parseAnyOfPredicate(steps, index, operator, textPredicates);
+        break;
+      case "is?":
+      case "is-not?":
+        parseIsPredicate(steps, index, operator, assertedProperties, refutedProperties);
+        break;
+      case "set!":
+        parseSetDirective(steps, index, setProperties);
+        break;
+      default:
+        predicates[index].push({ operator, operands: steps.slice(1) });
+    }
+    steps.length = 0;
+  }
+}
+__name(parsePattern, "parsePattern");
+function indexForByteOffset(source, byteOffset) {
+  return new TextEncoder().encodeInto(source, new Uint8Array(byteOffset)).read;
+}
+__name(indexForByteOffset, "indexForByteOffset");
+var finalizer5 = newFinalizer((address) => {
+  C._ts_query_delete(address);
+});
+var Query = class {
+  static {
+    __name(this, "Query");
+  }
+  /** @internal */
+  [0] = 0;
+  // Internal handle for Wasm
+  /** @internal */
+  exceededMatchLimit;
+  /** @internal */
+  textPredicates;
+  /** @internal */
+  source;
+  /** The names of the captures used in the query. */
+  captureNames;
+  /** The quantifiers of the captures used in the query. */
+  captureQuantifiers;
+  /**
+   * The other user-defined predicates associated with the given index.
+   *
+   * This includes predicates with operators other than:
+   * - `match?`
+   * - `eq?` and `not-eq?`
+   * - `any-of?` and `not-any-of?`
+   * - `is?` and `is-not?`
+   * - `set!`
+   */
+  predicates;
+  /** The properties for predicates with the operator `set!`. */
+  setProperties;
+  /** The properties for predicates with the operator `is?`. */
+  assertedProperties;
+  /** The properties for predicates with the operator `is-not?`. */
+  refutedProperties;
+  /** The maximum number of in-progress matches for this cursor. */
+  matchLimit;
+  /**
+   * Create a new query from a string containing one or more S-expression
+   * patterns.
+   *
+   * The query is associated with a particular language, and can only be run
+   * on syntax nodes parsed with that language. References to Queries can be
+   * shared between multiple threads.
+   *
+   * @link {@see https://tree-sitter.github.io/tree-sitter/using-parsers/queries}
+   */
+  constructor(language, source) {
+    const sourceLength = C.lengthBytesUTF8(source);
+    const sourceAddress = C._malloc(sourceLength + 1);
+    C.stringToUTF8(source, sourceAddress, sourceLength + 1);
+    const address = C._ts_query_new(
+      language[0],
+      sourceAddress,
+      sourceLength,
+      TRANSFER_BUFFER,
+      TRANSFER_BUFFER + SIZE_OF_INT
+    );
+    if (!address) {
+      const errorId = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+      const errorByte = C.getValue(TRANSFER_BUFFER, "i32");
+      const errorIndex = C.UTF8ToString(sourceAddress, errorByte).length;
+      const suffix = source.slice(errorIndex, errorIndex + 100).split("\n")[0];
+      const word = suffix.match(QUERY_WORD_REGEX)?.[0] ?? "";
+      C._free(sourceAddress);
+      switch (errorId) {
+        case QueryErrorKind.Syntax:
+          throw new QueryError(QueryErrorKind.Syntax, { suffix: `${errorIndex}: '${suffix}'...` }, errorIndex, 0);
+        case QueryErrorKind.NodeName:
+          throw new QueryError(errorId, { word }, errorIndex, word.length);
+        case QueryErrorKind.FieldName:
+          throw new QueryError(errorId, { word }, errorIndex, word.length);
+        case QueryErrorKind.CaptureName:
+          throw new QueryError(errorId, { word }, errorIndex, word.length);
+        case QueryErrorKind.PatternStructure:
+          throw new QueryError(errorId, { suffix: `${errorIndex}: '${suffix}'...` }, errorIndex, 0);
+      }
+    }
+    const stringCount = C._ts_query_string_count(address);
+    const captureCount = C._ts_query_capture_count(address);
+    const patternCount = C._ts_query_pattern_count(address);
+    const captureNames = new Array(captureCount);
+    const captureQuantifiers = new Array(patternCount);
+    const stringValues = new Array(stringCount);
+    for (let i2 = 0; i2 < captureCount; i2++) {
+      const nameAddress = C._ts_query_capture_name_for_id(
+        address,
+        i2,
+        TRANSFER_BUFFER
+      );
+      const nameLength = C.getValue(TRANSFER_BUFFER, "i32");
+      captureNames[i2] = C.UTF8ToString(nameAddress, nameLength);
+    }
+    for (let i2 = 0; i2 < patternCount; i2++) {
+      const captureQuantifiersArray = new Array(captureCount);
+      for (let j = 0; j < captureCount; j++) {
+        const quantifier = C._ts_query_capture_quantifier_for_id(address, i2, j);
+        captureQuantifiersArray[j] = quantifier;
+      }
+      captureQuantifiers[i2] = captureQuantifiersArray;
+    }
+    for (let i2 = 0; i2 < stringCount; i2++) {
+      const valueAddress = C._ts_query_string_value_for_id(
+        address,
+        i2,
+        TRANSFER_BUFFER
+      );
+      const nameLength = C.getValue(TRANSFER_BUFFER, "i32");
+      stringValues[i2] = C.UTF8ToString(valueAddress, nameLength);
+    }
+    const setProperties = new Array(patternCount);
+    const assertedProperties = new Array(patternCount);
+    const refutedProperties = new Array(patternCount);
+    const predicates = new Array(patternCount);
+    const textPredicates = new Array(patternCount);
+    for (let i2 = 0; i2 < patternCount; i2++) {
+      const predicatesAddress = C._ts_query_predicates_for_pattern(address, i2, TRANSFER_BUFFER);
+      const stepCount = C.getValue(TRANSFER_BUFFER, "i32");
+      predicates[i2] = [];
+      textPredicates[i2] = [];
+      const steps = new Array();
+      let stepAddress = predicatesAddress;
+      for (let j = 0; j < stepCount; j++) {
+        const stepType = C.getValue(stepAddress, "i32");
+        stepAddress += SIZE_OF_INT;
+        const stepValueId = C.getValue(stepAddress, "i32");
+        stepAddress += SIZE_OF_INT;
+        parsePattern(
+          i2,
+          stepType,
+          stepValueId,
+          captureNames,
+          stringValues,
+          steps,
+          textPredicates,
+          predicates,
+          setProperties,
+          assertedProperties,
+          refutedProperties
+        );
+      }
+      Object.freeze(textPredicates[i2]);
+      Object.freeze(predicates[i2]);
+      Object.freeze(setProperties[i2]);
+      Object.freeze(assertedProperties[i2]);
+      Object.freeze(refutedProperties[i2]);
+    }
+    C._free(sourceAddress);
+    this[0] = address;
+    this.captureNames = captureNames;
+    this.captureQuantifiers = captureQuantifiers;
+    this.textPredicates = textPredicates;
+    this.source = source;
+    this.predicates = predicates;
+    this.setProperties = setProperties;
+    this.assertedProperties = assertedProperties;
+    this.refutedProperties = refutedProperties;
+    this.exceededMatchLimit = false;
+    finalizer5?.register(this, address, this);
+  }
+  /** Delete the query, freeing its resources. */
+  delete() {
+    finalizer5?.unregister(this);
+    C._ts_query_delete(this[0]);
+    this[0] = 0;
+  }
+  /**
+   * Iterate over all of the matches in the order that they were found.
+   *
+   * Each match contains the index of the pattern that matched, and a list of
+   * captures. Because multiple patterns can match the same set of nodes,
+   * one match may contain captures that appear *before* some of the
+   * captures from a previous match.
+   *
+   * @param {Node} node - The node to execute the query on.
+   *
+   * @param {QueryOptions} options - Options for query execution.
+   */
+  matches(node2, options = {}) {
+    const startPosition = options.startPosition ?? ZERO_POINT;
+    const endPosition = options.endPosition ?? ZERO_POINT;
+    const startIndex = options.startIndex ?? 0;
+    const endIndex = options.endIndex ?? 0;
+    const startContainingPosition = options.startContainingPosition ?? ZERO_POINT;
+    const endContainingPosition = options.endContainingPosition ?? ZERO_POINT;
+    const startContainingIndex = options.startContainingIndex ?? 0;
+    const endContainingIndex = options.endContainingIndex ?? 0;
+    const matchLimit = options.matchLimit ?? 4294967295;
+    const maxStartDepth = options.maxStartDepth ?? 4294967295;
+    const progressCallback = options.progressCallback;
+    if (typeof matchLimit !== "number") {
+      throw new Error("Arguments must be numbers");
+    }
+    this.matchLimit = matchLimit;
+    if (endIndex !== 0 && startIndex > endIndex) {
+      throw new Error("`startIndex` cannot be greater than `endIndex`");
+    }
+    if (endPosition !== ZERO_POINT && (startPosition.row > endPosition.row || startPosition.row === endPosition.row && startPosition.column > endPosition.column)) {
+      throw new Error("`startPosition` cannot be greater than `endPosition`");
+    }
+    if (endContainingIndex !== 0 && startContainingIndex > endContainingIndex) {
+      throw new Error("`startContainingIndex` cannot be greater than `endContainingIndex`");
+    }
+    if (endContainingPosition !== ZERO_POINT && (startContainingPosition.row > endContainingPosition.row || startContainingPosition.row === endContainingPosition.row && startContainingPosition.column > endContainingPosition.column)) {
+      throw new Error("`startContainingPosition` cannot be greater than `endContainingPosition`");
+    }
+    if (progressCallback) {
+      C.currentQueryProgressCallback = progressCallback;
+    }
+    marshalNode(node2);
+    C._ts_query_matches_wasm(
+      this[0],
+      node2.tree[0],
+      startPosition.row,
+      startPosition.column,
+      endPosition.row,
+      endPosition.column,
+      startIndex,
+      endIndex,
+      startContainingPosition.row,
+      startContainingPosition.column,
+      endContainingPosition.row,
+      endContainingPosition.column,
+      startContainingIndex,
+      endContainingIndex,
+      matchLimit,
+      maxStartDepth
+    );
+    const rawCount = C.getValue(TRANSFER_BUFFER, "i32");
+    const startAddress = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const didExceedMatchLimit = C.getValue(TRANSFER_BUFFER + 2 * SIZE_OF_INT, "i32");
+    const result = new Array(rawCount);
+    this.exceededMatchLimit = Boolean(didExceedMatchLimit);
+    let filteredCount = 0;
+    let address = startAddress;
+    for (let i2 = 0; i2 < rawCount; i2++) {
+      const patternIndex = C.getValue(address, "i32");
+      address += SIZE_OF_INT;
+      const captureCount = C.getValue(address, "i32");
+      address += SIZE_OF_INT;
+      const captures = new Array(captureCount);
+      address = unmarshalCaptures(this, node2.tree, address, patternIndex, captures);
+      if (this.textPredicates[patternIndex].every((p) => p(captures))) {
+        result[filteredCount] = { patternIndex, captures };
+        const setProperties = this.setProperties[patternIndex];
+        result[filteredCount].setProperties = setProperties;
+        const assertedProperties = this.assertedProperties[patternIndex];
+        result[filteredCount].assertedProperties = assertedProperties;
+        const refutedProperties = this.refutedProperties[patternIndex];
+        result[filteredCount].refutedProperties = refutedProperties;
+        filteredCount++;
+      }
+    }
+    result.length = filteredCount;
+    C._free(startAddress);
+    C.currentQueryProgressCallback = null;
+    return result;
+  }
+  /**
+   * Iterate over all of the individual captures in the order that they
+   * appear.
+   *
+   * This is useful if you don't care about which pattern matched, and just
+   * want a single, ordered sequence of captures.
+   *
+   * @param {Node} node - The node to execute the query on.
+   *
+   * @param {QueryOptions} options - Options for query execution.
+   */
+  captures(node2, options = {}) {
+    const startPosition = options.startPosition ?? ZERO_POINT;
+    const endPosition = options.endPosition ?? ZERO_POINT;
+    const startIndex = options.startIndex ?? 0;
+    const endIndex = options.endIndex ?? 0;
+    const startContainingPosition = options.startContainingPosition ?? ZERO_POINT;
+    const endContainingPosition = options.endContainingPosition ?? ZERO_POINT;
+    const startContainingIndex = options.startContainingIndex ?? 0;
+    const endContainingIndex = options.endContainingIndex ?? 0;
+    const matchLimit = options.matchLimit ?? 4294967295;
+    const maxStartDepth = options.maxStartDepth ?? 4294967295;
+    const progressCallback = options.progressCallback;
+    if (typeof matchLimit !== "number") {
+      throw new Error("Arguments must be numbers");
+    }
+    this.matchLimit = matchLimit;
+    if (endIndex !== 0 && startIndex > endIndex) {
+      throw new Error("`startIndex` cannot be greater than `endIndex`");
+    }
+    if (endPosition !== ZERO_POINT && (startPosition.row > endPosition.row || startPosition.row === endPosition.row && startPosition.column > endPosition.column)) {
+      throw new Error("`startPosition` cannot be greater than `endPosition`");
+    }
+    if (endContainingIndex !== 0 && startContainingIndex > endContainingIndex) {
+      throw new Error("`startContainingIndex` cannot be greater than `endContainingIndex`");
+    }
+    if (endContainingPosition !== ZERO_POINT && (startContainingPosition.row > endContainingPosition.row || startContainingPosition.row === endContainingPosition.row && startContainingPosition.column > endContainingPosition.column)) {
+      throw new Error("`startContainingPosition` cannot be greater than `endContainingPosition`");
+    }
+    if (progressCallback) {
+      C.currentQueryProgressCallback = progressCallback;
+    }
+    marshalNode(node2);
+    C._ts_query_captures_wasm(
+      this[0],
+      node2.tree[0],
+      startPosition.row,
+      startPosition.column,
+      endPosition.row,
+      endPosition.column,
+      startIndex,
+      endIndex,
+      startContainingPosition.row,
+      startContainingPosition.column,
+      endContainingPosition.row,
+      endContainingPosition.column,
+      startContainingIndex,
+      endContainingIndex,
+      matchLimit,
+      maxStartDepth
+    );
+    const count = C.getValue(TRANSFER_BUFFER, "i32");
+    const startAddress = C.getValue(TRANSFER_BUFFER + SIZE_OF_INT, "i32");
+    const didExceedMatchLimit = C.getValue(TRANSFER_BUFFER + 2 * SIZE_OF_INT, "i32");
+    const result = new Array();
+    this.exceededMatchLimit = Boolean(didExceedMatchLimit);
+    const captures = new Array();
+    let address = startAddress;
+    for (let i2 = 0; i2 < count; i2++) {
+      const patternIndex = C.getValue(address, "i32");
+      address += SIZE_OF_INT;
+      const captureCount = C.getValue(address, "i32");
+      address += SIZE_OF_INT;
+      const captureIndex = C.getValue(address, "i32");
+      address += SIZE_OF_INT;
+      captures.length = captureCount;
+      address = unmarshalCaptures(this, node2.tree, address, patternIndex, captures);
+      if (this.textPredicates[patternIndex].every((p) => p(captures))) {
+        const capture = captures[captureIndex];
+        const setProperties = this.setProperties[patternIndex];
+        capture.setProperties = setProperties;
+        const assertedProperties = this.assertedProperties[patternIndex];
+        capture.assertedProperties = assertedProperties;
+        const refutedProperties = this.refutedProperties[patternIndex];
+        capture.refutedProperties = refutedProperties;
+        result.push(capture);
+      }
+    }
+    C._free(startAddress);
+    C.currentQueryProgressCallback = null;
+    return result;
+  }
+  /** Get the predicates for a given pattern. */
+  predicatesForPattern(patternIndex) {
+    return this.predicates[patternIndex];
+  }
+  /**
+   * Disable a certain capture within a query.
+   *
+   * This prevents the capture from being returned in matches, and also
+   * avoids any resource usage associated with recording the capture.
+   */
+  disableCapture(captureName) {
+    const captureNameLength = C.lengthBytesUTF8(captureName);
+    const captureNameAddress = C._malloc(captureNameLength + 1);
+    C.stringToUTF8(captureName, captureNameAddress, captureNameLength + 1);
+    C._ts_query_disable_capture(this[0], captureNameAddress, captureNameLength);
+    C._free(captureNameAddress);
+  }
+  /**
+   * Disable a certain pattern within a query.
+   *
+   * This prevents the pattern from matching, and also avoids any resource
+   * usage associated with the pattern. This throws an error if the pattern
+   * index is out of bounds.
+   */
+  disablePattern(patternIndex) {
+    if (patternIndex >= this.predicates.length) {
+      throw new Error(
+        `Pattern index is ${patternIndex} but the pattern count is ${this.predicates.length}`
+      );
+    }
+    C._ts_query_disable_pattern(this[0], patternIndex);
+  }
+  /**
+   * Check if, on its last execution, this cursor exceeded its maximum number
+   * of in-progress matches.
+   */
+  didExceedMatchLimit() {
+    return this.exceededMatchLimit;
+  }
+  /** Get the index where the given pattern starts in the query's source. */
+  startIndexForPattern(patternIndex) {
+    if (patternIndex >= this.predicates.length) {
+      throw new Error(
+        `Pattern index is ${patternIndex} but the pattern count is ${this.predicates.length}`
+      );
+    }
+    const byteOffset = C._ts_query_start_byte_for_pattern(this[0], patternIndex);
+    return indexForByteOffset(this.source, byteOffset);
+  }
+  /** Get the index where the given pattern ends in the query's source. */
+  endIndexForPattern(patternIndex) {
+    if (patternIndex >= this.predicates.length) {
+      throw new Error(
+        `Pattern index is ${patternIndex} but the pattern count is ${this.predicates.length}`
+      );
+    }
+    const byteOffset = C._ts_query_end_byte_for_pattern(this[0], patternIndex);
+    return indexForByteOffset(this.source, byteOffset);
+  }
+  /** Get the number of patterns in the query. */
+  patternCount() {
+    return C._ts_query_pattern_count(this[0]);
+  }
+  /** Get the index for a given capture name. */
+  captureIndexForName(captureName) {
+    return this.captureNames.indexOf(captureName);
+  }
+  /** Check if a given pattern within a query has a single root node. */
+  isPatternRooted(patternIndex) {
+    return C._ts_query_is_pattern_rooted(this[0], patternIndex) === 1;
+  }
+  /** Check if a given pattern within a query has a single root node. */
+  isPatternNonLocal(patternIndex) {
+    return C._ts_query_is_pattern_non_local(this[0], patternIndex) === 1;
+  }
+  /**
+   * Check if the step at the given index in the query's source is 'definite'.
+   *
+   * A query step is 'definite' if its parent pattern will be guaranteed to
+   * match successfully once it reaches the step.
+   */
+  isPatternGuaranteedAtStep(index) {
+    const byteOffset = C.lengthBytesUTF8(this.source.slice(0, index));
+    return C._ts_query_is_pattern_guaranteed_at_step(this[0], byteOffset) === 1;
+  }
+};
+
+// src/coach/ladder/schema.ts
+var TRACKS = ["backend", "frontend"];
+var LEVELS = ["junior", "mid", "senior", "staff"];
+var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
+var ITEM_ID = /^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/;
+var EXERCISE_KINDS = ["implement", "debug", "review", "design_tradeoff", "architecture", "explain"];
+var DEFAULT_THRESHOLDS = {
+  proofs: 3,
+  tickets: 2,
+  window_days: 60,
+  clear_answers: 2,
+  judge_cap: 1,
+  drill_retry_days: 3,
+  question_timeout_min: 30,
+  max_questions: 3,
+  hash_keep_days: 120,
+  catchup_max: 200,
+  exposure_window_days: 90,
+  exposure_low: 1,
+  exposure_medium: 3,
+  exposure_high: 6
+};
+var text = external_exports.string().trim().min(1).max(600);
+var shortId = external_exports.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/, "ids are lowercase letters, digits, dots and dashes");
+var point = external_exports.strictObject({ id: shortId, text });
+var drillSchema = external_exports.strictObject({
+  id: shortId,
+  prompt: external_exports.string().trim().min(10).max(1500),
+  key_points: external_exports.array(point).min(2).max(10),
+  red_flags: external_exports.array(point).max(10),
+  pass: external_exports.number().int().min(1).optional()
+}).superRefine((d, ctx) => {
+  if (d.pass !== void 0 && d.pass > d.key_points.length) {
+    ctx.addIssue({ code: "custom", message: `Drill ${d.id}: pass is ${d.pass} but it has ${d.key_points.length} key points` });
+  }
+  const ids = [...d.key_points, ...d.red_flags].map((p) => p.id);
+  if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: `Drill ${d.id}: key point and red flag ids must be unique` });
+});
+var itemSchema = external_exports.strictObject({
+  id: external_exports.string().regex(ITEM_ID, "item ids look like BE.ERR.M2"),
+  title: text,
+  good_looks_like: external_exports.array(text).min(1).max(3),
+  signals: external_exports.array(external_exports.strictObject({ id: shortId, polarity: external_exports.enum(["positive", "negative"]), regresses: external_exports.boolean().optional() })).max(10),
+  explain_angles: external_exports.array(text).min(1).max(3),
+  drills: external_exports.array(drillSchema).min(1).max(3),
+  study: external_exports.array(text).min(2).max(4),
+  exposure_signals: external_exports.array(shortId).max(10).optional(),
+  why_it_matters: text.optional(),
+  exercise_kinds: external_exports.array(external_exports.enum(EXERCISE_KINDS)).min(1).max(6).optional(),
+  stack_notes: external_exports.record(
+    shortId,
+    external_exports.strictObject({ note: text, link: external_exports.string().regex(/^https:\/\/\S+$/, "stack note links must start with https://") })
+  )
+});
+var thresholdsSchema = external_exports.strictObject(
+  Object.fromEntries(Object.keys(DEFAULT_THRESHOLDS).map((k) => [k, external_exports.number().int().positive()]))
+);
+var ladderSchema = external_exports.strictObject({
+  track: external_exports.enum(TRACKS),
+  areas: external_exports.array(
+    external_exports.strictObject({
+      id: external_exports.string().regex(/^[A-Z][A-Z0-9]{1,7}$/, "area ids are 2 to 8 capital letters or digits, starting with a letter"),
+      name: text,
+      levels: external_exports.strictObject({ junior: external_exports.array(itemSchema), mid: external_exports.array(itemSchema), senior: external_exports.array(itemSchema), staff: external_exports.array(itemSchema) })
+    })
+  ).min(1),
+  thresholds: thresholdsSchema.partial().optional()
+}).superRefine((ladder, ctx) => {
+  const prefix = ladder.track === "backend" ? "BE." : "FE.";
+  const seen = /* @__PURE__ */ new Set();
+  for (const area of ladder.areas) {
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        if (seen.has(item.id)) ctx.addIssue({ code: "custom", message: `${item.id} is used more than once` });
+        seen.add(item.id);
+        if (!item.id.startsWith(prefix)) {
+          ctx.addIssue({ code: "custom", message: `${item.id} does not start with ${prefix} in a ${ladder.track} ladder` });
+        }
+        const letter = item.id.split(".")[2]?.[0];
+        if (letter !== LEVEL_LETTER[level]) {
+          const said = LEVELS.find((l) => LEVEL_LETTER[l] === letter) ?? "an unknown level";
+          ctx.addIssue({ code: "custom", message: `${item.id} sits under ${level} but its id says ${said}` });
+        }
+      }
+    }
+  }
+});
+
+// src/coach/signals.ts
+var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
+var WEB = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"];
+var ts = (line) => ({ file: "src/pay.ts", line });
+var py = (line) => ({ file: "app/pay.py", line });
+var go = (line) => ({ file: "pay/pay.go", line });
+var java = (line) => ({ file: "src/Pay.java", line });
+var tsx = (line) => ({ file: "web/Orders.tsx", line });
+var SIGNALS = [
+  {
+    id: "err.empty-catch",
+    meaning: "an error is caught and then ignored",
+    pattern: /\bcatch\s*(\([^)]*\))?\s*\{\s*\}|^\s*except\b[^:]*:\s*pass\s*$|\bif\s+err\s*!=\s*nil\s*\{\s*\}/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("} catch (e) {}"), ts("try { save(); } catch {}"), py("except Exception: pass"), go("if err != nil {}"), java("} catch (IOException e) { }")],
+      miss: [ts("} catch (e) { log.error(e); throw e; }"), py("except ValueError: return None"), ts("promise.catch(() => {})")]
+    }
+  },
+  {
+    id: "err.timeout-set",
+    meaning: "a time limit is set on a call to something outside",
+    pattern: /AbortSignal\.timeout\(|\btimeout\s*[:=]\s*\d|context\.WithTimeout\(|\.timeout\(\s*Duration|\b(connect|read|request|socket)Timeout\s*[:=(]\s*\d|\.Timeout\s*=\s*TimeSpan/i,
+    unless: /\btimeout\s*[:=]\s*0\b/i,
+    extensions: CODE,
+    examples: {
+      hit: [
+        ts("const res = await fetch(url, { signal: AbortSignal.timeout(5000) });"),
+        ts("const client = axios.create({ timeout: 3000 });"),
+        py("r = requests.post(url, json=body, timeout=5)"),
+        go("ctx, cancel := context.WithTimeout(ctx, 5*time.Second)")
+      ],
+      miss: [ts("// timeout: 5000"), ts("const res = await fetch(url);"), ts("axios.create({ timeout: 0 })")]
+    }
+  },
+  {
+    id: "err.retry-backoff",
+    meaning: "a failed call is retried with backoff or jitter",
+    pattern: /(retr(y|ies|yable)|attempt)\w*.*(backoff|jitter|exponential)|(backoff|jitter|exponential)\w*.*(retr(y|ies)|attempt)/i,
+    extensions: CODE,
+    examples: {
+      hit: [
+        ts('await retry(charge, { retries: 3, backoff: "exponential" });'),
+        java("@Retryable(maxAttempts = 3, backoff = @Backoff(delay = 200))"),
+        py("@retry(wait=wait_exponential(min=1), stop=stop_after_attempt(3))")
+      ],
+      miss: [ts("retries++;"), ts("const backoffMs = 200;"), ts("for (let attempt = 0; attempt < 3; attempt++) {")]
+    }
+  },
+  {
+    id: "err.error-cause",
+    meaning: "a new error keeps the error that caused it",
+    pattern: /\{\s*cause\s*:|\{\s*cause\s*\}|\braise\s+\w+(\(.*\))?\s+from\s+\w+|fmt\.Errorf\(.*%w|new\s+\w*(Exception|Error)\([^)]*,\s*(e|err|ex|error|cause)\s*\)/,
+    extensions: CODE,
+    examples: {
+      hit: [
+        ts('throw new PaymentError("charge failed", { cause: err });'),
+        py('raise ChargeError("failed") from exc'),
+        go('return fmt.Errorf("charge: %w", err)'),
+        java('throw new RuntimeException("charge failed", e);')
+      ],
+      miss: [ts('throw new Error("charge failed");'), py('raise ChargeError("failed")')]
+    }
+  },
+  {
+    id: "err.rethrow-message-only",
+    meaning: "an error is thrown again with only its message, so its cause and stack are lost",
+    pattern: /throw\s+new\s+Error\(\s*(e|err|error|ex)(\.message)?\s*\)|throw\s+new\s+\w*Exception\(\s*\w+\.getMessage\(\)\s*\)/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("throw new Error(e.message);"), ts("throw new Error(err)"), java("throw new RuntimeException(e.getMessage());")],
+      miss: [ts('throw new Error("bad input");'), ts("throw new Error(err.message, { cause: err });")]
+    }
+  },
+  {
+    id: "err.error-leak",
+    meaning: "raw error details are sent to the client",
+    pattern: /\.(json|send)\(\s*(err|error|e|ex)(\.stack)?\s*\)|\.send\(\s*\w+\.stack\s*\)/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("res.status(500).json(err);"), ts("res.send(err.stack);"), ts("return res.status(500).send(error)")],
+      miss: [ts('res.status(500).json({ error: "Something went wrong" });'), ts("res.json(result);")]
+    }
+  },
+  {
+    id: "fetch.console-only",
+    meaning: "a failed request is only logged or ignored, so the user sees nothing",
+    pattern: /\.catch\(\s*(console\.\w+\s*\)|\(\s*\w*\s*\)\s*=>\s*(\{\s*\}|console\.\w+\(\s*\w*\s*\)\s*\)))/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("fetch(url).then((r) => r.json()).catch(console.error);"), tsx("load().catch(() => {});"), tsx("load().catch((e) => console.log(e));")],
+      miss: [tsx("load().catch((e) => setError(e));"), tsx("load().catch(handleError);")]
+    }
+  },
+  {
+    id: "fetch.res-ok-check",
+    meaning: "the response status is checked before the data is used",
+    pattern: /!\s*(res|response|resp|r)\.ok\b|\b(res|response|resp|r)\.ok\s*(\)|&&|\?)|\.status\s*>=\s*400|\.status\s*<\s*200/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("if (!res.ok) throw new Error(`HTTP ${res.status}`);"), tsx("if (response.status >= 400) {"), tsx("return r.ok ? r.json() : null;")],
+      miss: [tsx("const data = await res.json();"), tsx("setState({ ok: true });")]
+    }
+  },
+  {
+    id: "fetch.abort-controller",
+    meaning: "a request can be cancelled when it is no longer needed",
+    pattern: /new\s+AbortController\(\)|\bsignal\s*:\s*\w+(\.signal)?/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("const controller = new AbortController();"), tsx("fetch(url, { signal: controller.signal })")],
+      miss: [tsx("const signals = [];"), tsx('emitter.on("signal", onSignal);')]
+    }
+  },
+  {
+    id: "fetch.loading-state",
+    meaning: "the screen shows that data is still loading",
+    pattern: /\b(isLoading|isPending|isFetching)\b|\bsetLoading\(|\bstatus\s*===?\s*['"](loading|pending)['"]/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("const { data, isLoading } = useQuery({ queryKey: ['orders'], queryFn });"), tsx("setLoading(true);"), tsx('if (status === "loading") return <Spinner />;')],
+      miss: [tsx("const loaded = true;"), tsx("loadUser();")]
+    }
+  },
+  {
+    id: "fetch.error-boundary",
+    meaning: "a broken part of the screen is caught and replaced with a fallback",
+    pattern: /\bErrorBoundary\b|\bcomponentDidCatch\b|\bgetDerivedStateFromError\b/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx("<ErrorBoundary fallback={<Oops />}>"), tsx("componentDidCatch(error, info) {")],
+      miss: [tsx("<Boundary>"), tsx('import { ErrorBoundary } from "react-error-boundary";')]
+    }
+  },
+  // Exposure signals: they show the developer had the chance to use a skill, not that they used it well.
+  {
+    id: "io.outside-call",
+    meaning: "a call to an outside service",
+    pattern: /\bfetch\(|\baxios(\.\w+)?\(|\bgot\(|\bhttps?\.(request|get)\(|\brequests\.(get|post|put|patch|delete)\(|\b(RestTemplate|WebClient|HttpClient)\b|\bhttp\.(Get|Post|Do)\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const res = await fetch(url);"), ts("const r = await axios.get(url);"), py("r = requests.post(url, json=body)"), go("resp, err := http.Get(url)")],
+      miss: [ts("const fetched = true;"), ts("refetch();")]
+    }
+  },
+  {
+    id: "io.db-query",
+    meaning: "a database query",
+    pattern: /\.(query|execute|findOne|findUnique|findMany|findById|findAll|aggregate|insertOne|updateOne)\(|\bSELECT\s+.+\s+FROM\b/i,
+    extensions: CODE,
+    examples: {
+      hit: [ts('const rows = await db.query("SELECT 1");'), ts("const user = await prisma.user.findUnique({ where: { id } });"), ts("const u = await User.findById(id);")],
+      miss: [ts("const item = items.find((x) => x.id === id);"), ts("const q = query;")]
+    }
+  },
+  {
+    id: "err.try-catch",
+    meaning: "code that catches an error",
+    pattern: /\btry\s*\{|^\s*try\s*:?\s*$|\bcatch\s*(\(|\{)|^\s*except\b/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("  try {"), ts("} catch (e) {"), py("try:"), py("except ValueError:")],
+      miss: [ts("const tryAgain = 1;"), ts("retry();")]
+    }
+  },
+  {
+    id: "err.throw",
+    meaning: "code that raises an error",
+    pattern: /\bthrow\s+\w|\braise\s+\w|\bpanic\(|\berrors\.New\(|\bfmt\.Errorf\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts('throw new Error("bad input");'), py('raise ValueError("bad input")'), go('return fmt.Errorf("charge: %w", err)')],
+      miss: [ts("const thrown = false;"), ts("const throwaway = 1;")]
+    }
+  },
+  {
+    id: "api.request-body",
+    meaning: "code that reads input from a request",
+    pattern: /\breq\.(body|query|params)\b|@(RequestBody|RequestParam|PathVariable|Body|Query|Param)\(|\brequest\.(json|form|args)\b|\bc\.(Bind|ShouldBind)\w*\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const { name } = req.body;"), java("public User create(@RequestBody() UserDto dto) {"), py("data = request.json")],
+      miss: [ts('const body = "x";'), ts("request();")]
+    }
+  },
+  {
+    id: "fetch.request",
+    meaning: "a request for server data from the screen",
+    pattern: /\bfetch\(|\buse(Query|SWR|Mutation)\(|\baxios(\.\w+)?\(|\bthis\.http\.(get|post|put|delete)\b/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx('const res = await fetch("/api/orders");'), tsx('const { data } = useQuery({ queryKey: ["o"], queryFn });'), tsx('return this.http.get<Order[]>("/api/orders");')],
+      miss: [tsx("const fetched = 1;"), tsx("refetch();")]
+    }
+  }
+];
+var BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
+function signalById(id) {
+  return BY_ID.get(id);
+}
+
+// src/coach/facts.ts
+function toIso(value) {
+  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+}
+function factsForItem(db2, ladderId, itemId) {
+  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map(
+    (r) => ({
+      id: r.id,
+      kind: r.kind,
+      polarity: r.polarity,
+      author: r.author,
+      decided_by: r.decided_by,
+      history: r.history === 1,
+      regresses: r.regresses === 1,
+      signal_id: r.signal_id,
+      file: r.file_path,
+      symbol: r.symbol,
+      ticket: r.ticket,
+      at: toIso(r.at),
+      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
+      fixed_ticket: r.fixed_ticket,
+      disagreed: r.disagreed_at !== null
+    })
+  );
+  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId, itemId).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
+  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
+  return { evidence, answers, drills };
+}
+
+// src/coach/settings.ts
+function read(db2, key, fallback) {
+  const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
+  return row ? JSON.parse(row.value) : fallback;
+}
+function getTracks(db2) {
+  return read(db2, "tracks", []).filter((t) => TRACKS.includes(t));
+}
+
+// src/coach/bugs.ts
+function repeats(db2, now = /* @__PURE__ */ new Date()) {
+  const rows2 = db2.prepare("SELECT ladder_id, item_id, signal_id, ticket, kind, at FROM skill_evidence WHERE polarity = 'negative' AND signal_id IS NOT NULL ORDER BY at").all();
+  const groups = /* @__PURE__ */ new Map();
+  for (const r of rows2) {
+    const k = `${r.ladder_id}\0${r.item_id}\0${r.signal_id}`;
+    const g = groups.get(k) ?? { ladder_id: r.ladder_id, item_id: r.item_id, signal_id: r.signal_id, tickets: /* @__PURE__ */ new Set(), times: 0, shipped: 0, last: 0 };
+    g.tickets.add(r.ticket);
+    g.times++;
+    if (r.kind === "review") g.shipped++;
+    g.last = Math.max(g.last, Date.parse(toIso(r.at)));
+    groups.set(k, g);
+  }
+  return [...groups.values()].filter((g) => g.tickets.size >= 3).map((g) => ({
+    ladder_id: g.ladder_id,
+    item_id: g.item_id,
+    signal_id: g.signal_id,
+    times: g.times,
+    tickets: g.tickets.size,
+    shipped: g.shipped,
+    last_at: new Date(g.last).toISOString(),
+    coming_back: now.getTime() - g.last <= 60 * 864e5
+  })).sort((a, b) => Number(b.coming_back) - Number(a.coming_back) || Date.parse(b.last_at) - Date.parse(a.last_at));
+}
+
+// src/coach/exposure.ts
+function exposureFor(db2, ladderId, itemId, now, t) {
+  const since = now.getTime() - t.exposure_window_days * 864e5;
+  const rows2 = [
+    ...db2.prepare("SELECT file_path, symbol, at FROM skill_exposure WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId),
+    ...db2.prepare("SELECT file_path, symbol, at FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'rule'").all(ladderId, itemId)
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  for (const r of rows2) {
+    if (Date.parse(toIso(r.at)) < since) continue;
+    seen.add(`${r.file_path ?? ""}\0${r.symbol ?? ""}`);
+  }
+  const functions = seen.size;
+  const level = functions >= t.exposure_high ? "high" : functions >= t.exposure_medium ? "medium" : functions >= t.exposure_low ? "low" : "none";
+  return { level, functions };
+}
+
+// src/coach/state.ts
+var DAY = 864e5;
+var ms = (iso) => Date.parse(iso);
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var baseName = (path) => path.replaceAll("\\", "/").split("/").pop() ?? path;
+function isCredit(e) {
+  return e.polarity === "positive" && (e.author === "dev" || e.decided_by === "dev");
+}
+function isFault(e) {
+  return e.polarity === "negative" && !(e.fixed_ticket !== null && e.fixed_ticket === e.ticket);
+}
+function snapshot(input2, credits, faults, regressedAt, at, t) {
+  const counts = (iso) => (regressedAt === null || ms(iso) > regressedAt) && ms(iso) <= at;
+  const windowStart = at - t.window_days * DAY;
+  const groups = /* @__PURE__ */ new Map();
+  for (const e of credits) {
+    if (!counts(e.at) || ms(e.at) < windowStart) continue;
+    const key = [e.signal_id ?? e.kind, e.file ?? "", e.symbol ?? ""].join("\0");
+    const prev = groups.get(key);
+    if (!prev || ms(e.at) < ms(prev.at)) groups.set(key, e);
+  }
+  const hasSignals = input2.item.signals.some((s) => s.polarity === "positive");
+  let judged = 0;
+  let fromHistory = 0;
+  const kept = [];
+  for (const e of [...groups.values()].sort((a, b) => ms(a.at) - ms(b.at))) {
+    if ((e.kind === "judge" || e.kind === "decision") && hasSignals) {
+      if (judged >= t.judge_cap) continue;
+      judged++;
+    }
+    if (e.history) {
+      if (fromHistory >= 1) continue;
+      fromHistory++;
+    }
+    kept.push(e);
+  }
+  const proofTickets = new Set(kept.map((e) => e.ticket)).size;
+  const openFaults = faults.filter((f) => ms(f.at) >= windowStart && ms(f.at) <= at && (f.fixed_at === null || ms(f.fixed_at) > at));
+  const clear = input2.answers.filter((a) => a.rating === "clear" && counts(a.at));
+  const clearTickets = new Set(clear.map((a) => a.ticket)).size;
+  const tradeoff = clear.some((a) => a.names_tradeoff);
+  const lastProof = kept.length > 0 ? kept[kept.length - 1].at : null;
+  return {
+    shown: kept.length >= t.proofs && proofTickets >= t.tickets && openFaults.length === 0 && clearTickets >= t.clear_answers && tradeoff,
+    proofs: kept.length,
+    proofTickets,
+    openFaults,
+    clearTickets,
+    tradeoff,
+    lastProofAt: lastProof
+  };
+}
+function itemStatus(input2, now, t) {
+  const credits = input2.evidence.filter((e) => !e.disagreed).filter(isCredit);
+  const faults = input2.evidence.filter(isFault);
+  const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input2.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];
+  const regressedIso = drops.length > 0 ? drops.reduce((a, b) => ms(a) >= ms(b) ? a : b) : null;
+  const regressedAt = regressedIso === null ? null : ms(regressedIso);
+  const exposure = input2.exposure ?? { level: "none", functions: 0 };
+  const after = (iso) => regressedAt === null || ms(iso) > regressedAt;
+  const nowMs = now.getTime();
+  const current = snapshot(input2, credits, faults, regressedAt, nowMs, t);
+  const windowMs = t.window_days * DAY;
+  const factMoments = [...credits.map((e) => e.at), ...input2.answers.map((a) => a.at)].filter(after).map(ms);
+  const faultMoments = faults.flatMap((f) => [...f.fixed_at !== null ? [ms(f.fixed_at)] : [], ms(f.at) + windowMs + 1]);
+  const moments = [.../* @__PURE__ */ new Set([...factMoments, ...faultMoments.filter((m) => regressedAt === null || m > regressedAt)])].filter((m) => m <= nowMs).sort((a, b) => a - b);
+  moments.push(nowMs);
+  const workShownMs = moments.find((m) => snapshot(input2, credits, faults, regressedAt, m, t).shown) ?? null;
+  const passed = input2.drills.filter((d) => d.passed && !d.void && after(d.at)).sort((a, b) => ms(a.at) - ms(b.at));
+  const firstClear = input2.answers.filter((a) => a.rating === "clear" && after(a.at)).sort((a, b) => ms(a.at) - ms(b.at))[0];
+  const distinct = [];
+  for (const d of passed) if (!distinct.some((x) => x.drill_id === d.drill_id)) distinct.push(d);
+  const drillCandidateMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1].at), ms(firstClear.at)) : null;
+  const openAt = (m) => faults.some((f) => ms(f.at) <= m && ms(f.at) >= m - windowMs && (f.fixed_at === null || ms(f.fixed_at) > m));
+  const drillShownMs = drillCandidateMs !== null && !openAt(drillCandidateMs) ? drillCandidateMs : null;
+  const proven = workShownMs === null ? void 0 : passed.find((d) => ms(d.at) >= workShownMs);
+  const openFault = current.openFaults.length > 0;
+  const rated = [...input2.answers].sort((a, b) => ms(a.at) - ms(b.at));
+  const latestAnswer = rated[rated.length - 1];
+  const tries = input2.drills.filter((d) => !d.void || !d.passed).sort((a, b) => ms(a.at) - ms(b.at));
+  const latestDrill = tries[tries.length - 1];
+  const gap = regressedAt !== null || openFault || latestAnswer !== void 0 && latestAnswer.rating !== "clear" || latestDrill !== void 0 && !latestDrill.passed;
+  const anything = credits.length > 0 || input2.answers.length > 0 || input2.drills.length > 0 || faults.length > 0 || exposure.functions > 0;
+  let state;
+  let shownBy = null;
+  let shownMs = null;
+  if (proven) {
+    state = "proven";
+    shownBy = "work";
+    shownMs = workShownMs;
+  } else if (workShownMs !== null) {
+    state = "shown";
+    shownBy = "work";
+    shownMs = workShownMs;
+  } else if (drillShownMs !== null) {
+    state = "shown";
+    shownBy = "drill";
+    shownMs = drillShownMs;
+  } else if (gap) state = "learning";
+  else if (anything) state = "not_assessed";
+  else state = "not_seen";
+  const lowExposure = exposure.level === "none" || exposure.level === "low";
+  const needs = [];
+  if (state === "shown") needs.push(shownBy === "drill" ? "show it in your work, then pass a drill" : "pass a drill");
+  else if (state !== "proven") {
+    for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
+    if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
+    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
+    if (current.clearTickets < t.clear_answers) needs.push(`${plural2(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
+    if (!current.tradeoff) needs.push("an answer that names the trade-off");
+    if (lowExposure) {
+      needs.push("more chances in your work, or take a drill");
+      if (distinct.length < 2) needs.push(`or by drills: pass ${plural2(2 - distinct.length, "more drill", "more drills")} on a new prompt`);
+      if (!firstClear) needs.push("or by drills: 1 clear answer to a follow-up question");
+    }
+  }
+  return {
+    item_id: input2.item.id,
+    state,
+    proofs: current.proofs,
+    proof_tickets: current.proofTickets,
+    clear_answers: current.clearTickets,
+    tradeoff_named: current.tradeoff,
+    open_faults: current.openFaults.length,
+    regressed_at: regressedIso,
+    last_proof_at: current.lastProofAt,
+    proven_at: proven?.at ?? null,
+    needs,
+    exposure: exposure.level,
+    exposure_functions: exposure.functions,
+    shown_by: shownBy,
+    shown_at: shownMs === null ? null : new Date(shownMs).toISOString()
+  };
+}
+function areaLevel(area, statuses) {
+  let level = null;
+  for (const lvl of LEVELS) {
+    const items = area.levels[lvl];
+    if (items.length === 0) continue;
+    if (items.every((i2) => statuses.get(i2.id)?.state === "proven")) level = lvl;
+    else return { level, working_toward: lvl };
+  }
+  return { level, working_toward: null };
+}
+
+// src/coach/drills.ts
+var DAY2 = 864e5;
+function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
+  const lowExposure = status.exposure === "none" || status.exposure === "low";
+  if (status.state === "proven") return { allowed: false, reason: "This item is already Proven." };
+  if (status.state === "shown" && status.shown_by === "drill") {
+    return { allowed: false, reason: "This item is Shown by drills. Show it in your work first; a drill after that can make it Proven." };
+  }
+  if (status.state !== "shown" && !lowExposure) {
+    return {
+      allowed: false,
+      reason: `A drill opens when the item is Shown, or when your work gives little chance to show it. It is ${status.state.replace("_", " ")} now, and your work touches it often.`
+    };
+  }
+  const last = attempts.filter((a) => !a.void).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+  if (last && !last.passed) {
+    const waited = now.getTime() - Date.parse(last.at) >= t.drill_retry_days * DAY2;
+    if (!waited && newProofsSinceLastFail < 1) {
+      return { allowed: false, reason: `After a failed drill, try again after one new code proof or ${t.drill_retry_days} days.` };
+    }
+  }
+  return { allowed: true };
+}
+function gateFor(db2, ctx, now) {
+  const facts = factsForItem(db2, ctx.loaded.ladder_id, ctx.item.id);
+  const exposure = exposureFor(db2, ctx.loaded.ladder_id, ctx.item.id, now, ctx.loaded.thresholds);
+  const status = itemStatus({ item: ctx.item, ...facts, exposure }, now, ctx.loaded.thresholds);
+  const lastFail = facts.drills.filter((d) => !d.void && !d.passed).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+  const newProofs = lastFail ? facts.evidence.filter((e) => e.polarity === "positive" && !e.disagreed && (e.author === "dev" || e.decided_by === "dev") && Date.parse(e.at) > Date.parse(lastFail.at)).length : 0;
+  return { facts, gate: drillGate(status, facts.drills, newProofs, now, ctx.loaded.thresholds) };
+}
+function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
+  const ready = [];
+  for (const { loaded, statuses } of results) {
+    for (const area of loaded.ladder.areas) {
+      for (const items of Object.values(area.levels)) {
+        for (const item of items) {
+          const s = statuses.get(item.id);
+          if (s?.state !== "shown" || s.shown_by === "drill") continue;
+          if (gateFor(db2, { loaded, item }, now).gate.allowed) ready.push(item.id);
+        }
+      }
+    }
+  }
+  return ready;
+}
+
+// src/coach/ladder/load.ts
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync as readFileSync3 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join4 } from "node:path";
+
+// src/coach/ladder/builtin/backend.json
+var backend_default = {
+  track: "backend",
+  areas: [
+    {
+      id: "ERR",
+      name: "Errors and failure",
+      levels: {
+        junior: [
+          {
+            id: "BE.ERR.J1",
+            title: "Never hides an error",
+            good_looks_like: [
+              "Every caught error is handled, logged with context, or thrown again. Nothing is caught and silently dropped."
+            ],
+            signals: [
+              {
+                id: "err.empty-catch",
+                polarity: "negative",
+                regresses: true
+              }
+            ],
+            explain_angles: [
+              "What happens to the user when this error is caught here?",
+              "Who finds out that this failed, and how?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A teammate wraps a database save in try/catch with an empty catch block 'so the request never crashes'. What goes wrong, and what would you do instead?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "The failure becomes invisible: data is lost and nobody knows"
+                  },
+                  {
+                    id: "k2",
+                    text: "The caller wrongly believes the save worked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Either handle it on purpose, or log with context and let it fail to the caller"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says an empty catch is fine as long as nothing crashes"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "When is it right to catch an error and NOT throw it again? Give an example and say what you must still do.",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "When there is a real fallback or the failure does not matter to the result"
+                  },
+                  {
+                    id: "k2",
+                    text: "A concrete example such as an optional cache or a best-effort metric"
+                  },
+                  {
+                    id: "k3",
+                    text: "Still log or count it so the failure is visible"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is fine to catch any error and move on"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "error handling basics in your language",
+              "what 'fail loudly' means",
+              "logging an error with context"
+            ],
+            stack_notes: {
+              express: {
+                note: "Pass errors to next(err) and keep one error-handling middleware; never end a request from an empty catch.",
+                link: "https://expressjs.com/en/guide/error-handling.html"
+              },
+              nestjs: {
+                note: "Throw an HttpException or a custom one and let an exception filter shape the reply; do not swallow it in the service.",
+                link: "https://docs.nestjs.com/exception-filters"
+              },
+              spring: {
+                note: "Let exceptions reach a @ControllerAdvice handler; do not catch and ignore them in the service.",
+                link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html"
+              }
+            },
+            exposure_signals: [
+              "err.try-catch"
+            ],
+            why_it_matters: "A hidden error turns into lost data or a wrong result that nobody notices until a user complains.",
+            exercise_kinds: [
+              "debug",
+              "review",
+              "implement"
+            ]
+          },
+          {
+            id: "BE.ERR.J2",
+            title: "Checks the result of calls that can fail",
+            good_looks_like: [
+              "Checks for missing rows, null results and failed status codes before using the result."
+            ],
+            signals: [],
+            explain_angles: [
+              "What happens here if the call returns nothing?",
+              "Why check it here and not later?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your endpoint loads an order by id and then reads order.customer.email. What can go wrong, and how do you handle each case?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "The order may not exist: return a clear 404"
+                  },
+                  {
+                    id: "k2",
+                    text: "The customer or email may be missing: decide what the caller gets"
+                  },
+                  {
+                    id: "k3",
+                    text: "Check before use instead of letting a null error become a 500"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Lets a null reference error reach the user as a 500"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "An outside API returns HTTP 200 with a body like { ok: false, error: 'quota' }. How should your code treat it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "A 200 status does not mean success; read the body's own status"
+                  },
+                  {
+                    id: "k2",
+                    text: "Turn it into a real error in your code"
+                  },
+                  {
+                    id: "k3",
+                    text: "Decide whether it is worth retrying or should be shown to the caller"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Treats any 200 as success"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "null and undefined checks",
+              "HTTP status codes 4xx vs 5xx",
+              "guard clauses"
+            ],
+            stack_notes: {
+              express: {
+                note: "Return 404 for a missing resource with a short JSON body; check results before using them.",
+                link: "https://expressjs.com/en/guide/error-handling.html"
+              },
+              nestjs: {
+                note: "Throw NotFoundException when a lookup finds nothing.",
+                link: "https://docs.nestjs.com/exception-filters"
+              },
+              spring: {
+                note: "Use Optional from repositories and orElseThrow a not-found exception.",
+                link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html"
+              }
+            },
+            exposure_signals: [
+              "io.outside-call",
+              "io.db-query"
+            ],
+            why_it_matters: "A missing row or a failed call that is used as if it worked becomes a crash or a wrong answer far from the cause.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "BE.ERR.M1",
+            title: "Validates input at the edge",
+            good_looks_like: [
+              "Checks request input once, where it enters the system, and rejects bad input with a clear 400 that says what is wrong."
+            ],
+            signals: [],
+            explain_angles: [
+              "Why validate here and not deeper in the code?",
+              "What does the caller see for bad input?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A create-user endpoint takes name, email and age. Where and how do you validate them, and what does a client get back for bad input?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Validate at the entry point with a schema"
+                  },
+                  {
+                    id: "k2",
+                    text: "Return 400 with which fields are wrong and why"
+                  },
+                  {
+                    id: "k3",
+                    text: "Inner code can then trust its input instead of checking again everywhere"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Relies on the frontend to validate"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Why is checking input only in the browser not enough? Give one attack or bug it lets through.",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Anyone can call the API directly and skip the browser"
+                  },
+                  {
+                    id: "k2",
+                    text: "A concrete example: a negative quantity, a huge string, a wrong type"
+                  },
+                  {
+                    id: "k3",
+                    text: "The server is the only place the rule is enforced"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says browser checks are enough"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "schema validation (zod, class-validator, Bean Validation)",
+              "trust boundaries",
+              "400 vs 422 responses"
+            ],
+            stack_notes: {
+              express: {
+                note: "Validate req.body with a schema library in a middleware and reply 400 with field errors.",
+                link: "https://express-validator.github.io/docs/"
+              },
+              nestjs: {
+                note: "Use DTOs with class-validator and the global ValidationPipe.",
+                link: "https://docs.nestjs.com/techniques/validation"
+              },
+              spring: {
+                note: "Use @Valid on request bodies with Bean Validation annotations.",
+                link: "https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html"
+              }
+            },
+            exposure_signals: [
+              "api.request-body"
+            ],
+            why_it_matters: "Bad input that gets past the edge spreads into every layer and into stored data; one check at the edge keeps the rest simple.",
+            exercise_kinds: [
+              "implement",
+              "review",
+              "design_tradeoff"
+            ]
+          },
+          {
+            id: "BE.ERR.M2",
+            title: "Handles the failure of an outside call on purpose",
+            good_looks_like: [
+              "Sets a time limit on every call to another service.",
+              "Retries only when it is safe, with backoff, and gives the caller a clear error when it still fails."
+            ],
+            signals: [
+              {
+                id: "err.timeout-set",
+                polarity: "positive"
+              },
+              {
+                id: "err.retry-backoff",
+                polarity: "positive"
+              },
+              {
+                id: "err.empty-catch",
+                polarity: "negative",
+                regresses: true
+              }
+            ],
+            explain_angles: [
+              "Why this time limit, and what happens when it runs out?",
+              "Is it safe to retry this call? Why?",
+              "What does the caller see when the outside service is down?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your service calls a payment provider that sometimes takes 30 seconds to answer. How do you design the call? What can go wrong with retries?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Set a time limit shorter than your own caller's"
+                  },
+                  {
+                    id: "k2",
+                    text: "Retry only with an idempotency key, or not at all, so a charge is never made twice"
+                  },
+                  {
+                    id: "k3",
+                    text: "Backoff with jitter and a small retry cap"
+                  },
+                  {
+                    id: "k4",
+                    text: "A clear error or 'pending' state for the caller when it still fails"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Retries a payment with no idempotency key"
+                  },
+                  {
+                    id: "r2",
+                    text: "No time limit at all"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "A downstream service is down for 10 minutes. Your service retries every failed call 5 times right away. What happens, and what would you change?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Retries multiply the load and slow down your own service"
+                  },
+                  {
+                    id: "k2",
+                    text: "Use backoff with jitter and a retry cap"
+                  },
+                  {
+                    id: "k3",
+                    text: "Fail fast or use a circuit breaker while it is down"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says more retries fix it"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "time limits on outside calls",
+              "retry with backoff and jitter",
+              "idempotency keys",
+              "circuit breakers"
+            ],
+            stack_notes: {
+              express: {
+                note: "Pass AbortSignal.timeout(ms) to fetch; retry only idempotent calls, with backoff.",
+                link: "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static"
+              },
+              nestjs: {
+                note: "Set a timeout on HttpModule and use rxjs timeout and retry with a delay function.",
+                link: "https://docs.nestjs.com/techniques/http-module"
+              },
+              spring: {
+                note: "Set connect and read timeouts on the client; use Resilience4j for retry and circuit breaker.",
+                link: "https://resilience4j.readme.io/docs/getting-started"
+              }
+            },
+            exposure_signals: [
+              "io.outside-call"
+            ],
+            why_it_matters: "Outside services are slow or down sometimes; without a time limit and a retry rule, one slow provider takes your service down or charges a card twice.",
+            exercise_kinds: [
+              "implement",
+              "design_tradeoff",
+              "review",
+              "explain"
+            ]
+          },
+          {
+            id: "BE.ERR.M3",
+            title: "Errors carry useful context without leaking data",
+            good_looks_like: [
+              "A new error keeps its cause and says what was being done.",
+              "The client gets a safe message; stack traces and internal details stay in the logs."
+            ],
+            signals: [
+              {
+                id: "err.error-cause",
+                polarity: "positive"
+              },
+              {
+                id: "err.rethrow-message-only",
+                polarity: "negative"
+              },
+              {
+                id: "err.error-leak",
+                polarity: "negative",
+                regresses: true
+              }
+            ],
+            explain_angles: [
+              "What will the person debugging this see in the logs?",
+              "What does the client see, and why not more?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A user reports 'it failed' and your log says only 'Error: undefined'. How should errors be written so this never happens again, and what should the user see?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Wrap errors with what was being done and keep the original cause"
+                  },
+                  {
+                    id: "k2",
+                    text: "Log with an id that links the request and the error"
+                  },
+                  {
+                    id: "k3",
+                    text: "The user gets a safe message plus the id, never the stack trace"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Sends the stack trace to the client"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Why is res.status(500).json(err) a problem? What would you send instead?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "It can leak internals: stack, SQL, file paths, secrets"
+                  },
+                  {
+                    id: "k2",
+                    text: "Send a stable error shape with a safe message and a code"
+                  },
+                  {
+                    id: "k3",
+                    text: "Keep full details in the server logs"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says the raw error helps the client debug"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "error cause chains",
+              "correlation ids",
+              "safe error responses (RFC 9457 problem details)"
+            ],
+            stack_notes: {
+              express: {
+                note: "Throw new Error(msg, { cause }) and map errors to safe JSON in one error middleware.",
+                link: "https://expressjs.com/en/guide/error-handling.html"
+              },
+              nestjs: {
+                note: "Use an exception filter to return a safe shape and log the full error.",
+                link: "https://docs.nestjs.com/exception-filters"
+              },
+              spring: {
+                note: "Return ProblemDetail from @ExceptionHandler and keep the cause in the log.",
+                link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html"
+              }
+            },
+            exposure_signals: [
+              "err.throw"
+            ],
+            why_it_matters: "Errors without context make every incident slow to debug, and raw errors sent to users leak internals.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
+          }
+        ],
+        senior: [
+          {
+            id: "BE.ERR.S1",
+            title: "Designs for partial failure",
+            good_looks_like: [
+              "When one step of a multi-step change fails, the system ends in a known state: retried safely, compensated, or clearly marked for follow-up."
+            ],
+            signals: [],
+            explain_angles: [
+              "What state is the data in if the second step fails?",
+              "How does this recover without a person?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "An order flow charges the card, then reserves stock, then sends an email. Stock reservation fails after the charge. How do you design this?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Name the bad state: money taken, no stock"
+                  },
+                  {
+                    id: "k2",
+                    text: "Compensate (refund) or retry the step, with idempotent steps"
+                  },
+                  {
+                    id: "k3",
+                    text: "Record progress so a crash mid-flow can resume (outbox, saga, or state machine)"
+                  },
+                  {
+                    id: "k4",
+                    text: "Side effects like email only after the important steps succeed"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Assumes all steps succeed or fail together without a transaction that covers them"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "You must save a row and publish an event about it. What can go wrong, and how do you make sure both happen?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "The save can succeed and the publish fail, or the other way round"
+                  },
+                  {
+                    id: "k2",
+                    text: "Use a transactional outbox or similar"
+                  },
+                  {
+                    id: "k3",
+                    text: "Consumers must handle duplicates"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Publishes before the save commits and calls it done"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "saga pattern",
+              "transactional outbox",
+              "idempotent consumers",
+              "compensating actions"
+            ],
+            stack_notes: {
+              express: {
+                note: "Keep each step idempotent and record progress in the database before side effects.",
+                link: "https://microservices.io/patterns/data/transactional-outbox.html"
+              },
+              nestjs: {
+                note: "Use a queue (for example BullMQ) for steps after the main transaction, with retries.",
+                link: "https://docs.nestjs.com/techniques/queues"
+              },
+              spring: {
+                note: "Use @TransactionalEventListener or an outbox table to publish after commit.",
+                link: "https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html"
+              }
+            },
+            exposure_signals: [
+              "io.outside-call"
+            ],
+            why_it_matters: "In multi-step changes, one failed step can leave money, stock or data in a state nobody planned for.",
+            exercise_kinds: [
+              "design_tradeoff",
+              "architecture",
+              "explain"
+            ]
+          },
+          {
+            id: "BE.ERR.S2",
+            title: "Makes failures observable",
+            good_looks_like: [
+              "Failures show up as structured logs, metrics and alerts that tell someone what broke, before users report it."
+            ],
+            signals: [],
+            explain_angles: [
+              "How would you know this is failing in production?",
+              "Who gets alerted, and on what?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your checkout fails for 2% of users and nobody noticed for a week. What would you add so this is caught in minutes?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "An error-rate metric on the checkout path"
+                  },
+                  {
+                    id: "k2",
+                    text: "An alert on that rate with a sensible threshold"
+                  },
+                  {
+                    id: "k3",
+                    text: "Structured logs with a request id to find the cause"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Relies on users or support tickets to notice"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "What makes a log line useful during an incident? Compare a good and a bad one.",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Structured fields, not free text"
+                  },
+                  {
+                    id: "k2",
+                    text: "Request or trace id, and what was being done"
+                  },
+                  {
+                    id: "k3",
+                    text: "No secrets or personal data"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Logs full request bodies with personal data"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "structured logging",
+              "RED metrics (rate, errors, duration)",
+              "alerting on symptoms",
+              "distributed tracing"
+            ],
+            stack_notes: {
+              express: {
+                note: "Use a structured logger (for example pino) with a request id per request.",
+                link: "https://expressjs.com/en/advanced/best-practice-performance.html"
+              },
+              nestjs: {
+                note: "Replace the default logger with a structured one and add an interceptor for request ids.",
+                link: "https://docs.nestjs.com/techniques/logger"
+              },
+              spring: {
+                note: "Use Actuator and Micrometer for metrics, and MDC for request ids in logs.",
+                link: "https://docs.spring.io/spring-boot/reference/actuator/index.html"
+              }
+            },
+            exposure_signals: [
+              "err.try-catch"
+            ],
+            why_it_matters: "Failures you cannot see are fixed late; good logs, metrics and alerts turn days of searching into minutes.",
+            exercise_kinds: [
+              "implement",
+              "design_tradeoff",
+              "debug"
+            ]
+          }
+        ],
+        staff: [
+          {
+            id: "BE.ERR.X1",
+            title: "Sets the error-handling standard for a system",
+            good_looks_like: [
+              "Defines one error contract, retry and timeout rules, and error budgets that every team follows, and makes the easy path the right one."
+            ],
+            signals: [],
+            explain_angles: [
+              "Why should every service follow this rule?",
+              "How do you make the right way the easy way?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Ten services each handle errors their own way, and incidents are hard to trace. What standard would you set, and how would you roll it out?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "One error shape and code list across services"
+                  },
+                  {
+                    id: "k2",
+                    text: "Shared defaults for time limits, retries and tracing, in a library or template"
+                  },
+                  {
+                    id: "k3",
+                    text: "Roll out step by step with checks in CI or review"
+                  },
+                  {
+                    id: "k4",
+                    text: "Measure success with error budgets or incident data"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Only writes a document and expects people to follow it"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "How would you choose time limits and retry budgets across a chain of four services calling each other?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Time limits shrink down the chain so the caller's budget is respected"
+                  },
+                  {
+                    id: "k2",
+                    text: "Retry at one layer only to avoid retry storms"
+                  },
+                  {
+                    id: "k3",
+                    text: "Pass the deadline along with the request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Every layer retries 3 times"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "error budgets and SLOs",
+              "deadline propagation",
+              "API error contracts",
+              "paved-road libraries"
+            ],
+            stack_notes: {
+              express: {
+                note: "Ship a shared middleware package for errors, timeouts and request ids.",
+                link: "https://expressjs.com/en/guide/writing-middleware.html"
+              },
+              nestjs: {
+                note: "Ship a shared module with a global filter, interceptor and HTTP client defaults.",
+                link: "https://docs.nestjs.com/modules"
+              },
+              spring: {
+                note: "Ship a starter with ProblemDetail handling, Resilience4j defaults and tracing.",
+                link: "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html"
+              }
+            },
+            exposure_signals: [],
+            why_it_matters: "When every service handles errors its own way, incidents cross teams and nobody can trace them; one standard makes the whole system safer.",
+            exercise_kinds: [
+              "architecture",
+              "design_tradeoff",
+              "explain"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      id: "DATA",
+      name: "Data and storage",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "API",
+      name: "API design",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "SEC",
+      name: "Security",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "PERF",
+      name: "Performance",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "TEST",
+      name: "Testing",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "STRUCT",
+      name: "Code structure",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "REQ",
+      name: "Requirements and scope",
+      levels: {
+        junior: [
+          {
+            id: "BE.REQ.J1",
+            title: "Builds what the ticket asks, and nothing extra",
+            good_looks_like: [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Build the export the ticket asks for"
+                  },
+                  {
+                    id: "k2",
+                    text: "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    id: "k3",
+                    text: "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    id: "k2",
+                    text: "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    id: "k3",
+                    text: "If it is kept, say why in the pull request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            exercise_kinds: [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "BE.REQ.M1",
+            title: "Spots unclear needs before coding",
+            good_looks_like: [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    id: "k2",
+                    text: "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Write the assumption down where the team can see it"
+                  },
+                  {
+                    id: "k2",
+                    text: "Build the part that does not depend on it first"
+                  },
+                  {
+                    id: "k3",
+                    text: "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            exercise_kinds: [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
+        senior: [],
+        staff: []
+      }
+    }
+  ]
+};
+
+// src/coach/ladder/builtin/frontend.json
+var frontend_default = {
+  track: "frontend",
+  areas: [
+    {
+      id: "FETCH",
+      name: "Data fetching and errors",
+      levels: {
+        junior: [
+          {
+            id: "FE.FETCH.J1",
+            title: "Shows loading and error states",
+            good_looks_like: [
+              "Every screen that loads data shows a loading state, an error state with a way to retry, and an empty state."
+            ],
+            signals: [
+              {
+                id: "fetch.loading-state",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "What does the user see while this loads?",
+              "What does the user see if it fails?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A list page fetches orders. Describe every state the page can be in and what the user sees in each.",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Loading: a spinner or skeleton"
+                  },
+                  {
+                    id: "k2",
+                    text: "Error: a message and a retry action"
+                  },
+                  {
+                    id: "k3",
+                    text: "Empty: a clear 'no orders yet' state"
+                  },
+                  {
+                    id: "k4",
+                    text: "Success: the list"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Only handles the success case"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Users say a page 'goes blank' on slow networks. What is probably missing, and how do you fix it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "No loading state while data is on its way"
+                  },
+                  {
+                    id: "k2",
+                    text: "Possibly no error state when the request fails"
+                  },
+                  {
+                    id: "k3",
+                    text: "Add explicit states and test with a slow network in dev tools"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Blames the network and changes nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "loading, error and empty states",
+              "skeleton screens",
+              "testing with network throttling"
+            ],
+            stack_notes: {
+              react: {
+                note: "Model loading, error and data as explicit state, or use a data library that gives isLoading and error.",
+                link: "https://react.dev/reference/react/Suspense"
+              },
+              nextjs: {
+                note: "Add loading.js and error.js next to the route for loading and error states.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming"
+              },
+              angular: {
+                note: "Track loading and error in the component or a signal, and show them in the template.",
+                link: "https://angular.dev/guide/http/making-requests"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Without loading and error states, users see a blank or frozen screen and think the app is broken.",
+            exercise_kinds: [
+              "implement",
+              "review"
+            ]
+          },
+          {
+            id: "FE.FETCH.J2",
+            title: "Never swallows a failed request",
+            good_looks_like: [
+              "A failed request is shown to the user or handled on purpose; it is never only logged to the console."
+            ],
+            signals: [
+              {
+                id: "fetch.console-only",
+                polarity: "negative",
+                regresses: true
+              },
+              {
+                id: "err.empty-catch",
+                polarity: "negative"
+              }
+            ],
+            explain_angles: [
+              "What does the user see when this request fails?",
+              "Why is a console message not enough here?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A save button calls the API with .catch(console.error). What does the user experience when the save fails, and what would you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "The user thinks it saved; their change is silently lost"
+                  },
+                  {
+                    id: "k2",
+                    text: "Show an error and keep their input so they can retry"
+                  },
+                  {
+                    id: "k3",
+                    text: "Report the error to monitoring, not only the console"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says console.error is enough"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "When is it fine to ignore a failed request in the UI? Give an example.",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "When the data is optional and the page works without it"
+                  },
+                  {
+                    id: "k2",
+                    text: "A concrete example such as a non-critical recommendation widget"
+                  },
+                  {
+                    id: "k3",
+                    text: "Still report it so the team knows it fails"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Any request can be ignored"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "promise error handling",
+              "user feedback on failure",
+              "frontend error monitoring"
+            ],
+            stack_notes: {
+              react: {
+                note: "Put the error in state and render it; do not end a promise chain with console.error.",
+                link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects"
+              },
+              nextjs: {
+                note: "Let errors reach an error.js boundary or show them in the form state.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              angular: {
+                note: "Handle errors in the subscribe error callback or catchError and show them to the user.",
+                link: "https://angular.dev/guide/http/making-requests"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "A failed request that is only logged loses the user's work silently and leaves them confused.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "FE.FETCH.M1",
+            title: "Checks the response before using it",
+            good_looks_like: [
+              "Checks the HTTP status before reading the body, and turns a failed status into a real error."
+            ],
+            signals: [
+              {
+                id: "fetch.res-ok-check",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "What happens here if the server answers 500?",
+              "Why check the status before reading the body?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "fetch() resolved, so the code calls res.json() and renders it. The server answered 500 with an HTML page. What happens, and how should the code be written?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "fetch only rejects on network errors, not on 4xx or 5xx"
+                  },
+                  {
+                    id: "k2",
+                    text: "res.json() fails on HTML or the app renders an error body as data"
+                  },
+                  {
+                    id: "k3",
+                    text: "Check res.ok or the status first and throw a real error"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Believes fetch rejects on HTTP errors"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Where would you put response checking so every screen gets it, and what would it return?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "In one shared API client or wrapper"
+                  },
+                  {
+                    id: "k2",
+                    text: "It throws a typed error with status and message"
+                  },
+                  {
+                    id: "k3",
+                    text: "Screens then handle one error shape"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Copies the check into every component"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "fetch vs axios error behaviour",
+              "a typed API client",
+              "HTTP status classes"
+            ],
+            stack_notes: {
+              react: {
+                note: "Wrap fetch in one client function that checks res.ok and throws a typed error.",
+                link: "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok"
+              },
+              nextjs: {
+                note: "Check res.ok in server fetches too, and call notFound() or throw for error.js.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              angular: {
+                note: "HttpClient errors on non-2xx; use an interceptor to map them to one error type.",
+                link: "https://angular.dev/guide/http/interceptors"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "fetch does not fail on a server error; reading an error page as data breaks the screen in strange ways.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
+          },
+          {
+            id: "FE.FETCH.M2",
+            title: "Cancels stale requests",
+            good_looks_like: [
+              "When the user moves on or types again, old requests are cancelled or ignored so a slow old answer never overwrites a new one."
+            ],
+            signals: [
+              {
+                id: "fetch.abort-controller",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "What happens if the user types fast here?",
+              "What happens if they leave the page before it loads?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A search box fetches results on each key press. Sometimes old results appear after new ones. Why, and how do you fix it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Responses can arrive out of order: a race"
+                  },
+                  {
+                    id: "k2",
+                    text: "Cancel the previous request (AbortController, switchMap) or ignore stale answers"
+                  },
+                  {
+                    id: "k3",
+                    text: "Debounce the input to send fewer requests"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says requests always come back in order"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "A component starts a fetch and the user navigates away before it finishes. What can go wrong, and what do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "State updates on a gone component, or wasted work"
+                  },
+                  {
+                    id: "k2",
+                    text: "Abort in the effect cleanup or unsubscribe on destroy"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ignore AbortError so it is not shown as a failure"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Shows the abort as an error to the user"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "race conditions in UI fetching",
+              "AbortController",
+              "debouncing",
+              "effect cleanup"
+            ],
+            stack_notes: {
+              react: {
+                note: "Create an AbortController in the effect and abort it in the cleanup function.",
+                link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects"
+              },
+              nextjs: {
+                note: "On the client, the same effect cleanup applies; prefer a data library that cancels for you.",
+                link: "https://nextjs.org/docs/app/building-your-application/data-fetching"
+              },
+              angular: {
+                note: "Use switchMap so a new search cancels the old request.",
+                link: "https://rxjs.dev/api/operators/switchMap"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Old answers arriving late overwrite new ones and show the wrong data, a bug that is hard to reproduce.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "explain"
+            ]
+          },
+          {
+            id: "FE.FETCH.M3",
+            title: "Caches and dedupes server data on purpose",
+            good_looks_like: [
+              "Chooses how long data can be stale, avoids fetching the same data twice, and refreshes it after a change."
+            ],
+            signals: [],
+            explain_angles: [
+              "How fresh must this data be?",
+              "When is this cache refreshed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Three components on one page each fetch the current user. What problems does that cause, and how do you fix it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Three requests for the same data: waste and possible mismatch"
+                  },
+                  {
+                    id: "k2",
+                    text: "Share one cached query or lift the fetch up"
+                  },
+                  {
+                    id: "k3",
+                    text: "Decide when the cached user is refreshed"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Caches forever with no way to refresh"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "After a user edits their profile, the header still shows the old name. Why, and what is the right fix?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "A cache holds the old data"
+                  },
+                  {
+                    id: "k2",
+                    text: "Invalidate or update the cached data after the change"
+                  },
+                  {
+                    id: "k3",
+                    text: "Optionally update it right away and roll back on failure"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Forces a full page reload"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "stale-while-revalidate",
+              "query keys and invalidation",
+              "request deduping"
+            ],
+            stack_notes: {
+              react: {
+                note: "Use a server-state library (for example TanStack Query) with query keys and invalidation.",
+                link: "https://tanstack.com/query/latest/docs/framework/react/overview"
+              },
+              nextjs: {
+                note: "Know the fetch cache and revalidate after a change with revalidatePath or revalidateTag.",
+                link: "https://nextjs.org/docs/app/building-your-application/caching"
+              },
+              angular: {
+                note: "Share one observable with shareReplay or a store, and refresh it after writes.",
+                link: "https://rxjs.dev/api/operators/shareReplay"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Fetching the same data again and again wastes time, and stale data after a change confuses users.",
+            exercise_kinds: [
+              "design_tradeoff",
+              "implement",
+              "review"
+            ]
+          }
+        ],
+        senior: [
+          {
+            id: "FE.FETCH.S1",
+            title: "Designs for slow and flaky networks",
+            good_looks_like: [
+              "The app stays usable on slow or dropping connections: safe retries, optimistic updates with rollback, and clear offline states."
+            ],
+            signals: [],
+            explain_angles: [
+              "What does this screen do on a train with a weak signal?",
+              "What happens to the user's change if the request fails?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Users on mobile complain that 'liking' a post feels slow and sometimes gets lost. How would you redesign it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Optimistic update: show the like at once"
+                  },
+                  {
+                    id: "k2",
+                    text: "Roll back and tell the user if the request finally fails"
+                  },
+                  {
+                    id: "k3",
+                    text: "Retry safely; the server action must be idempotent"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Shows success with no rollback when it fails"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Which requests should the frontend retry automatically, and which never? Why?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Retry safe reads and idempotent writes"
+                  },
+                  {
+                    id: "k2",
+                    text: "Never auto-retry non-idempotent writes like a payment without a key"
+                  },
+                  {
+                    id: "k3",
+                    text: "Use backoff and a cap"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Retries every failed request"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "optimistic UI with rollback",
+              "idempotent writes",
+              "offline-first basics",
+              "retry policies"
+            ],
+            stack_notes: {
+              react: {
+                note: "Use optimistic updates with rollback (useOptimistic or your data library's onMutate).",
+                link: "https://react.dev/reference/react/useOptimistic"
+              },
+              nextjs: {
+                note: "Combine server actions with useOptimistic and show pending state.",
+                link: "https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations"
+              },
+              angular: {
+                note: "Use rxjs retry with a delay for safe calls, and update state optimistically with rollback.",
+                link: "https://rxjs.dev/api/operators/retry"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Real users are on slow and flaky networks; an app that only works on fast Wi-Fi loses their actions and their trust.",
+            exercise_kinds: [
+              "design_tradeoff",
+              "architecture",
+              "implement"
+            ]
+          },
+          {
+            id: "FE.FETCH.S2",
+            title: "Recovers from errors with boundaries",
+            good_looks_like: [
+              "A crash in one part of the screen is caught and replaced with a fallback, so the rest of the app keeps working, and the error is reported."
+            ],
+            signals: [
+              {
+                id: "fetch.error-boundary",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "Why put the boundary here and not higher?",
+              "What does the user see when this part breaks?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A bug in a sidebar widget makes the whole dashboard go white. How do you stop one widget from taking down the page?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Wrap the widget in its own error boundary"
+                  },
+                  {
+                    id: "k2",
+                    text: "Show a small fallback with a retry"
+                  },
+                  {
+                    id: "k3",
+                    text: "Report the error to monitoring"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "One boundary around the whole app only"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Which errors does an error boundary NOT catch, and how do you handle those?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Errors in event handlers and async code"
+                  },
+                  {
+                    id: "k2",
+                    text: "Handle them in the handler or put them in state so they render"
+                  },
+                  {
+                    id: "k3",
+                    text: "Global handlers for unhandled rejections, for reporting"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says a boundary catches every error"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "error boundaries",
+              "fallback UI design",
+              "frontend error reporting"
+            ],
+            stack_notes: {
+              react: {
+                note: "Place error boundaries around independent parts of the screen.",
+                link: "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary"
+              },
+              nextjs: {
+                note: "Add error.js at route segments so one segment fails alone.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              angular: {
+                note: "Provide a custom ErrorHandler for reporting and show fallbacks per component.",
+                link: "https://angular.dev/api/core/ErrorHandler"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "One broken widget should not blank the whole page; boundaries keep the rest of the app usable.",
+            exercise_kinds: [
+              "implement",
+              "architecture",
+              "debug"
+            ]
+          }
+        ],
+        staff: [
+          {
+            id: "FE.FETCH.X1",
+            title: "Sets the data-fetching standard for an app",
+            good_looks_like: [
+              "Chooses one data-fetching approach, one API client and one error shape for the whole app, and makes them easy to use right."
+            ],
+            signals: [],
+            explain_angles: [
+              "Why should every screen fetch data this way?",
+              "How do new screens get this right by default?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "Your app mixes three ways of fetching data and bugs keep coming from stale data and missing errors. What standard would you set and how would you move the app to it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Pick one server-state approach and one API client"
+                  },
+                  {
+                    id: "k2",
+                    text: "One error shape and shared loading and error components"
+                  },
+                  {
+                    id: "k3",
+                    text: "Migrate screen by screen, with lint rules or review checks"
+                  },
+                  {
+                    id: "k4",
+                    text: "Measure it, for example with error reports or bug counts"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Big-bang rewrite with no measures"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "How would you decide what data is fetched on the server and what on the client?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Server for first paint, SEO and secrets"
+                  },
+                  {
+                    id: "k2",
+                    text: "Client for user-specific, fast-changing or interactive data"
+                  },
+                  {
+                    id: "k3",
+                    text: "Consider caching and how fresh each kind must be"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Everything on the client by habit"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "server-state vs client-state",
+              "API client design",
+              "migration strategies",
+              "lint rules as guard rails"
+            ],
+            stack_notes: {
+              react: {
+                note: "Standardise on one server-state library and a typed API client.",
+                link: "https://react.dev/learn/synchronizing-with-effects#fetching-data"
+              },
+              nextjs: {
+                note: "Decide server vs client fetching per route and document caching rules.",
+                link: "https://nextjs.org/docs/app/building-your-application/data-fetching"
+              },
+              angular: {
+                note: "Use one HttpClient wrapper with interceptors and one state approach.",
+                link: "https://angular.dev/guide/http"
+              }
+            },
+            exposure_signals: [],
+            why_it_matters: "Three ways of fetching data in one app means three kinds of bugs; one standard makes every new screen right by default.",
+            exercise_kinds: [
+              "architecture",
+              "design_tradeoff",
+              "explain"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      id: "STATE",
+      name: "State and data flow",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "COMP",
+      name: "Components and structure",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "RENDER",
+      name: "Rendering performance",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "A11Y",
+      name: "Accessibility",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "SEC",
+      name: "Security",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "TEST",
+      name: "Testing",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "REQ",
+      name: "Requirements and scope",
+      levels: {
+        junior: [
+          {
+            id: "FE.REQ.J1",
+            title: "Builds what the ticket asks, and nothing extra",
+            good_looks_like: [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Build the export the ticket asks for"
+                  },
+                  {
+                    id: "k2",
+                    text: "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    id: "k3",
+                    text: "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    id: "k2",
+                    text: "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    id: "k3",
+                    text: "If it is kept, say why in the pull request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            exercise_kinds: [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "FE.REQ.M1",
+            title: "Spots unclear needs before coding",
+            good_looks_like: [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    id: "k2",
+                    text: "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Write the assumption down where the team can see it"
+                  },
+                  {
+                    id: "k2",
+                    text: "Build the part that does not depend on it first"
+                  },
+                  {
+                    id: "k3",
+                    text: "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            exercise_kinds: [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
+        senior: [],
+        staff: []
+      }
+    }
+  ]
+};
+
+// src/coach/ladder/builtin.ts
+var BUILTIN_LADDERS = {
+  backend: backend_default,
+  frontend: frontend_default
+};
+
+// src/coach/ladder/load.ts
+var FILE = join4(".fork-trail-coach", "ladder.json");
+function withThresholds(ladder) {
+  return { ...DEFAULT_THRESHOLDS, ...ladder.thresholds };
+}
+function unknownSignals(ladder) {
+  const missing = /* @__PURE__ */ new Set();
+  for (const area of ladder.areas) {
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        for (const s of item.signals) if (!signalById(s.id)) missing.add(s.id);
+        for (const id of item.exposure_signals ?? []) if (!signalById(id)) missing.add(id);
+      }
+    }
+  }
+  return [...missing];
+}
+function readCompanyFile(path, track) {
+  if (!existsSync(path)) return null;
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync3(path, "utf8"));
+  } catch (err2) {
+    return { error: `${path} is not valid JSON (${err2 instanceof Error ? err2.message : String(err2)})` };
+  }
+  const candidates = Array.isArray(raw) ? raw : [raw];
+  const forTrack = candidates.find((c) => typeof c === "object" && c !== null && c.track === track);
+  if (forTrack === void 0) return null;
+  const parsed = ladderSchema.safeParse(forTrack);
+  if (!parsed.success) return { error: `${path}: ${parsed.error.issues.map((i2) => i2.message).join("; ")}` };
+  const missing = unknownSignals(parsed.data);
+  if (missing.length > 0) return { error: `${path} names signals that do not exist: ${missing.join(", ")}` };
+  return { ladder: parsed.data };
+}
+function loadLadder(track, opts) {
+  const home = opts.home ?? homedir2();
+  const builtin = BUILTIN_LADDERS[track];
+  const tries = [
+    // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
+    { source: "repo", path: join4(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
+    { source: "home", path: join4(home, FILE), id: `home/${track}` }
+  ];
+  for (const t of tries) {
+    const found = readCompanyFile(t.path, track);
+    if (found === null) continue;
+    if ("error" in found) {
+      return {
+        ladder_id: `builtin/${track}`,
+        track,
+        source: "builtin",
+        ladder: builtin,
+        thresholds: withThresholds(builtin),
+        warning: `The company ladder.json could not be used, so the built-in ladder is shown. ${found.error}`
+      };
+    }
+    return { ladder_id: t.id, track, source: t.source, ladder: found.ladder, thresholds: withThresholds(found.ladder) };
+  }
+  return { ladder_id: `builtin/${track}`, track, source: "builtin", ladder: builtin, thresholds: withThresholds(builtin) };
+}
+function loadActiveLadders(tracks, opts) {
+  return tracks.map((track) => loadLadder(track, opts));
+}
+function findItem(ladder, itemId) {
+  for (const area of ladder.areas) {
+    for (const level of LEVELS) {
+      const item = area.levels[level].find((i2) => i2.id === itemId);
+      if (item) return { area, level, item };
+    }
+  }
+  return null;
+}
+
+// src/coach/status.ts
+var shortDate = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+function computeStatuses(db2, loaded, now) {
+  const statuses = /* @__PURE__ */ new Map();
+  for (const area of loaded.ladder.areas) {
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        const exposure = exposureFor(db2, loaded.ladder_id, item.id, now, loaded.thresholds);
+        statuses.set(item.id, itemStatus({ item, ...factsForItem(db2, loaded.ladder_id, item.id), exposure }, now, loaded.thresholds));
+      }
+    }
+  }
+  return statuses;
+}
+function stateHistory(db2, ladderId) {
+  const rows2 = ladderId === void 0 ? db2.prepare("SELECT ladder_id, item_id, from_state, to_state, reason, at FROM item_state_history ORDER BY rowid").all() : db2.prepare("SELECT ladder_id, item_id, from_state, to_state, reason, at FROM item_state_history WHERE ladder_id = ? ORDER BY rowid").all(ladderId);
+  return rows2.map((r) => ({ ...r, at: toIso(r.at) }));
+}
+function detail(s, proofsNeeded) {
+  switch (s.state) {
+    case "proven":
+      return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
+    case "shown":
+      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /coach drill ${s.item_id}`;
+    case "not_assessed":
+      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /coach drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
+    case "learning": {
+      const parts2 = [`${s.proofs} of ${proofsNeeded} code proofs`];
+      if (s.open_faults > 0) parts2.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
+      if (s.needs[0] && !s.needs[0].includes("code proof")) parts2.push(`next: ${s.needs[0]}`);
+      return parts2.join(" \xB7 ");
+    }
+    default:
+      return "";
+  }
+}
+function areaViews(results) {
+  const areas = [];
+  const notWritten = [];
+  for (const { loaded, statuses } of results) {
+    for (const area of loaded.ladder.areas) {
+      const items = LEVELS.flatMap((level2) => area.levels[level2].map((item) => ({ item, level: level2 })));
+      if (items.length === 0) {
+        notWritten.push(`${area.name} (${loaded.track})`);
+        continue;
+      }
+      const { level, working_toward } = areaLevel(area, statuses);
+      const order = ["none", "low", "medium", "high"];
+      const exposure = items.reduce((best, { item }) => {
+        const e = statuses.get(item.id).exposure;
+        return order.indexOf(e) > order.indexOf(best) ? e : best;
+      }, "none");
+      areas.push({
+        ladder_id: loaded.ladder_id,
+        area_id: area.id,
+        name: area.name,
+        exposure,
+        level,
+        working_toward,
+        items: items.map(({ item, level: itemLevel }) => {
+          const s = statuses.get(item.id);
+          return { item_id: item.id, title: item.title, level: itemLevel, state: s.state, exposure: s.exposure, detail: detail(s, loaded.thresholds.proofs) };
+        })
+      });
+    }
+  }
+  return { areas, notWritten };
+}
+
+// src/coach/dashboard.ts
+var EVIDENCE_PER_ITEM = 12;
+function coachDashboard(db2, opts) {
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const tracks = getTracks(db2);
+  const ladders = loadActiveLadders(tracks, { repoRoot: opts.root, ...opts.home ? { home: opts.home } : {} });
+  const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db2, loaded, now) }));
+  const { areas } = areaViews(results);
+  const evidenceFor = db2.prepare(
+    `SELECT id, kind, polarity, author, decided_by, owned, file_path, symbol, ticket, signal_id, note, at, fixed_at, disagreed_at
+     FROM skill_evidence WHERE ladder_id = ? AND item_id = ? ORDER BY at DESC LIMIT ${EVIDENCE_PER_ITEM}`
+  );
+  const drillsFor = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ? ORDER BY created_at DESC");
+  const dashboardAreas = areas.map((area) => {
+    const loaded = ladders.find((l) => l.ladder_id === area.ladder_id);
+    const statuses = results.find((r) => r.loaded.ladder_id === area.ladder_id).statuses;
+    return {
+      ladder_id: area.ladder_id,
+      track: loaded.track,
+      area_id: area.area_id,
+      name: area.name,
+      level: area.level,
+      working_toward: area.working_toward,
+      exposure: area.exposure,
+      items: area.items.map((it) => {
+        const status = statuses.get(it.item_id);
+        const ladderItem = findItem(loaded.ladder, it.item_id).item;
+        return {
+          item_id: it.item_id,
+          title: it.title,
+          level: it.level,
+          state: it.state,
+          exposure: it.exposure,
+          exposure_functions: status.exposure_functions,
+          shown_by: status.shown_by,
+          detail: it.detail,
+          why_it_matters: ladderItem.why_it_matters ?? "",
+          needs: status.needs,
+          evidence: evidenceFor.all(area.ladder_id, it.item_id).map((e) => ({
+            id: e.id,
+            kind: e.kind,
+            polarity: e.polarity,
+            author: e.author,
+            decided_by: e.decided_by,
+            owned: e.owned === 1,
+            file: e.file_path,
+            symbol: e.symbol,
+            ticket: e.ticket,
+            signal: e.signal_id,
+            note: e.note,
+            at: toIso(e.at),
+            fixed: e.fixed_at !== null,
+            disagreed: e.disagreed_at !== null
+          })),
+          drills: drillsFor.all(area.ladder_id, it.item_id).map((d) => ({
+            id: d.id,
+            drill_id: d.drill_id,
+            passed: d.passed === 1,
+            void: d.void === 1,
+            at: toIso(d.created_at)
+          }))
+        };
+      })
+    };
+  });
+  const allItems = dashboardAreas.flatMap((a) => a.items.map((i2) => ({ ...i2, area: a.name })));
+  const open_faults = allItems.flatMap(
+    (i2) => i2.evidence.filter((e) => e.polarity === "negative" && !e.fixed).map((e) => ({ item_id: i2.item_id, title: i2.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note }))
+  );
+  const ready = new Set(drillsReady(db2, results, now));
+  const ready_for_assessment = allItems.filter((i2) => ready.has(i2.item_id) || i2.state === "not_assessed" && (i2.exposure === "none" || i2.exposure === "low")).map((i2) => i2.item_id);
+  const next_actions = [];
+  for (const f of open_faults.slice(0, 2)) next_actions.push(`Fix the open fault in ${f.file ?? "your code"}${f.symbol ? ` (${f.symbol})` : ""}: ${f.title}`);
+  for (const id of [...ready].slice(0, 2)) next_actions.push(`Take a drill for ${id}: /fork-trail-coach:coach drill ${id}`);
+  for (const i2 of allItems.filter((x) => x.state === "learning").slice(0, 2)) if (i2.needs[0]) next_actions.push(`${i2.item_id}: ${i2.needs[0]}`);
+  const drill_results = allItems.flatMap((i2) => i2.drills.map((d) => ({ item_id: i2.item_id, title: i2.title, drill_id: d.drill_id, passed: d.passed, void: d.void, at: d.at }))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 20);
+  const titles = new Map(allItems.map((i2) => [i2.item_id, i2.title]));
+  const history = stateHistory(db2).filter((h) => titles.has(h.item_id)).map((h) => ({ item_id: h.item_id, title: titles.get(h.item_id), from_state: h.from_state, to_state: h.to_state, reason: h.reason, at: h.at })).reverse().slice(0, 30);
+  const levelOrder = ["not_seen", "not_assessed", "learning", "shown", "proven"];
+  const rank = (s) => levelOrder.indexOf(s);
+  const recent_changes = history.map((h) => ({ ...h, direction: rank(h.to_state) > rank(h.from_state) ? "up" : "down" }));
+  return {
+    tracks,
+    areas: dashboardAreas,
+    repeats: repeats(db2, now).map((r) => ({ ...r, title: titles.get(r.item_id) ?? r.item_id })),
+    open_faults,
+    ready_for_assessment,
+    next_actions,
+    drill_results,
+    recent_changes,
+    levels: LEVELS
+  };
 }
 
 // src/api/data.ts
@@ -20667,9 +27567,9 @@ function deleteAll(db2) {
 }
 
 // src/api/static.ts
-import { existsSync } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
-import { extname as extname2, join as join4, normalize, resolve, sep } from "node:path";
+import { extname as extname2, join as join5, normalize, resolve as resolve2, sep } from "node:path";
 
 // src/api/report-page.ts
 var REPORT_HTML = `<!doctype html>
@@ -20852,7 +27752,7 @@ var TYPES = {
   ".map": "application/json; charset=utf-8"
 };
 var STRICT_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-function send(res, status, type, body, extra = {}) {
+function send(res, status, type, body2, extra = {}) {
   res.writeHead(status, {
     "Content-Type": type,
     "Cache-Control": "no-store",
@@ -20860,10 +27760,10 @@ function send(res, status, type, body, extra = {}) {
     "Referrer-Policy": "no-referrer",
     ...extra
   });
-  res.end(body);
+  res.end(body2);
 }
 function hasWebApp(webDir2) {
-  return webDir2 !== void 0 && existsSync(join4(webDir2, "index.html"));
+  return webDir2 !== void 0 && existsSync2(join5(webDir2, "index.html"));
 }
 function reportPath(webDir2) {
   return hasWebApp(webDir2) ? "/#/coach" : "/";
@@ -20874,20 +27774,20 @@ async function servePage(res, pathname, webDir2) {
     if (pathname === "/report.js") return send(res, 200, TYPES[".js"], REPORT_JS);
     return send(res, 404, "text/plain; charset=utf-8", "Not found");
   }
-  const root = resolve(webDir2);
+  const root = resolve2(webDir2);
   let decoded;
   try {
     decoded = decodeURIComponent(pathname);
   } catch {
     return send(res, 400, "text/plain; charset=utf-8", "Bad request");
   }
-  const file2 = resolve(root, `.${normalize(`/${decoded}`)}`);
+  const file2 = resolve2(root, `.${normalize(`/${decoded}`)}`);
   if (file2 !== root && !file2.startsWith(root + sep)) return send(res, 404, "text/plain; charset=utf-8", "Not found");
-  const info = await stat(file2).catch(() => null);
-  if (info?.isFile()) {
+  const info2 = await stat(file2).catch(() => null);
+  if (info2?.isFile()) {
     return send(res, 200, TYPES[extname2(file2).toLowerCase()] ?? "application/octet-stream", await readFile(file2));
   }
-  if (extname2(file2) === "") return send(res, 200, TYPES[".html"], await readFile(join4(root, "index.html")));
+  if (extname2(file2) === "") return send(res, 200, TYPES[".html"], await readFile(join5(root, "index.html")));
   return send(res, 404, "text/plain; charset=utf-8", "Not found");
 }
 
@@ -20896,7 +27796,7 @@ var API_HOST = "127.0.0.1";
 var DEFAULT_API_PORT = 4317;
 var MAX_BODY_BYTES = 64 * 1024;
 function defaultEvalResultsPath() {
-  return process.env.FTC_EVAL_RESULTS ?? join5(dirname3(defaultDbPath()), "eval-results.json");
+  return process.env.FTC_EVAL_RESULTS ?? join6(dirname3(defaultDbPath()), "eval-results.json");
 }
 var annotationInput = external_exports.strictObject({
   target_id: external_exports.string().trim().min(1).max(200),
@@ -20915,15 +27815,15 @@ var HttpError = class extends Error {
   code;
   extra;
 };
-function send2(res, status, body, headers = {}) {
-  const text = body === void 0 ? "" : JSON.stringify(body);
+function send2(res, status, body2, headers = {}) {
+  const text2 = body2 === void 0 ? "" : JSON.stringify(body2);
   res.writeHead(status, {
-    ...body === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
+    ...body2 === void 0 ? {} : { "Content-Type": "application/json; charset=utf-8" },
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     ...headers
   });
-  res.end(text);
+  res.end(text2);
 }
 async function readJson(req) {
   if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
@@ -20942,8 +27842,8 @@ async function readJson(req) {
     throw new HttpError(400, "bad_json", "Request body is not valid JSON");
   }
 }
-function parse3(schema, body) {
-  const result = schema.safeParse(body);
+function parse3(schema, body2) {
+  const result = schema.safeParse(body2);
   if (!result.success) {
     const issue2 = result.error.issues[0];
     throw new HttpError(400, "invalid_input", `${issue2?.path.join(".") || "body"}: ${issue2?.message ?? "invalid"}`);
@@ -20963,21 +27863,21 @@ function createApiServer(options) {
     return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
   };
   const server2 = createServer((req, res) => {
-    handle(req, res).catch((err) => {
+    handle2(req, res).catch((err2) => {
       const cors = corsFor(req);
-      if (err instanceof HttpError) {
-        send2(res, err.status, { error: { code: err.code, message: err.message, ...err.extra } }, cors);
-      } else if (err instanceof PrivacyError) {
-        send2(res, 422, { error: { code: "privacy_guard", message: err.message, field: err.field, rule: err.rule } }, cors);
-      } else if (err instanceof StoreError) {
-        send2(res, 404, { error: { code: "not_found", message: err.message } }, cors);
+      if (err2 instanceof HttpError) {
+        send2(res, err2.status, { error: { code: err2.code, message: err2.message, ...err2.extra } }, cors);
+      } else if (err2 instanceof PrivacyError) {
+        send2(res, 422, { error: { code: "privacy_guard", message: err2.message, field: err2.field, rule: err2.rule } }, cors);
+      } else if (err2 instanceof StoreError) {
+        send2(res, 404, { error: { code: "not_found", message: err2.message } }, cors);
       } else {
-        console.error(err);
+        console.error(err2);
         send2(res, 500, { error: { code: "internal", message: "Internal error" } }, cors);
       }
     });
   });
-  async function handle(req, res) {
+  async function handle2(req, res) {
     const own2 = ownOrigins();
     if (!own2.includes(`http://${req.headers.host ?? ""}`)) {
       throw new HttpError(403, "bad_host", "This API only answers on 127.0.0.1");
@@ -21002,11 +27902,11 @@ function createApiServer(options) {
       await servePage(res, url2.pathname, options.webDir);
       return;
     }
-    const parts = url2.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    parts.shift();
-    const route = `${method} /${parts.map((p, i) => i % 2 === 1 ? ":id" : p).join("/")}`;
-    const id = parts[1] ?? "";
-    const ok = (body, status = 200, headers = {}) => send2(res, status, body, { ...cors, ...headers });
+    const parts2 = url2.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    parts2.shift();
+    const route = `${method} /${parts2.map((p, i2) => i2 % 2 === 1 ? ":id" : p).join("/")}`;
+    const id = parts2[1] ?? "";
+    const ok = (body2, status = 200, headers = {}) => send2(res, status, body2, { ...cors, ...headers });
     const notFound = (what) => new HttpError(404, "not_found", `${what} '${id}' does not exist`);
     switch (route) {
       case "GET /health":
@@ -21014,9 +27914,9 @@ function createApiServer(options) {
       case "GET /tickets":
         return ok({ tickets: listTickets(db2) });
       case "GET /tickets/:id": {
-        const detail = ticketDetail(db2, id);
-        if (!detail) throw notFound("Ticket");
-        return ok(detail);
+        const detail2 = ticketDetail(db2, id);
+        if (!detail2) throw notFound("Ticket");
+        return ok(detail2);
       }
       case "GET /tickets/:id/decisions": {
         if (!ticketDetail(db2, id)) throw notFound("Ticket");
@@ -21024,6 +27924,8 @@ function createApiServer(options) {
       }
       case "GET /growth-plan":
         return ok({ growth_plan: latestGrowthPlan(db2) });
+      case "GET /coach":
+        return ok(coachDashboard(db2, { root: options.coachRoot ?? process.cwd(), ...options.coachHome ? { home: options.coachHome } : {} }));
       case "POST /annotations": {
         const input2 = parse3(annotationInput, await readJson(req));
         guard.check(input2);
@@ -21060,9 +27962,9 @@ function createApiServer(options) {
   return server2;
 }
 function listen(server2, port2 = DEFAULT_API_PORT) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     server2.once("error", reject);
-    server2.listen(port2, API_HOST, () => resolve2(server2.address().port));
+    server2.listen(port2, API_HOST, () => resolve3(server2.address().port));
   });
 }
 
@@ -21071,15 +27973,15 @@ var db = openDb();
 migrate(db);
 var port = Number(process.env.FTC_PORT ?? DEFAULT_API_PORT);
 var allowedOrigins = (process.env.FTC_WEB_ORIGIN ?? "http://127.0.0.1:4318,http://localhost:4318").split(",").map((o) => o.trim()).filter(Boolean);
-var webDir = join6(dirname4(fileURLToPath(import.meta.url)), "..", "web");
-var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir });
+var webDir = join7(dirname4(fileURLToPath(import.meta.url)), "..", "web");
+var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir, coachRoot: process.cwd() });
 try {
   const actual = await listen(server, port);
   console.log(`fork-trail-coach API listening on http://${API_HOST}:${actual}/api`);
   console.log(`Coach report: http://${API_HOST}:${actual}${reportPath(webDir)}`);
-} catch (err) {
-  const code = err.code;
-  console.error(code === "EADDRINUSE" ? `Port ${port} is already in use. Set FTC_PORT to another port.` : err);
+} catch (err2) {
+  const code = err2.code;
+  console.error(code === "EADDRINUSE" ? `Port ${port} is already in use. Set FTC_PORT to another port.` : err2);
   db.close();
   process.exit(1);
 }

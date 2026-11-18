@@ -327,3 +327,12 @@ describe("eval results", () => {
     expect(res.body.error.code).toBe("bad_eval_file");
   });
 });
+
+describe("GET /api/coach", () => {
+  it("serves the growth dashboard in the shared shape", async () => {
+    const res = await call("GET", "/api/coach");
+    expect(res.status).toBe(200);
+    const parsed = (await import("@ftc/shared")).CoachDashboard.safeParse(res.body);
+    expect(parsed.success).toBe(true);
+  });
+});

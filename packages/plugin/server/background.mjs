@@ -24532,7 +24532,7 @@ function captureStart(db, repoKey) {
   return first;
 }
 async function closeReviewFaults(db, top, key, sha, diff, ticket, at, exec) {
-  const open2 = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind = 'review' AND signal_id IS NULL AND polarity = 'negative' AND fixed_at IS NULL AND at < ?");
+  const open2 = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL AND at < ?");
   const close = db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
   const faults = open2.all(key, at);
   for (const file2 of diff) {
@@ -25838,8 +25838,160 @@ var backend_default = {
       id: "REQ",
       name: "Requirements and scope",
       levels: {
-        junior: [],
-        mid: [],
+        junior: [
+          {
+            id: "BE.REQ.J1",
+            title: "Builds what the ticket asks, and nothing extra",
+            good_looks_like: [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Build the export the ticket asks for"
+                  },
+                  {
+                    id: "k2",
+                    text: "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    id: "k3",
+                    text: "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    id: "k2",
+                    text: "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    id: "k3",
+                    text: "If it is kept, say why in the pull request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            exercise_kinds: [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "BE.REQ.M1",
+            title: "Spots unclear needs before coding",
+            good_looks_like: [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    id: "k2",
+                    text: "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Write the assumption down where the team can see it"
+                  },
+                  {
+                    id: "k2",
+                    text: "Build the part that does not depend on it first"
+                  },
+                  {
+                    id: "k3",
+                    text: "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            exercise_kinds: [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
         senior: [],
         staff: []
       }
@@ -26687,8 +26839,160 @@ var frontend_default = {
       id: "REQ",
       name: "Requirements and scope",
       levels: {
-        junior: [],
-        mid: [],
+        junior: [
+          {
+            id: "FE.REQ.J1",
+            title: "Builds what the ticket asks, and nothing extra",
+            good_looks_like: [
+              "Every change traces to a sentence of the ticket. Extra features, refactors and clever additions are left out or raised first."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which sentence of the ticket does this code answer?",
+              "Why was this part needed?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'add an export of a customer's orders'. While building it you notice the order list is slow and you could add caching and an email summary too. What do you do?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Build the export the ticket asks for"
+                  },
+                  {
+                    id: "k2",
+                    text: "Raise the slow list and the email idea as separate tickets instead of adding them"
+                  },
+                  {
+                    id: "k3",
+                    text: "Explain that extra code needs review, tests and maintenance nobody planned"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Adds the caching and the email summary quietly because they are useful"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "Your pull request has a helper nobody asked for, and a reviewer asks why it is there. How do you decide whether to keep it?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Trace it to a sentence of the ticket"
+                  },
+                  {
+                    id: "k2",
+                    text: "If it is not needed, remove it or move it to its own ticket"
+                  },
+                  {
+                    id: "k3",
+                    text: "If it is kept, say why in the pull request"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is harmless so it stays"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "reading a ticket as a list of needs",
+              "scope creep and gold plating",
+              "splitting work into separate tickets"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+            exercise_kinds: [
+              "review",
+              "explain",
+              "design_tradeoff"
+            ]
+          }
+        ],
+        mid: [
+          {
+            id: "FE.REQ.M1",
+            title: "Spots unclear needs before coding",
+            good_looks_like: [
+              "Reads a ticket for places that can be understood in more than one way, and asks the product owner before building."
+            ],
+            signals: [],
+            explain_angles: [
+              "Which part of the ticket could have meant something else?",
+              "What did you ask, and what changed because of the answer?"
+            ],
+            drills: [
+              {
+                id: "d1",
+                prompt: "A ticket says 'cancelled orders are handled as usual' and 'export recent orders'. Which questions do you ask before coding?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "What 'recent' means: a number of days, or a count"
+                  },
+                  {
+                    id: "k2",
+                    text: "What 'as usual' means for cancelled orders: included, excluded or marked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ask before coding, because each answer changes the code"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Picks an answer and codes it without asking"
+                  }
+                ]
+              },
+              {
+                id: "d2",
+                prompt: "The product owner is away and the ticket is unclear on one point. How do you keep moving without guessing silently?",
+                key_points: [
+                  {
+                    id: "k1",
+                    text: "Write the assumption down where the team can see it"
+                  },
+                  {
+                    id: "k2",
+                    text: "Build the part that does not depend on it first"
+                  },
+                  {
+                    id: "k3",
+                    text: "Flag the assumption in the pull request for the owner to confirm"
+                  }
+                ],
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Guesses and says nothing"
+                  }
+                ]
+              }
+            ],
+            study: [
+              "finding ambiguity in requirements",
+              "writing assumptions down",
+              "asking one clear question"
+            ],
+            stack_notes: {},
+            exposure_signals: [],
+            why_it_matters: "A wrong guess about a requirement is the most expensive bug: the code works and is still wrong.",
+            exercise_kinds: [
+              "explain",
+              "design_tradeoff",
+              "review"
+            ]
+          }
+        ],
         senior: [],
         staff: []
       }
@@ -27513,6 +27817,30 @@ var migrations = [
 
       -- The words of the developer that made a decision theirs. Checked against developer_messages.
       ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
+    `
+  },
+  {
+    id: 10,
+    name: "coach_ticket_check",
+    sql: `
+      -- Code that is missing, extra or different from the ticket, shown only to the developer. The ticket quote is a
+      -- quote the server found in the ticket. The choice and reason_quote are the developer's own words.
+      CREATE TABLE ticket_findings (
+        id           TEXT PRIMARY KEY,
+        ticket_id    TEXT NOT NULL,
+        kind         TEXT NOT NULL CHECK (kind IN ('missing', 'extra', 'different')),
+        ticket_quote TEXT NOT NULL,
+        file_path    TEXT,
+        line_start   INTEGER,
+        line_end     INTEGER,
+        why          TEXT NOT NULL,
+        evidence_id  TEXT NOT NULL,
+        choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
+        reason_quote TEXT,
+        decided_at   TEXT,
+        created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_ticket_findings_ticket ON ticket_findings(ticket_id);
     `
   }
 ];

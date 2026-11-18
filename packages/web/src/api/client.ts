@@ -4,6 +4,7 @@ import {
   AnnotationResponse,
   API_PATHS,
   ApiErrorBody,
+  CoachDashboard,
   DELETE_ALL_BODY,
   DeleteAllResponse,
   EvalResults,
@@ -121,6 +122,8 @@ export function createApi(config: ApiConfig = apiConfig, notes: NoteStore = crea
       if (mock && mockDeleted) throw new ApiError("not_found", `Ticket '${ticketId}' does not exist`);
       return get(path, TicketDetailResponse, signal);
     },
+
+    getCoach: (signal?: AbortSignal) => get(API_PATHS.coach(), CoachDashboard, signal),
 
     getGrowthPlan: async (signal?: AbortSignal): Promise<GrowthPlanResponse> => {
       const response = await get(API_PATHS.growthPlan(), GrowthPlanResponse, signal);

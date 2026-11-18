@@ -321,6 +321,30 @@ export const migrations: Migration[] = [
       ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
     `,
   },
+  {
+    id: 10,
+    name: "coach_ticket_check",
+    sql: `
+      -- Code that is missing, extra or different from the ticket, shown only to the developer. The ticket quote is a
+      -- quote the server found in the ticket. The choice and reason_quote are the developer's own words.
+      CREATE TABLE ticket_findings (
+        id           TEXT PRIMARY KEY,
+        ticket_id    TEXT NOT NULL,
+        kind         TEXT NOT NULL CHECK (kind IN ('missing', 'extra', 'different')),
+        ticket_quote TEXT NOT NULL,
+        file_path    TEXT,
+        line_start   INTEGER,
+        line_end     INTEGER,
+        why          TEXT NOT NULL,
+        evidence_id  TEXT NOT NULL,
+        choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
+        reason_quote TEXT,
+        decided_at   TEXT,
+        created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_ticket_findings_ticket ON ticket_findings(ticket_id);
+    `,
+  },
 ];
 
 /** Applies every migration not yet applied. Safe to run many times. Returns the names applied. */
