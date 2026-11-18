@@ -1,0 +1,102 @@
+# How Coach decides your level
+
+Coach is a private study guide. It shows where you stand on a ladder for each area of your work, using evidence
+from **your own** code and answers, and what to do next to move up. Everything stays on your machine.
+Nothing here goes into a pull request.
+
+Design: [docs/superpowers/specs/2026-11-18-developer-growth-design.md](superpowers/specs/2026-11-18-developer-growth-design.md).
+This page covers stage 1 (the levels core).
+
+## The ladder
+
+- Two tracks: **backend** and **frontend**. You pick one or both the first time you run `/fork-trail-coach:coach`.
+- Each track has areas (errors, data, API design, security, ...) and four levels: junior, mid, senior, staff.
+- Each level is split into small items you can check, for example **BE.ERR.M2: Handles the failure of an outside
+  call on purpose**. Each item has: what good looks like, code signals, "why" angles, 2 or 3 interview drills with
+  a fixed answer key, study topics, and best-practice notes for common stacks.
+- Stage 1 writes one area fully per track: **Errors and failure** (backend) and **Data fetching and errors**
+  (frontend). The other areas are named and still empty.
+- A company can replace the built-in ladder with its own file: `<repo>/.fork-trail-coach/ladder.json`, else
+  `~/.fork-trail-coach/ladder.json`. A broken file is ignored, and Coach says why.
+
+## Who wrote the line
+
+When Claude edits a file, a hook saves a short hash of each line it wrote (never the line). When Coach reads a
+commit, a line whose hash matches is **AI-written**; any other line is **yours**. The hash ignores spaces, quote
+style and a trailing comma or semicolon, so a formatter does not turn Claude's lines into yours.
+
+**AI-written code never counts for you.** Faults count whoever wrote them: you shipped them.
+
+Coach reads your commits (by your `git config user.email`) quietly each time it runs, starting from Claude's first
+edit in the repo. No git hook is installed. Lockfiles, build output and generated files are skipped.
+
+## The four states of an item
+
+| State | What it takes |
+|---|---|
+| **Not seen** | Nothing yet. |
+| **Learning** | Any proof in your code, any answer, or any fault. |
+| **Shown** | **Both:** 3 code proofs in your own lines, across 2 or more tickets, in the last 60 days, with no open fault on the item; **and** 2 answers rated "clear" on different tickets, at least one naming the trade-off. |
+| **Proven** | Shown, **plus a passed drill**. A drill is an interview question about a new situation. |
+
+Details, all decided by plain code:
+
+- One proof is one signal in one function. Ten hits in the same function count once.
+- A fault you fix in the same ticket, before it ships, does not count.
+- A serious fault, or a "not yet" answer, drops the item back to **Learning**. After that, only newer proofs and
+  answers count, and you need a new drill.
+- **Proven does not expire.**
+- Your level in an area is the highest level where every item, and every item below it, is Proven. There is never
+  one overall number.
+
+## Questions and answers
+
+At pull request time (`/fork-trail-coach:pr-decisions`) and in `/fork-trail-coach:coach`, Coach offers at most 3
+short questions about your own work. You can say "later".
+
+- Questions come one at a time. Your next message is saved **exactly as you typed it** by a hook. The AI never
+  writes or improves your answer.
+- A message that ends with "?" and is short is treated as you asking back, not as an answer. A slash command is
+  never an answer.
+- The AI rates the answer (clear, partial, not yet). To say it names the trade-off, it must copy your exact words;
+  the server checks they are really in your answer. An answer is rated once.
+- If your answer contains code or a client name, it is not stored; answer in words.
+
+## Drills
+
+`/fork-trail-coach:coach drill <item-id>`, once an item is Shown.
+
+- The prompt comes from the ladder's fixed list, never the same one twice until all were used.
+- The AI lists which key points and red flags your answer shows, quoting your words. The server keeps only real
+  quotes. You pass with enough key points (two thirds, by default) and no red flag.
+- You see every key point as hit or missed, and what to study for the missed ones.
+- After a failed drill, try again after one new code proof or 3 days.
+
+## You can lower, never raise
+
+`/fork-trail-coach:coach why <item-id>` lists every piece of evidence, answer and drill, each with an id.
+You can disagree with evidence (it stops counting, your reason is kept) or a drill score (it becomes void and you
+can try another prompt). Disagreeing never raises a state. Answers cannot be disagreed away; ask for a new question.
+
+## The plan
+
+`/fork-trail-coach:coach` picks up to 3 focus items by code: open faults first, then Shown items (a drill away),
+then Learning items with the most proofs, at the level you are working on or the next one, in areas you work in.
+
+Each plan item gives what is still missing, the best practice for **your project's stack** (found from the repo,
+for example Express or Next.js), study topics, and one exercise on **a real spot in your code** or your next
+ticket. The server refuses a plan item that has no evidence of its own item, or an exercise that names no real
+spot. For a stack the ladder does not cover, the AI writes the note once and it is saved and reused.
+
+## Honest limits
+
+- The thresholds (3 proofs, 2 tickets, 60 days, 2 clear answers) are a first guess. Real use should tune them.
+- Signals are regex rules: they miss things and sometimes hit wrongly. "I disagree" and AI-proposed evidence (which
+  must cite lines the server checks) soften this.
+- Answer ratings and drill scores come from the AI. The fixed key, the quote checks and seeing every point make
+  them open and repeatable, not perfect.
+- Code from other AI tools (for example Copilot), or written by Claude through the shell, looks like yours.
+- A formatter that wraps one line into several breaks the match.
+- A commit's ticket comes from a key in its message, else the current branch, else its calendar week.
+- Commits from before Claude's first edit in a repo are not read yet (the history scan is stage 2).
+- You could look up a drill answer. It is your own study tool, so that only fools yourself.

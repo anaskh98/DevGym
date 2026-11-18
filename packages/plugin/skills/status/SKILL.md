@@ -10,7 +10,8 @@ Tell the user the plugin is installed, then list what is ready:
 - `/fork-trail-coach:explain-back <ticket-id>` — ready. Asks the developer why 2 or 3 logged decisions were made, and saves the answers with a rating.
 - `/fork-trail-coach:pr-decisions <ticket-id> [pr-number]` — ready. Adds the "Decisions" section to the pull request. Needs the GitHub CLI to update the PR.
 - `/fork-trail-coach:pointers <ticket-id> [pr-number]` — ready. Moves the decision pointers to the pull request commit and checks each one still finds its code.
-- `/fork-trail-coach:coach` — ready. Builds a private growth plan from the saved observations, with evidence for every claim.
+- `/fork-trail-coach:coach` — ready. Shows the developer's level per area on the backend or frontend ladder, from their own commits and answers, and a personal plan with exercises on real spots in their code.
+- `/fork-trail-coach:coach drill <item-id>` — ready. An interview-style drill; passing it is what makes a skill item Proven.
 - `/fork-trail-coach:coach open` — ready. Starts the local server and opens the Coach report in the browser.
 
 Then check the local service: call `get_ticket` on the `fork-trail-coach` MCP server with ticket id `SAMPLE-1`.

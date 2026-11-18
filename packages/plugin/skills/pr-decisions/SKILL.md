@@ -51,3 +51,14 @@ Remind the developer of two things, in one line each:
 
 - Running this again replaces the section, so run it again after more decisions are logged.
 - After the pull request is merged, run the pointers skill so the links move to the merge commit.
+
+## Step 5: Coach questions (private)
+
+Call `coach_status`. It reads the developer's new commits.
+
+If `questions` is not empty, say there are up to 3 short questions about choices in this work, that they stay on
+this machine and are **not** in the pull request, and that "later" is fine. If the developer agrees, ask them one at
+a time exactly as the coach skill says under "Asking a question": word it from `about` without giving the answer
+away, call `ask_question` right before asking, wait for the reply (a hook saves it), then call `rate_answer`.
+
+If `drills_ready` is not empty, offer one drill: `/fork-trail-coach:coach drill <item-id>`. Do not start it unasked.

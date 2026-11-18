@@ -1,92 +1,116 @@
 ---
 name: coach
-description: Build a private growth plan for the developer from their saved observations, with 1 to 3 focus areas that each cite evidence and give one exercise. With the argument "open", open the saved report in the browser instead. Use when the user runs /coach, or asks for a growth plan, coaching, what to work on next, or to see or open their coach report.
-argument-hint: "[open]"
+description: Show the developer's level on the backend or frontend ladder, built from their own commits and answers, and a personal growth plan with exercises on real spots in their code. Also runs interview drills, explains why an item has its state, and shows growth over time. With "open", opens the saved report in the browser. Use when the user runs /coach, asks for a growth plan, coaching, their level, what to study next, a drill, or to see their coach report.
+argument-hint: "[open | drill <item-id> | why <item-id> | history]"
 ---
 
 # Coach
 
-You write a short growth plan from what the developer's own work showed.
-It is for the developer only. It is coaching, not a performance review, and it never leaves this machine.
+Coach is a private study guide for this developer. It shows where they stand on a ladder (junior, mid, senior,
+staff) for each area, using evidence from **their own** code and answers, and what to do next to move up.
+It is coaching, not a performance review, and it never leaves this machine.
 
-Every claim must rest on saved observations. No evidence, no claim.
+**Plain code decides every state and level. You never set one, and never say a level the server did not return.**
 
 All tools below are on the `fork-trail-coach` MCP server.
 
 Argument: `$ARGUMENTS`
+Session id: `${CLAUDE_SESSION_ID}`
 
-## If the argument is `open`
+## `open`
 
-Do only this, and do not build a new plan:
+Call `open_report`. Tell the developer the address it returned, in one line. Add that the page is served from
+this machine only and stops when this Claude Code session ends. If the call fails, show the error and stop.
 
-1. Call `open_report`. It starts the local server if needed and opens the report in the browser.
-2. Tell the developer the address it returned, in one line, in case the browser did not come to the front.
-3. Add one line: the page is served from this machine only, and it stops when this Claude Code session ends.
+## No argument: status and plan
 
-If the call fails, show the error and stop.
+### Step 1: Status
 
-Otherwise, with no argument, build a plan with the steps below.
+Call `coach_status`.
 
-## Step 1: Read the observations
+- If `tracks` is empty, ask once: "Do you work on backend, frontend, or both?" Call `set_coach_tracks` with the
+  answer, then call `coach_status` again.
+- Show any `ladders[].warning` and the `catch_up.note` in one line each, if present.
+- Show `text` exactly as returned, in a code block. Do not change it.
 
-Call `list_observations`.
+### Step 2: The plan
 
-Each observation has a `skill_tag`, a `summary`, and `evidence`: the decisions (with `origin`) and
-explain-backs (with `rating`) it came from.
+For each frame in `focus` (at most 3):
 
-If there are no observations, say so, suggest running Explain-back after a ticket, and stop. Save nothing.
+1. If the frame has a `stack` but `stack_note` is null, write one short best-practice note for this item in that
+   stack (1 to 3 plain lines, from the item's meaning and the stack's official docs, with one `https://` link to
+   those docs) and save it with `save_stack_note`. Then use it.
+2. Write the claim: one or two sentences on what the evidence shows and what the frame's `needs` says is missing.
+   Describe the work, not the person.
+3. Write one exercise the developer can finish in under an hour:
+   - If the frame has a `spot`, the exercise is about that spot and **names its file**:
+     "In `pay.ts`, `charge` has no rule for when to retry. Decide it, write it down, and be ready to explain why."
+   - If there is no spot, tie it to **the next ticket**: "On your next ticket, set a time limit on every outside call."
+   - Use the stack note and the study topics so it fits their stack.
 
-Use only what `list_observations` returns. Do not judge the developer from this conversation, from the code,
-or from anything else.
+Save all of them with one `save_growth_plan` call. Each focus area has `claim`, `evidence_ids` (the frame's
+`evidence_ids`), `exercise`, `item_id`, `ladder_id`, and `spot` and `stack` when the frame has them.
+If the server refuses an area, read the reason and fix that part. Never pad evidence or make the exercise vague.
 
-## Step 2: Find 1 to 3 focus areas
+Then show, for each focus item: the item id and title, the claim, the exercise, the stack note with its link, and
+the study topics. If the server marked a claim tentative, say it rests on one piece of evidence.
 
-Group the observations by skill. Look for what repeats.
+Say in one line that the plan is saved on this machine only.
 
-A focus area is one of:
+### Step 3: Questions and drills
 
-- **A gap**: explain-backs rated `partial` or `not_yet` in the same skill.
-- **A pattern in who decides**: for example, most decisions in a skill have origin `ai` and the developer could not explain them.
-- **A strength to stretch**: `clear` ratings in a skill, with a harder next step.
+If `questions` is not empty, offer to answer them now (at most 3). The developer can say "later".
+Ask them as in **Asking a question** below.
 
-Rules:
+If `drills_ready` is not empty, say which items are ready for a drill and how to start one:
+`/fork-trail-coach:coach drill <item-id>`.
 
-- Choose the 1 to 3 that matter most. One strong focus area beats three thin ones.
-- Do not invent a weakness to fill the list. If the evidence only shows strengths, the plan is about stretching them.
-- Do not use the same observation to prop up two different claims unless it truly shows both.
-- Ignore evidence marked `missing`.
+## Asking a question
 
-## Step 3: Write each focus area
+One question at a time:
 
-- `claim`: one or two sentences on what the evidence shows. Be specific and fair. Describe the work, not the person.
-  - Good: "In two tickets, the reason behind a limit or a fallback was not explained."
-  - Bad: "You are weak at error handling."
-  - When only one observation supports it, word it as a first sign: "One answer suggests...".
-- `evidence_ids`: the ids of the **observations** that support the claim. Every one must really support it.
-- `exercise`: one concrete thing to do on the next ticket, small enough to finish in under an hour.
-  - Good: "Before coding the next ticket, write down the limit you would set and what should happen when it is hit. Compare with what gets built."
-  - Bad: "Study error handling."
+1. Word one question from the question's `about`. Ask **why** the code is this way, or what would go wrong another
+   way. Never give the answer away. Plain words, no code.
+2. Call `ask_question` with the session id, the `question_id`, and the exact text, **right before** you ask it.
+3. Ask it, and wait. The developer's next message is saved as the answer by a hook, word for word.
+   You do not record it. If they reply "later" or "skip", the question is kept for next time: move on.
+4. Call `rate_answer`:
+   - `clear`: the real reason, and they know what the other way would cost.
+   - `partial`: right but thin, or the trade-off is missing, or part is wrong.
+   - `not_yet`: they cannot say why, or the reason is not the reason.
+   - Only if the answer names the trade-off, copy those exact words into `tradeoff_quote`.
+   Rate what they said, not what they meant. Never rate up to be kind: a wrong `clear` hides the gap this exists to find.
+5. Tell them the rating in a few words. For `partial` or `not_yet`, give the missing piece in one or two sentences.
 
-Words only. No code, no file contents, no client names.
+## `drill <item-id>`
 
-## Step 4: Save
+1. Call `start_drill` with the item id and the session id. If it is refused, say why (the item must be Shown, or
+   they must wait after a failed drill) and stop.
+2. Ask the returned `prompt` exactly as it is. Say it is an interview-style question about a new situation.
+3. Wait for the answer. It is saved by the hook.
+4. Call `score_drill`. For each key point and red flag the answer really shows, give its id and the **exact words**
+   from the answer. Do not stretch: a point the answer does not make is missed.
+5. Show the result: passed or not; each key point as hit or missed, using the key's own wording; any red flag; then
+   the study topics for the missed points. If passed, say the item is now Proven.
 
-Call `save_growth_plan` once with the focus areas.
+## `why <item-id>`
 
-The server decides what is `tentative`: a claim resting on a single observation. You cannot set it.
-If the call is rejected, read the reason and fix that part. Never drop evidence or pad it to get past the check.
+Call `coach_item`. Show the state and what it still needs. Then list, each with its id:
 
-## Step 5: Show the report
+- code proofs and faults (file, function, ticket, date, who wrote it),
+- answers (question, rating),
+- drills (passed or not).
 
-Use what the server returned. For each focus area show:
+Say the developer can disagree with a piece of evidence or a drill score, and that disagreeing can only lower a
+state, never raise it. If they want to, call `disagree` with the id and their reason in their own words.
 
-- The claim. Add **(tentative)** when the server marked it so, and say in a few words that it rests on one observation.
-- The evidence: each observation's summary, in one line.
-- The exercise.
+## `history`
 
-Then, in one or two lines:
+Call `coach_history`. Show each change as "item: from → to, date, reason", oldest first. Point out items that
+moved up. If there are none yet, say so.
 
-- Name one thing the evidence shows the developer does well, if there is one. Skip this if there is not.
-- Say the plan is saved on this machine only and is not shared with anyone.
-- Say they can disagree with any claim: a tentative one especially may simply be wrong.
-- Say they can see the report in the browser, and add a note or "I disagree" to a claim, by running this command again with `open`.
+## Rules
+
+- Never say a state or level the server did not return.
+- No code, file contents or client names in anything you save.
+- Do not judge the developer from this conversation. Use only what the tools return.

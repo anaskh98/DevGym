@@ -1,13 +1,14 @@
 ---
 name: explain-back
-description: After coding a ticket, pick 2 or 3 logged decisions and ask the developer to explain why each was made, then save their answers with a rating. Use when the user runs /explain-back, finishes a ticket, or asks to be quizzed on or to explain the decisions in their work.
+description: After coding a ticket, pick 2 or 3 logged decisions and ask the developer to explain why each was made; their answers are saved word for word and rated. Use when the user runs /explain-back, finishes a ticket, or asks to be quizzed on or to explain the decisions in their work.
 argument-hint: <ticket-id>
 ---
 
 # Explain-back
 
 The developer ships this code, so they should be able to explain it. You ask "why" about a few decisions,
-they answer in their own words, and you save the answer with an honest rating.
+they answer in their own words, and you rate the answer honestly. A hook saves the answer exactly as typed:
+you never write it. Answers feed Coach, which uses them to decide the developer's level.
 This is practice, not an exam. Be direct and kind.
 
 Ticket id: `$ARGUMENTS`
@@ -35,19 +36,21 @@ Never ask about a decision whose origin is `dev` only to fill the count: the dev
 
 ## Step 3: Ask, one at a time
 
-For each picked decision, ask one question and wait for the answer before the next.
+For each picked decision:
 
-- Say **what** was decided and **where** (file and function).
-- Ask **why**: why this way, what the other option was, or what would go wrong with the other way.
-- **Do not give the reason or the alternatives away.** They are in the decision's `summary` and `alternatives`.
-  Rephrase so the question does not contain its own answer.
-- One question. Plain words. No code.
+1. Write one question. Say **what** was decided and **where** (file and function). Ask **why**: why this way,
+   what the other option was, or what would go wrong with the other way. **Do not give the reason or the
+   alternatives away**; they are in the decision's `summary` and `alternatives`. One question, plain words, no code.
+2. Call `ask_question` with the session id, the `decision_id`, the exact question text, and `item_id` when the
+   decision has no ladder item but one clearly fits (for example `BE.ERR.M2` for handling a failed outside call).
+   If it is refused because the decision has no item and none fits, ask the question anyway, give feedback, and
+   say this answer is not saved.
+3. Ask the question and wait. The developer's next message is saved as the answer by a hook.
+   "I don't know" is a valid answer. If they say "skip" or "later", move on: nothing is rated.
 
-The developer may answer "I don't know". That is a valid answer. If they say "skip", skip that decision and save nothing for it.
+## Step 4: Rate it
 
-## Step 4: Rate the answer
-
-Compare the answer with the decision's summary and alternatives:
+Call `rate_answer` with the `question_id` and a rating:
 
 | Rating | When |
 |---|---|
@@ -55,34 +58,16 @@ Compare the answer with the decision's summary and alternatives:
 | `partial` | The reason is right but thin, or they miss the trade-off, or part of it is wrong. |
 | `not_yet` | They cannot say why, or the reason given is not the reason. |
 
+Only if the answer names the trade-off, copy those exact words from it into `tradeoff_quote`.
 Rate what they said, not what they probably meant. Do not round up to be nice: a wrong "clear" hides the
 exact gap this tool exists to find. A different reason that is also valid counts as `clear`.
 
-## Step 5: Save it
-
-Call `record_explain_back` with:
-
-- `decision_id`: the decision's id.
-- `question`: the question you asked.
-- `answer`: the developer's answer in their own words. Trim it, do not improve it.
-- `rating`: your rating.
-
-If the privacy guard rejects the answer (for example it holds code or a client name), save a faithful
-plain-words version of what they said, and tell them you did.
-
-Then call `save_observation` once for the answer:
-
-- `skill_tag`: the skill the decision exercises, lowercase with dashes, for example `error-handling`, `data-modeling`, `api-design`, `performance`, `security`, `testing`.
-- `summary`: one neutral sentence on what the answer showed. Describe the understanding, not the person.
-  Good: "Explained why paging keeps memory flat, but not why the row limit exists."
-- `evidence_ids`: the decision id and the explain-back id.
-
-## Step 6: Give feedback, then move on
+## Step 5: Feedback, then move on
 
 Tell the developer the rating in a few words. For `partial` or `not_yet`, give the missing piece in one or two
 sentences. Then ask the next question.
 
-## Step 7: Wrap up
+## Step 6: Wrap up
 
 Show a short table: decision, rating. Add one line on what to look at again, if anything.
-Say that the answers are saved on this machine only.
+Say that the answers are saved on this machine only, and that `/fork-trail-coach:coach` shows how they count.

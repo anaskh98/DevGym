@@ -5,7 +5,7 @@ One Claude Code plugin with a small local service and web app.
 - **Fork** finds the places where a ticket can be read in more than one way and each reading leads to different code, asks only those questions, and saves what was answered and what was assumed.
 - **Paper Trail** records each decision made while coding, with who made it and a pointer to the code.
 - **Explain-back** asks the developer why a few of those decisions were made, and saves the answers with a rating.
-- **Coach** builds a growth plan from evidence.
+- **Coach** shows the developer's level per area on a backend or frontend ladder (junior, mid, senior, staff), built from their own commits and answers, and a personal plan with exercises on real spots in their code. A skill is Proven only after an interview-style drill. How it decides: [docs/coach-levels.md](docs/coach-levels.md).
 
 Developer profiles live in a SQLite file on the developer's machine and never leave it. Only the PR's "Decisions" section is shared with the team.
 
@@ -41,7 +41,10 @@ Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets
 | `/fork-trail-coach:explain-back DEMO-1` | Explain 2 or 3 logged decisions, save answers and ratings |
 | `/fork-trail-coach:pr-decisions DEMO-1` | Add the "Decisions" section to the pull request. Needs the GitHub CLI (`gh`), signed in |
 | `/fork-trail-coach:pointers DEMO-1 12` | After the PR is opened or merged: move the pointers to its commit and check they resolve |
-| `/fork-trail-coach:coach` | Build a growth plan from the saved observations |
+| `/fork-trail-coach:coach` | Show your level per area and a personal plan, from your own commits and answers |
+| `/fork-trail-coach:coach drill BE.ERR.M2` | Take an interview-style drill for a Shown item; passing it makes the item Proven |
+| `/fork-trail-coach:coach why BE.ERR.M2` | See every piece of evidence behind an item, and disagree with any of it |
+| `/fork-trail-coach:coach history` | See how your items moved over time |
 | `/fork-trail-coach:coach open` | Start the local server and open the Coach report in the browser |
 | `/fork-trail-coach:status` | Check the plugin and the local service |
 

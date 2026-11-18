@@ -53,6 +53,8 @@ Do not log these. Padding the trail makes it useless.
   - `line_hint`: a line inside the function where the choice was made. **Always send it when you can.** The server reads the file and works out the function name from this line.
   - `symbol`: the function, class or method name. Send it when you cannot give a line, or for a language the server does not parse (it parses TypeScript and JavaScript).
 - `related_files`: other files the same choice covers, for example its test.
+- `item_id` (optional): the ladder item the choice is about, when one clearly fits, for example `BE.ERR.M2` for how an
+  outside call's failure is handled. Coach uses it to ask the developer about the choice later. Leave it out when unsure.
 
 When the developer overrides something you already logged, log a new decision with `dev_changed_ai`.
 Name the old way in `alternatives`.
