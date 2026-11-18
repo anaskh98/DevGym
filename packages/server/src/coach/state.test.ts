@@ -167,9 +167,10 @@ describe("itemStatus", () => {
     expect(s.regressed_at).toBe("2026-11-13T10:00:00Z");
   });
 
-  it("ignores disagreed evidence", () => {
+  it("ignores disagreed credit, but not disagreed faults", () => {
     expect(status([dev({ disagreed: true })]).state).toBe("not_seen");
-    expect(status([...proofs3(), fault({ disagreed: true })], clear2()).state).toBe("shown");
+    // A fault still counts after a disagree: disagreeing can only lower a state.
+    expect(status([...proofs3(), fault({ disagreed: true })], clear2()).state).toBe("learning");
   });
 
   it("compares dates, not text, across time zones", () => {
@@ -196,5 +197,26 @@ describe("areaLevel", () => {
   it("reaches the top with nothing left to work toward", () => {
     const all = Object.fromEntries(["J1", "J2", "M1", "M2", "M3", "S1", "S2", "X1"].map((k) => [`BE.ERR.${k}`, "proven" as const]));
     expect(areaLevel(area, make(all))).toEqual({ level: "staff", working_toward: null });
+  });
+});
+
+describe("review fixes", () => {
+  const ONLY_NEGATIVE: LadderItem = { ...M2, id: "BE.ERR.J1", signals: [{ id: "err.empty-catch", polarity: "negative", regresses: true }] };
+
+  it("does not cap judge proofs for an item with only negative signals", () => {
+    const judged = [dev({ kind: "judge", signal_id: null }), dev({ kind: "judge", signal_id: null, ticket: "T-2" }), dev({ kind: "judge", signal_id: null })];
+    expect(status(judged, [], [], ONLY_NEGATIVE).proofs).toBe(3);
+  });
+
+  it("counts judge proofs on the same function once", () => {
+    const same = { kind: "judge" as const, signal_id: null, file: "src/pay.ts", symbol: "charge" };
+    expect(status([dev(same), dev({ ...same, ticket: "T-2" }), dev(same)], [], [], NO_SIGNALS).proofs).toBe(1);
+  });
+
+  it("keeps counting a fault the developer disagreed with, so disagreeing never raises a state", () => {
+    const drop = fault({ regresses: true, ticket: "T-3", at: "2026-11-16T10:00:00Z", disagreed: true });
+    const s = status([...proofs3(), drop], clear2(), [drill(true)]);
+    expect(s.state).toBe("learning");
+    expect(s.regressed_at).toBe("2026-11-16T10:00:00Z");
   });
 });

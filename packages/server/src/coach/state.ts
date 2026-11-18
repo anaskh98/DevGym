@@ -94,11 +94,13 @@ function snapshot(input: ItemInput, credits: EvidenceFact[], faults: EvidenceFac
   const groups = new Map<string, EvidenceFact>();
   for (const e of credits) {
     if (!counts(e.at) || ms(e.at) < windowStart) continue;
-    const key = [e.signal_id ?? e.id, e.file ?? "", e.symbol ?? ""].join("\0");
+    // Rule hits group by signal; judge and decision rows by their kind, so the same function counts once.
+    const key = [e.signal_id ?? e.kind, e.file ?? "", e.symbol ?? ""].join("\0");
     const prev = groups.get(key);
     if (!prev || ms(e.at) < ms(prev.at)) groups.set(key, e);
   }
-  const hasSignals = input.item.signals.length > 0;
+  // The judge cap protects items the rules can prove. An item with no positive signal can only be proven by judge evidence.
+  const hasSignals = input.item.signals.some((s) => s.polarity === "positive");
   let judged = 0;
   let fromHistory = 0;
   const kept: EvidenceFact[] = [];
@@ -131,9 +133,9 @@ function snapshot(input: ItemInput, credits: EvidenceFact[], faults: EvidenceFac
 }
 
 export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStatus {
-  const valid = input.evidence.filter((e) => !e.disagreed);
-  const credits = valid.filter(isCredit);
-  const faults = valid.filter(isFault);
+  // Disagreeing removes credit, never a fault: so "I disagree" can only lower a state, never raise it.
+  const credits = input.evidence.filter((e) => !e.disagreed).filter(isCredit);
+  const faults = input.evidence.filter(isFault);
 
   // The regression point: the latest serious fault or "not yet" answer. Only newer facts count after it.
   const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];

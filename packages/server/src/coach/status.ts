@@ -329,8 +329,12 @@ export async function proposeEvidence(db: Db, root: string, input: ProposeEviden
 /** The developer disagrees. This can lower a state, never raise it: evidence stops counting, a drill score is voided. */
 export function disagree(db: Db, input: { target_id: string; reason: string }): { target: "evidence" | "drill"; effect: string } {
   const now = new Date().toISOString();
-  if (db.prepare("UPDATE skill_evidence SET disagreed_at = ?, disagree_reason = ? WHERE id = ?").run(now, input.reason, input.target_id).changes > 0) {
-    return { target: "evidence", effect: "This evidence no longer counts. Your reason is kept and shown with the item." };
+  const row = db.prepare("SELECT polarity FROM skill_evidence WHERE id = ?").get(input.target_id) as { polarity: string } | undefined;
+  if (row) {
+    db.prepare("UPDATE skill_evidence SET disagreed_at = ?, disagree_reason = ? WHERE id = ?").run(now, input.reason, input.target_id);
+    return row.polarity === "positive"
+      ? { target: "evidence", effect: "This proof no longer counts. Your reason is kept and shown with the item." }
+      : { target: "evidence", effect: "Your reason is kept and shown with this fault. The fault still counts: disagreeing can only lower a state, never raise it. Fix the code to clear it." };
   }
   if (db.prepare("UPDATE drill_attempts SET void = 1 WHERE id = ?").run(input.target_id).changes > 0) {
     return { target: "drill", effect: "This drill score is void. You can take the drill again with a different question." };
