@@ -43,6 +43,9 @@ Do not log these. Padding the trail makes it useless.
 - `ticket_id` and `session_id`: the values above.
 - `summary`: what was chosen and why, in one or two sentences. **Words only. Never code, never file contents.**
 - `alternatives`: the other options that were really considered, one short phrase each. Do not invent some afterwards.
+- `origin_quote`: **required for `dev` and `dev_changed_ai`.** Copy, word for word, the developer's own words from their
+  message that made the choice (at least 12 characters). The server checks the words are in a message the developer
+  sent in this session. If they are not, or you leave it out, the decision is stored as `ai`. Never invent a quote.
 - `origin`: be honest, this is the point of the trail.
   - `ai`: you chose it yourself. The developer did not tell you which way to go.
   - `dev`: the developer told you which way to go.

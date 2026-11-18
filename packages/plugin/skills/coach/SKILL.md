@@ -41,6 +41,10 @@ Call `coach_status`.
   answer, then call `coach_status` again.
 - Show any `ladders[].warning` and the `catch_up.note` in one line each, if present.
 - Show `text` exactly as returned, in a code block. Do not change it.
+- If `history_scan.more_left` is true, say once that Coach is reading older commits in batches
+  (`history_scan.remaining` left) and the picture will fill in over the next runs.
+- If `repeats` is not empty, the same mistake came back on 3 or more tickets. Name the first one and say whether it is
+  still coming back. A repeat that has not come back in 60 days is good news: say so.
 
 ### Step 2: The plan
 

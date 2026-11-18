@@ -52,7 +52,22 @@ Remind the developer of two things, in one line each:
 - Running this again replaces the section, so run it again after more decisions are logged.
 - After the pull request is merged, run the pointers skill so the links move to the merge commit.
 
-## Step 5: Coach questions (private)
+## Step 5: Fault review (private)
+
+Review the pull request's **final change** for bad practices, faults and bugs, once, before the questions.
+Read only the changed functions (`git diff` of the pull request against its base). For each real problem call
+`propose_fault` with the ladder `item_id` it breaks, the `file`, the `line_start` and `line_end` of the lines in the
+final change, and one plain sentence of what is wrong and what it risks. The server keeps a fault only if those lines
+were added in this change.
+
+- Only report what you can point at. Do not invent faults to fill a list, and do not report style.
+- Faults in lines Claude wrote are **owned**: the developer shipped them, so they count for the developer too. Say that.
+- Show each fault: the file and function, what is wrong, who wrote the lines, and the item it breaks.
+- The developer fixes it (best) or keeps it. A fix in a later commit clears it. They may say "I disagree", which keeps
+  their reason but does not remove the fault.
+- These stay on this machine and are **not** in the pull request.
+
+## Step 6: Coach questions (private)
 
 Call `coach_status`. It reads the developer's new commits.
 
