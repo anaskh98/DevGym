@@ -104,14 +104,49 @@ describe("checkItemArea", () => {
     const own = row("BE.ERR.M2", { file: "api/src/pay.ts", symbol: "charge" });
     const other = row("BE.ERR.M3", { signal: "err.error-cause" });
     const base = { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", spot: { file: "api/src/pay.ts", symbol: "charge" } };
-    expect(() => checkItemArea(db, { ...base, evidence_ids: [own], exercise: "In the payment code, add a time limit." })).toThrow(/pay\.ts/);
-    expect(() => checkItemArea(db, { ...base, evidence_ids: [other], exercise: "In pay.ts add a time limit." })).toThrow(/not evidence for BE\.ERR\.M2/);
-    expect(() => checkItemArea(db, { ...base, evidence_ids: [own], exercise: "In pay.ts, add a time limit to charge." })).not.toThrow();
+    expect(() => checkItemArea(db, { ...base, evidence_ids: [own], exercise_kind: "implement", exercise: "In the payment code, add a time limit." })).toThrow(/pay\.ts/);
+    expect(() => checkItemArea(db, { ...base, evidence_ids: [other], exercise_kind: "implement", exercise: "In pay.ts add a time limit." })).toThrow(/not evidence for BE\.ERR\.M2/);
+    expect(() => checkItemArea(db, { ...base, evidence_ids: [own], exercise_kind: "implement", exercise: "In pay.ts, add a time limit to charge." })).not.toThrow();
   });
 
   it("allows the next ticket instead of a spot", () => {
     const own = row("BE.ERR.M2");
-    expect(() => checkItemArea(db, { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", evidence_ids: [own], exercise: "On your next ticket, set a time limit on every outside call." })).not.toThrow();
-    expect(() => checkItemArea(db, { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", evidence_ids: [own], exercise: "Study timeouts." })).toThrow(/spot|ticket/);
+    expect(() => checkItemArea(db, { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", evidence_ids: [own], exercise_kind: "implement", exercise: "On your next ticket, set a time limit on every outside call." })).not.toThrow();
+    expect(() => checkItemArea(db, { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", evidence_ids: [own], exercise_kind: "implement", exercise: "Study timeouts." })).toThrow(/spot|ticket/);
+  });
+});
+
+describe("stage 1.5: why it matters, exercise kinds, study rule", () => {
+  it("puts why it matters and the exercise kinds in the frame", () => {
+    row("BE.ERR.M2", { file: "api/src/pay.ts", symbol: "charge" });
+    const status = computeStatuses(db, loaded, NOW).get("BE.ERR.M2")!;
+    const frame = buildFrame(db, status, { ladder: loaded, stacks });
+    expect(frame.why_it_matters.length).toBeGreaterThan(10);
+    expect(frame.exercise_kinds).toContain("design_tradeoff");
+  });
+
+  it("gives study topics only for a learning item", () => {
+    row("BE.ERR.M2", { file: "api/src/pay.ts", symbol: "charge" });
+    const notAssessed = computeStatuses(db, loaded, NOW).get("BE.ERR.M2")!;
+    expect(notAssessed.state).toBe("not_assessed");
+    expect(buildFrame(db, notAssessed, { ladder: loaded, stacks }).study).toEqual([]);
+    row("BE.ERR.M2", { polarity: "negative", signal: "err.empty-catch", file: "api/src/pay.ts", symbol: "charge" });
+    const learning = computeStatuses(db, loaded, NOW).get("BE.ERR.M2")!;
+    expect(learning.state).toBe("learning");
+    expect(buildFrame(db, learning, { ladder: loaded, stacks }).study.length).toBeGreaterThan(1);
+  });
+
+  it("refuses an exercise kind the item does not allow, or none", () => {
+    const own = row("BE.ERR.M2");
+    const base = { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", evidence_ids: [own], exercise: "On your next ticket, set a time limit." };
+    expect(() => checkItemArea(db, { ...base, exercise_kind: "debug" }, ["implement", "design_tradeoff"])).toThrow(/debug/);
+    expect(() => checkItemArea(db, base)).toThrow(/exercise_kind/);
+  });
+
+  it("accepts a design trade-off exercise with no spot and no ticket", () => {
+    const own = row("BE.ERR.M2");
+    expect(() =>
+      checkItemArea(db, { item_id: "BE.ERR.M2", ladder_id: "builtin/backend", evidence_ids: [own], exercise_kind: "design_tradeoff", exercise: "Write down when a payment call may be retried, and what each choice costs." }),
+    ).not.toThrow();
   });
 });

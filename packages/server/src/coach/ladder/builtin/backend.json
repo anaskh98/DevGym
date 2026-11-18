@@ -94,6 +94,12 @@
             },
             "exposure_signals": [
               "err.try-catch"
+            ],
+            "why_it_matters": "A hidden error turns into lost data or a wrong result that nobody notices until a user complains.",
+            "exercise_kinds": [
+              "debug",
+              "review",
+              "implement"
             ]
           },
           {
@@ -179,6 +185,12 @@
             "exposure_signals": [
               "io.outside-call",
               "io.db-query"
+            ],
+            "why_it_matters": "A missing row or a failed call that is used as if it worked becomes a crash or a wrong answer far from the cause.",
+            "exercise_kinds": [
+              "implement",
+              "debug",
+              "review"
             ]
           }
         ],
@@ -265,6 +277,12 @@
             },
             "exposure_signals": [
               "api.request-body"
+            ],
+            "why_it_matters": "Bad input that gets past the edge spreads into every layer and into stored data; one check at the edge keeps the rest simple.",
+            "exercise_kinds": [
+              "implement",
+              "review",
+              "design_tradeoff"
             ]
           },
           {
@@ -374,6 +392,13 @@
             },
             "exposure_signals": [
               "io.outside-call"
+            ],
+            "why_it_matters": "Outside services are slow or down sometimes; without a time limit and a retry rule, one slow provider takes your service down or charges a card twice.",
+            "exercise_kinds": [
+              "implement",
+              "design_tradeoff",
+              "review",
+              "explain"
             ]
           },
           {
@@ -473,6 +498,12 @@
             },
             "exposure_signals": [
               "err.throw"
+            ],
+            "why_it_matters": "Errors without context make every incident slow to debug, and raw errors sent to users leak internals.",
+            "exercise_kinds": [
+              "implement",
+              "debug",
+              "review"
             ]
           }
         ],
@@ -564,6 +595,12 @@
             },
             "exposure_signals": [
               "io.outside-call"
+            ],
+            "why_it_matters": "In multi-step changes, one failed step can leave money, stock or data in a state nobody planned for.",
+            "exercise_kinds": [
+              "design_tradeoff",
+              "architecture",
+              "explain"
             ]
           },
           {
@@ -649,6 +686,12 @@
             },
             "exposure_signals": [
               "err.try-catch"
+            ],
+            "why_it_matters": "Failures you cannot see are fixed late; good logs, metrics and alerts turn days of searching into minutes.",
+            "exercise_kinds": [
+              "implement",
+              "design_tradeoff",
+              "debug"
             ]
           }
         ],
@@ -738,7 +781,13 @@
                 "link": "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html"
               }
             },
-            "exposure_signals": []
+            "exposure_signals": [],
+            "why_it_matters": "When every service handles errors its own way, incidents cross teams and nobody can trace them; one standard makes the whole system safer.",
+            "exercise_kinds": [
+              "architecture",
+              "design_tradeoff",
+              "explain"
+            ]
           }
         ]
       }

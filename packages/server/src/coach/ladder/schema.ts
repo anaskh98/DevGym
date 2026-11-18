@@ -11,6 +11,10 @@ export type Level = (typeof LEVELS)[number];
 export const LEVEL_LETTER: Record<Level, string> = { junior: "J", mid: "M", senior: "S", staff: "X" };
 export const ITEM_ID = /^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/;
 
+/** Kinds of exercise: not every exercise changes code. */
+export const EXERCISE_KINDS = ["implement", "debug", "review", "design_tradeoff", "architecture", "explain"] as const;
+export type ExerciseKind = (typeof EXERCISE_KINDS)[number];
+
 export interface SignalRef {
   id: string;
   polarity: "positive" | "negative";
@@ -38,6 +42,10 @@ export interface LadderItem {
   stack_notes: Record<string, StackNote>;
   /** Signals that show the developer had the chance to use this skill, used or not. Optional for old company files. */
   exposure_signals?: string[];
+  /** One or two plain sentences on why the skill matters. Optional for old company files. */
+  why_it_matters?: string;
+  /** The kinds of exercise that suit this item. Missing means any kind. */
+  exercise_kinds?: ExerciseKind[];
 }
 export interface Area {
   id: string;
@@ -117,6 +125,8 @@ const itemSchema = z.strictObject({
   drills: z.array(drillSchema).min(1).max(3),
   study: z.array(text).min(2).max(4),
   exposure_signals: z.array(shortId).max(10).optional(),
+  why_it_matters: text.optional(),
+  exercise_kinds: z.array(z.enum(EXERCISE_KINDS)).min(1).max(6).optional(),
   stack_notes: z.record(
     shortId,
     z.strictObject({ note: text, link: z.string().regex(/^https:\/\/\S+$/, "stack note links must start with https://") }),

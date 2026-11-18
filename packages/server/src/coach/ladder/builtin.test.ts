@@ -30,6 +30,13 @@ describe("built-in ladders", () => {
     expect(ex(frontend, "FE.FETCH.X1")).toEqual([]);
   });
 
+  it("gives every written item why it matters and its exercise kinds", () => {
+    for (const l of [backend, frontend]) for (const i of items(l)) {
+      expect((i.why_it_matters ?? "").length, i.id).toBeGreaterThan(20);
+      expect((i.exercise_kinds ?? []).length, i.id).toBeGreaterThan(0);
+    }
+  });
+
   it("writes ERR and FETCH fully: every level has at least one item", () => {
     const err = backend.areas.find((a) => a.id === "ERR")!;
     const fetch = frontend.areas.find((a) => a.id === "FETCH")!;

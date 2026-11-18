@@ -369,6 +369,7 @@ export interface SavedFocusArea {
   ladder_id?: string;
   spot?: { file: string; symbol: string | null };
   stack?: string;
+  exercise_kind?: string;
 }
 
 export type FocusAreaInput = SaveGrowthPlanInput["focus_areas"][number];
@@ -399,6 +400,7 @@ export function saveGrowthPlan(
         ladder_id: ladderId,
         ...(area.spot ? { spot: { file: area.spot.file, symbol: area.spot.symbol ?? null } } : {}),
         ...(area.stack ? { stack: area.stack } : {}),
+        ...(area.exercise_kind ? { exercise_kind: area.exercise_kind } : {}),
       };
     }
     for (const evidenceId of evidence) {

@@ -273,8 +273,8 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       write(input, (i) =>
         store.saveGrowthPlan(db, i, (area) => {
           // The item must be in the active ladder, and the area must rest on that item's own evidence.
-          const { loaded } = ladderForItem(coachRoot, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
-          checkItemArea(db, { ...area, ladder_id: loaded.ladder_id });
+          const { loaded, item } = ladderForItem(coachRoot, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
+          checkItemArea(db, { ...area, ladder_id: loaded.ladder_id }, item.exercise_kinds);
           return loaded.ladder_id;
         }),
       ),

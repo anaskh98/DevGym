@@ -3,7 +3,7 @@
 import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
 import { findItem, type LoadedLadder } from "./ladder/load.js";
-import { LEVELS } from "./ladder/schema.js";
+import { EXERCISE_KINDS, LEVELS, type ExerciseKind } from "./ladder/schema.js";
 import { stackForPath, type StackHit } from "./stack.js";
 import { areaLevel, type ItemState, type ItemStatus } from "./state.js";
 import type { LadderStatuses } from "./status.js";
@@ -16,9 +16,12 @@ export interface FocusFrame {
   needs: string[];
   stack: string | null;
   stack_note: { note: string; link: string; source: "ladder" | "local" } | null;
+  /** Study topics, only when the item shows a gap (Learning). Empty otherwise. */
   study: string[];
   spot: { file: string; symbol: string | null } | null;
   evidence_ids: string[];
+  why_it_matters: string;
+  exercise_kinds: ExerciseKind[];
 }
 
 export interface FocusContext {
@@ -109,9 +112,11 @@ export function buildFrame(db: Db, status: ItemStatus, ctx: { ladder: LoadedLadd
     needs: status.needs,
     stack,
     stack_note: stackNote,
-    study: item.study,
+    study: status.state === "learning" ? item.study : [],
     spot,
     evidence_ids: ids.slice(0, 20),
+    why_it_matters: item.why_it_matters ?? "",
+    exercise_kinds: item.exercise_kinds ?? [...EXERCISE_KINDS],
   };
 }
 
@@ -137,10 +142,18 @@ export interface ItemArea {
   evidence_ids: string[];
   spot?: { file: string; symbol?: string | null } | undefined;
   exercise: string;
+  exercise_kind?: ExerciseKind | undefined;
 }
 
+/** Kinds of exercise that do not need a spot in the code or a ticket: they are about thinking, not changing code. */
+const THINKING_KINDS: readonly ExerciseKind[] = ["design_tradeoff", "architecture", "explain"];
+
 /** Refuses a plan item that is not personal: evidence must be of that item, and the exercise must name a real spot or the next ticket. */
-export function checkItemArea(db: Db, area: ItemArea): void {
+export function checkItemArea(db: Db, area: ItemArea, allowedKinds: readonly ExerciseKind[] = EXERCISE_KINDS): void {
+  if (area.exercise_kind === undefined) throw new StoreError(`Choose an exercise_kind: one of ${allowedKinds.join(", ")}`);
+  if (!allowedKinds.includes(area.exercise_kind)) {
+    throw new StoreError(`${area.item_id} does not suit a '${area.exercise_kind}' exercise. Use one of: ${allowedKinds.join(", ")}`);
+  }
   const ofItem = [
     db.prepare("SELECT 1 FROM skill_evidence WHERE id = ? AND ladder_id = ? AND item_id = ?"),
     db.prepare("SELECT 1 FROM pending_questions WHERE id = ? AND ladder_id = ? AND item_id = ? AND rating IS NOT NULL"),
@@ -152,7 +165,7 @@ export function checkItemArea(db: Db, area: ItemArea): void {
   if (area.spot) {
     const base = area.spot.file.replaceAll("\\", "/").split("/").pop() ?? area.spot.file;
     if (!area.exercise.toLowerCase().includes(base.toLowerCase())) throw new StoreError(`The exercise must name the spot's file (${base}), so it is about the developer's own code`);
-  } else if (!/\bticket\b/i.test(area.exercise)) {
+  } else if (!THINKING_KINDS.includes(area.exercise_kind) && !/\bticket\b/i.test(area.exercise)) {
     throw new StoreError("Give the exercise a real spot in the developer's code, or tie it to their next ticket");
   }
 }

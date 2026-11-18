@@ -149,6 +149,10 @@ export const saveGrowthPlanInput = z.strictObject({
           .optional()
           .describe("The focus frame's spot in the developer's code"),
         stack: z.string().trim().min(1).max(50).optional().describe("The focus frame's stack"),
+        exercise_kind: z
+          .enum(["implement", "debug", "review", "design_tradeoff", "architecture", "explain"])
+          .optional()
+          .describe("Required with item_id: one of the focus frame's exercise_kinds"),
       }),
     )
     .min(1)

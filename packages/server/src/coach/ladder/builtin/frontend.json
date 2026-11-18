@@ -97,6 +97,11 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "Without loading and error states, users see a blank or frozen screen and think the app is broken.",
+            "exercise_kinds": [
+              "implement",
+              "review"
             ]
           },
           {
@@ -191,6 +196,12 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "A failed request that is only logged loses the user's work silently and leaves them confused.",
+            "exercise_kinds": [
+              "implement",
+              "debug",
+              "review"
             ]
           }
         ],
@@ -282,6 +293,12 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "fetch does not fail on a server error; reading an error page as data breaks the screen in strange ways.",
+            "exercise_kinds": [
+              "implement",
+              "debug",
+              "review"
             ]
           },
           {
@@ -372,6 +389,12 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "Old answers arriving late overwrite new ones and show the wrong data, a bug that is hard to reproduce.",
+            "exercise_kinds": [
+              "implement",
+              "debug",
+              "explain"
             ]
           },
           {
@@ -456,6 +479,12 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "Fetching the same data again and again wastes time, and stale data after a change confuses users.",
+            "exercise_kinds": [
+              "design_tradeoff",
+              "implement",
+              "review"
             ]
           }
         ],
@@ -543,6 +572,12 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "Real users are on slow and flaky networks; an app that only works on fast Wi-Fi loses their actions and their trust.",
+            "exercise_kinds": [
+              "design_tradeoff",
+              "architecture",
+              "implement"
             ]
           },
           {
@@ -632,6 +667,12 @@
             },
             "exposure_signals": [
               "fetch.request"
+            ],
+            "why_it_matters": "One broken widget should not blank the whole page; boundaries keep the rest of the app usable.",
+            "exercise_kinds": [
+              "implement",
+              "architecture",
+              "debug"
             ]
           }
         ],
@@ -721,7 +762,13 @@
                 "link": "https://angular.dev/guide/http"
               }
             },
-            "exposure_signals": []
+            "exposure_signals": [],
+            "why_it_matters": "Three ways of fetching data in one app means three kinds of bugs; one standard makes every new screen right by default.",
+            "exercise_kinds": [
+              "architecture",
+              "design_tradeoff",
+              "explain"
+            ]
           }
         ]
       }

@@ -565,6 +565,7 @@ describe("personal growth plans", () => {
     item_id: "BE.ERR.M2",
     spot: { file: "api/pay.ts", symbol: "charge" },
     stack: "express",
+    exercise_kind: "implement",
   });
 
   it("refuses an exercise that does not name the spot file", async () => {

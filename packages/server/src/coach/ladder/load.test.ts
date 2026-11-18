@@ -114,3 +114,18 @@ describe("review fixes: one id for a repo ladder", () => {
     expect(trailing.ladder_id).toBe(forward.ladder_id);
   });
 });
+
+describe("stage 1.5: old company files", () => {
+  it("loads a company ladder without the new optional fields (Review Focus 5)", () => {
+    const old = company();
+    for (const area of old.areas) for (const level of Object.values(area.levels)) for (const item of level) {
+      delete item.exposure_signals;
+      delete item.why_it_matters;
+      delete item.exercise_kinds;
+    }
+    writeRepo(old);
+    const loaded = loadLadder("backend", { repoRoot: repo, home });
+    expect(loaded.source).toBe("repo");
+    expect(loaded.warning).toBeUndefined();
+  });
+});
