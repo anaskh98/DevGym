@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { normalizeRepoPath } from "../../git/identity.js";
 import { signalById } from "../signals.js";
 import { BUILTIN_LADDERS } from "./builtin.js";
 import { DEFAULT_THRESHOLDS, LEVELS, ladderSchema, type Area, type Ladder, type LadderItem, type Level, type Thresholds, type Track } from "./schema.js";
@@ -59,7 +60,8 @@ export function loadLadder(track: Track, opts: LoadOptions): LoadedLadder {
   const home = opts.home ?? homedir();
   const builtin = BUILTIN_LADDERS[track];
   const tries: { source: "repo" | "home"; path: string; id: string }[] = [
-    { source: "repo", path: join(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(opts.repoRoot).digest("hex").slice(0, 8)}/${track}` },
+    // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
+    { source: "repo", path: join(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
     { source: "home", path: join(home, FILE), id: `home/${track}` },
   ];
   for (const t of tries) {

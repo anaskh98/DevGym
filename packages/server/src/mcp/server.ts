@@ -5,6 +5,7 @@ import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
+import { repoIdentitySync } from "../git/identity.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer } from "../coach/questions.js";
 import { drillKey, scoreDrill, startDrill } from "../coach/drills.js";
@@ -84,6 +85,8 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     });
   const ticket = (ticketId: string) => store.ensureTicket(db, tickets, ticketId, guard);
   const home = options.coachHome === undefined ? {} : { home: options.coachHome };
+  // Ladders are found from the repo's top folder, so a session started in a subfolder uses the same ladder.
+  const coachRoot = repoIdentitySync(root)?.top ?? root;
 
   server.registerTool(
     "get_ticket",
@@ -144,7 +147,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         guard.check(decision);
         await ticket(decision.ticket_id);
         // An item id must be in the active ladder; the server finds which ladder that is.
-        const ladderId = decision.item_id === undefined ? null : ladderForItem(root, decision.item_id, home).loaded.ladder_id;
+        const ladderId = decision.item_id === undefined ? null : ladderForItem(coachRoot, decision.item_id, home).loaded.ladder_id;
         return store.logDecision(db, decision, root, ladderId);
       }),
   );
@@ -269,7 +272,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       write(input, (i) =>
         store.saveGrowthPlan(db, i, (area) => {
           // The item must be in the active ladder, and the area must rest on that item's own evidence.
-          const { loaded } = ladderForItem(root, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
+          const { loaded } = ladderForItem(coachRoot, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
           checkItemArea(db, { ...area, ladder_id: loaded.ladder_id });
           return loaded.ladder_id;
         }),
@@ -313,7 +316,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     },
     (input) =>
       reply(() => {
-        const { loaded, item } = ladderForItem(root, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
+        const { loaded, item } = ladderForItem(coachRoot, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
         return itemDetail(db, loaded, item);
       }),
   );
@@ -365,7 +368,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         if (i.decision_id !== undefined) {
           const decision = db.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i.decision_id) as { item_id: string | null } | undefined;
           const item = i.item_id ?? decision?.item_id ?? undefined;
-          if (item) ladderId = ladderForItem(root, item, home).loaded.ladder_id;
+          if (item) ladderId = ladderForItem(coachRoot, item, home).loaded.ladder_id;
         }
         return openQuestion(db, { ...i, ...(ladderId ? { ladder_id: ladderId } : {}) });
       }),
@@ -394,7 +397,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       reply(async () => {
         // A proof committed since the last failed drill may be what unlocks it, so read new commits first.
         await catchUpHere(db, { root, ...home });
-        const ctx = ladderForItem(root, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
+        const ctx = ladderForItem(coachRoot, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
         return startDrill(db, ctx, { session_id: input.session_id });
       }),
   );
@@ -414,7 +417,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
           | { item_id: string; ladder_id: string }
           | undefined;
         if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
-        return drillKey(db, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input.question_id);
+        return drillKey(db, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input.question_id);
       }),
   );
 
@@ -432,7 +435,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
           | { item_id: string; ladder_id: string }
           | undefined;
         if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
-        return scoreDrill(db, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input);
+        return scoreDrill(db, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input);
       }),
   );
 
@@ -446,7 +449,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     },
     (input) =>
       write(input, (i) => {
-        const { loaded } = ladderForItem(root, i.item_id, home);
+        const { loaded } = ladderForItem(coachRoot, i.item_id, home);
         return saveStackNote(db, loaded, i);
       }),
   );

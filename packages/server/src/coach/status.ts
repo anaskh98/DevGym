@@ -312,11 +312,13 @@ export async function proposeEvidence(db: Db, root: string, input: ProposeEviden
   const lines = (file?.added ?? []).filter((l) => l.line >= input.line_start && l.line <= input.line_end);
   if (lines.length === 0) throw new StoreError(`Lines ${input.line_start}-${input.line_end} of ${input.file} were not added in that commit`);
   const ai = aiHashesFor(db, key, file!.path);
-  const devLine = lines.find((l) => {
-    const n = normalizeLine(l.text);
-    return n !== null && !ai.has(lineHash(n));
-  });
-  if (!devLine) throw new StoreError("Claude wrote those lines, so they cannot count as the developer's evidence");
+  const hashed = lines.map((l) => ({ line: l, normalized: normalizeLine(l.text) })).filter((l) => l.normalized !== null);
+  // Every line that can be told apart must be the developer's: one developer line among AI lines is not enough.
+  if (hashed.some((l) => ai.has(lineHash(l.normalized!)))) {
+    throw new StoreError("Claude wrote some of those lines, so they cannot count as the developer's evidence. Cite only lines the developer wrote");
+  }
+  const devLine = hashed[0]?.line;
+  if (!devLine) throw new StoreError("Those lines are too short to tell who wrote them");
 
   const source = await exec("git", ["show", `${sha}:${file!.path}`], top);
   const symbol = source.code === 0 && isSupported(file!.path) ? ((await symbolAtLine(file!.path, source.stdout, devLine.line))?.name ?? null) : null;

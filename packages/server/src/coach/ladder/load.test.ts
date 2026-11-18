@@ -102,3 +102,15 @@ describe("findItem", () => {
     expect(findItem(BUILTIN_LADDERS.backend, "BE.ERR.M9")).toBeNull();
   });
 });
+
+describe("review fixes: one id for a repo ladder", () => {
+  it("gives the same ladder id however the repo path is spelled", () => {
+    writeRepo(company());
+    const forward = loadLadder("backend", { repoRoot: repo.replaceAll("\\", "/"), home });
+    const native = loadLadder("backend", { repoRoot: repo, home });
+    const trailing = loadLadder("backend", { repoRoot: `${repo}/`, home });
+    expect(forward.source).toBe("repo");
+    expect(native.ladder_id).toBe(forward.ladder_id);
+    expect(trailing.ladder_id).toBe(forward.ladder_id);
+  });
+});

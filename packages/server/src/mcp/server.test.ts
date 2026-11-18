@@ -13,6 +13,7 @@ import { PrivacyGuard } from "../privacy/guard.js";
 import { recordFileEdit } from "../store.js";
 import { MarkdownTicketAdapter } from "../tickets/markdown.js";
 import { latestGrowthPlan } from "../api/data.js";
+import { saveAiLines } from "../coach/attribution.js";
 import { repoIdentitySync } from "../git/identity.js";
 import { createServer } from "./server.js";
 
@@ -619,5 +620,22 @@ describe("start_drill reads new commits first", () => {
     git(["commit", "-q", "-m", "PAY-3 time limit on quote"]);
     const started = await ok("start_drill", { item_id: "BE.ERR.M2", session_id: "s1" });
     expect(started.drill_id).toBe("d2");
+  });
+});
+
+describe("review fixes: proposed evidence must be the developer's lines", () => {
+  it("refuses a range where Claude wrote some of the lines", async () => {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+    git(["init", "-q"]);
+    git(["config", "user.email", "dev@example.com"]);
+    git(["config", "user.name", "Dev"]);
+    git(["config", "commit.gpgsign", "false"]);
+    writeFileSync(join(repo, "pay.ts"), "export function charge() {\n  return compensateLater();\n}\n");
+    git(["add", "pay.ts"]);
+    git(["commit", "-q", "-m", "PAY-1 charge"]);
+    const sha = git(["rev-parse", "HEAD"]);
+    saveAiLines(db, repoIdentitySync(repo)!.key, "pay.ts", "s1", ["  return compensateLater();"]);
+    const out = await rejected("propose_evidence", { item_id: "BE.ERR.S1", commit: sha, file: "pay.ts", line_start: 1, line_end: 3, why: "Shows a design for partial failure" });
+    expect(out).toMatch(/Claude wrote/);
   });
 });
