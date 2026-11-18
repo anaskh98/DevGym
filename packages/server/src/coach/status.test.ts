@@ -75,9 +75,10 @@ describe("coachStatus", () => {
     const s = await coachStatus(db, { root: repo, now: NOW, home: dir });
     expect(s.catch_up.commits_read).toBe(1);
     const err = s.areas.find((a) => a.area_id === "ERR")!;
-    expect(err.items.find((i) => i.item_id === "BE.ERR.M2")?.state).toBe("learning");
+    expect(err.items.find((i) => i.item_id === "BE.ERR.M2")?.state).toBe("not_assessed");
     expect(s.text).toContain("BE.ERR.M2");
-    expect(s.text).toContain("LEARNING");
+    expect(s.text).toContain("NOT ASSESSED");
+    expect(s.text).toContain("exposure: low");
     expect(s.text).toContain("Your stack: express");
     expect(s.text).toContain("Not written yet:");
   });
@@ -95,7 +96,7 @@ describe("coachStatus", () => {
     addAnswer("BE.ERR.M2", "PAY-2", false);
     await coachStatus(db, { root: repo, now: NOW, home: dir });
     const changes = stateHistory(db).filter((h) => h.item_id === "BE.ERR.M2");
-    expect(changes.map((h) => `${h.from_state}->${h.to_state}`)).toEqual(["not_seen->learning", "learning->shown"]);
+    expect(changes.map((h) => `${h.from_state}->${h.to_state}`)).toEqual(["not_seen->not_assessed", "not_assessed->shown"]);
   });
 
   it("ignores evidence for an item that is not in the ladder (Review Focus 5)", async () => {

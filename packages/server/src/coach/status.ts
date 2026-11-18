@@ -10,6 +10,7 @@ import { aiHashesFor, lineHash, normalizeLine } from "./attribution.js";
 import { catchUp, ticketForCommit, type CatchUpResult } from "./capture.js";
 import { repoIdentity } from "../git/identity.js";
 import { drillsReady } from "./drills.js";
+import { exposureFor, type ExposureLevel } from "./exposure.js";
 import { toIso, factsForItem } from "./facts.js";
 import { findItem, loadActiveLadders, loadLadder, type LoadedLadder } from "./ladder/load.js";
 import { LEVELS, type LadderItem, type Level, type Track } from "./ladder/schema.js";
@@ -23,9 +24,11 @@ export interface AreaView {
   ladder_id: string;
   area_id: string;
   name: string;
+  /** The highest exposure among the area's items: how much the work touches this area. */
+  exposure: ExposureLevel;
   level: Level | null;
   working_toward: Level | null;
-  items: { item_id: string; title: string; level: Level; state: ItemState; detail: string }[];
+  items: { item_id: string; title: string; level: Level; state: ItemState; exposure: ExposureLevel; detail: string }[];
 }
 
 export interface CoachStatus {
@@ -69,7 +72,8 @@ export function computeStatuses(db: Db, loaded: LoadedLadder, now: Date): Map<st
   for (const area of loaded.ladder.areas) {
     for (const level of LEVELS) {
       for (const item of area.levels[level]) {
-        statuses.set(item.id, itemStatus({ item, ...factsForItem(db, loaded.ladder_id, item.id) }, now, loaded.thresholds));
+        const exposure = exposureFor(db, loaded.ladder_id, item.id, now, loaded.thresholds);
+        statuses.set(item.id, itemStatus({ item, ...factsForItem(db, loaded.ladder_id, item.id), exposure }, now, loaded.thresholds));
       }
     }
   }
@@ -81,9 +85,13 @@ function reasonFor(s: ItemStatus): string {
     case "proven":
       return "passed a drill while shown";
     case "shown":
-      return `${s.proofs} code proofs on ${s.proof_tickets} tickets and ${s.clear_answers} clear answers`;
+      return s.shown_by === "drill"
+        ? "passed 2 drills and gave a clear answer, with little chance in the work"
+        : `${s.proofs} code proofs on ${s.proof_tickets} tickets and ${s.clear_answers} clear answers`;
     case "learning":
-      return s.regressed_at !== null ? "dropped back after a serious fault or a 'not yet' answer" : "first evidence seen";
+      return s.regressed_at !== null ? "dropped back after a serious fault or a 'not yet' answer" : "a gap: an open fault, a weak answer or a failed drill";
+    case "not_assessed":
+      return "some evidence, not enough to judge yet";
     default:
       return "its evidence was removed";
   }
@@ -117,7 +125,11 @@ function detail(s: ItemStatus, proofsNeeded: number): string {
     case "proven":
       return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
     case "shown":
-      return `ready for a drill → /coach drill ${s.item_id}`;
+      return s.shown_by === "drill" ? "shown by drills · show it in your work to reach Proven" : `ready for a drill → /coach drill ${s.item_id}`;
+    case "not_assessed":
+      return s.exposure === "none" || s.exposure === "low"
+        ? `little chance in your work · drill available → /coach drill ${s.item_id}`
+        : `${s.proofs} of ${proofsNeeded} code proofs · not enough to judge yet`;
     case "learning": {
       const parts = [`${s.proofs} of ${proofsNeeded} code proofs`];
       if (s.open_faults > 0) parts.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
@@ -140,15 +152,21 @@ function areaViews(results: LadderStatuses[]): { areas: AreaView[]; notWritten: 
         continue;
       }
       const { level, working_toward } = areaLevel(area, statuses);
+      const order: ExposureLevel[] = ["none", "low", "medium", "high"];
+      const exposure = items.reduce<ExposureLevel>((best, { item }) => {
+        const e = statuses.get(item.id)!.exposure;
+        return order.indexOf(e) > order.indexOf(best) ? e : best;
+      }, "none");
       areas.push({
         ladder_id: loaded.ladder_id,
         area_id: area.id,
         name: area.name,
+        exposure,
         level,
         working_toward,
         items: items.map(({ item, level: itemLevel }) => {
           const s = statuses.get(item.id)!;
-          return { item_id: item.id, title: item.title, level: itemLevel, state: s.state, detail: detail(s, loaded.thresholds.proofs) };
+          return { item_id: item.id, title: item.title, level: itemLevel, state: s.state, exposure: s.exposure, detail: detail(s, loaded.thresholds.proofs) };
         }),
       });
     }
@@ -163,7 +181,7 @@ export function renderProgress(s: Omit<CoachStatus, "text">): string {
   for (const area of s.areas) {
     const track = area.ladder_id.endsWith("/frontend") ? "Frontend" : "Backend";
     const levelText = area.level ? capital(area.level) : "Starting";
-    lines.push(`${track} · ${area.name}        Level: ${levelText}${area.working_toward ? `  ·  working toward ${capital(area.working_toward)}` : ""}`);
+    lines.push(`${track} · ${area.name}        Level: ${levelText}${area.working_toward ? `  ·  working toward ${capital(area.working_toward)}` : ""}  ·  exposure: ${area.exposure}`);
     const shownLevel = area.working_toward ?? area.level;
     const nextLevel = shownLevel ? LEVELS[LEVELS.indexOf(shownLevel) + 1] : undefined;
     const width = Math.max(...area.items.map((i) => `${i.item_id} ${i.title}`.length));
@@ -171,7 +189,7 @@ export function renderProgress(s: Omit<CoachStatus, "text">): string {
     const visible = area.items.filter((i) => i.level === shownLevel || i.state !== "not_seen");
     for (const item of visible) {
       const label = `${item.item_id} ${item.title}`.padEnd(width + 2);
-      lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(10)}${item.detail}`);
+      lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(14)}${item.detail}`);
     }
     const next = nextLevel ? area.items.find((i) => i.level === nextLevel) : undefined;
     if (next) lines.push(`  Next for ${capital(nextLevel!)}: ${next.item_id} ${next.title}    ${next.state.toUpperCase().replace("_", " ")}`);
@@ -263,7 +281,8 @@ export function ladderForItem(root: string, itemId: string, opts: { ladderId?: s
 /** Everything stored about one item, for "/coach why". */
 export function itemDetail(db: Db, loaded: LoadedLadder, item: LadderItem, now: Date = new Date()) {
   const facts = factsForItem(db, loaded.ladder_id, item.id);
-  const status = itemStatus({ item, ...facts }, now, loaded.thresholds);
+  const exposure = exposureFor(db, loaded.ladder_id, item.id, now, loaded.thresholds);
+  const status = itemStatus({ item, ...facts, exposure }, now, loaded.thresholds);
   const evidence = db
     .prepare(
       "SELECT id, kind, polarity, author, decided_by, file_path, symbol, ticket, signal_id, note, at, fixed_at, fixed_ticket, disagreed_at, disagree_reason FROM skill_evidence WHERE ladder_id = ? AND item_id = ? ORDER BY at",

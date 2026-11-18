@@ -74,7 +74,9 @@ describe("pickDrill", () => {
 });
 
 describe("startDrill and scoreDrill", () => {
-  it("refuses to start before the item is shown", () => {
+  it("refuses to start before the item is shown when the work touches it often", () => {
+    const chance = db.prepare("INSERT INTO skill_exposure (id, ladder_id, item_id, file_path, symbol, ticket, signal_id, at) VALUES (?, 'builtin/backend', 'BE.ERR.M2', 'a.ts', ?, 'T-1', 'io.outside-call', '2026-11-10T10:00:00Z')");
+    for (const s of ["a", "b", "c", "d", "e", "f"]) chance.run(randomUUID(), s);
     expect(() => startDrill(db, ctx, { session_id: "s1" }, NOW)).toThrow(/Shown/);
   });
 
@@ -171,5 +173,20 @@ describe("drillKey", () => {
     expect(key.key_points.map((k) => k.id)).toEqual(["k1", "k2", "k3", "k4"]);
     expect(key.red_flags.map((f) => f.id)).toEqual(["r1", "r2"]);
     expect(key.pass).toBe(3);
+  });
+});
+
+describe("stage 1.5: drills when the work gives little chance", () => {
+  const s = (state: ItemStatus["state"], exposure: ItemStatus["exposure"]) => ({ state, exposure }) as ItemStatus;
+  it("allows a drill for a not-assessed item with low exposure", () => {
+    expect(drillGate(s("not_assessed", "low"), [], 0, NOW, T).allowed).toBe(true);
+    expect(drillGate(s("not_seen", "none"), [], 0, NOW, T).allowed).toBe(true);
+  });
+  it("refuses a drill with medium or high exposure until the item is shown", () => {
+    const out = drillGate(s("not_assessed", "high"), [], 0, NOW, T);
+    expect(out.allowed).toBe(false);
+  });
+  it("refuses a drill for a proven item", () => {
+    expect(drillGate(s("proven", "low"), [], 0, NOW, T).allowed).toBe(false);
   });
 });

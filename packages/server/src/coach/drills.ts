@@ -4,6 +4,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
+import { exposureFor } from "./exposure.js";
 import { factsForItem } from "./facts.js";
 import type { LoadedLadder } from "./ladder/load.js";
 import { passCount, type Drill, type LadderItem, type Thresholds } from "./ladder/schema.js";
@@ -27,8 +28,14 @@ export function drillGate(
   now: Date,
   t: Thresholds,
 ): { allowed: true } | { allowed: false; reason: string } {
-  if (status.state !== "shown") {
-    return { allowed: false, reason: `A drill opens when the item is Shown. It is ${status.state.replace("_", " ")} now.` };
+  // A drill opens when the item is Shown, or when the work gives little chance to show it (so it can be assessed apart).
+  const lowExposure = status.exposure === "none" || status.exposure === "low";
+  if (status.state === "proven") return { allowed: false, reason: "This item is already Proven." };
+  if (status.state !== "shown" && !lowExposure) {
+    return {
+      allowed: false,
+      reason: `A drill opens when the item is Shown, or when your work gives little chance to show it. It is ${status.state.replace("_", " ")} now, and your work touches it often.`,
+    };
   }
   const last = attempts.filter((a) => !a.void).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
   if (last && !last.passed) {
@@ -51,7 +58,8 @@ export function pickDrill(item: LadderItem, attempts: DrillFact[]): Drill {
 
 function gateFor(db: Db, ctx: DrillContext, now: Date) {
   const facts = factsForItem(db, ctx.loaded.ladder_id, ctx.item.id);
-  const status = itemStatus({ item: ctx.item, ...facts }, now, ctx.loaded.thresholds);
+  const exposure = exposureFor(db, ctx.loaded.ladder_id, ctx.item.id, now, ctx.loaded.thresholds);
+  const status = itemStatus({ item: ctx.item, ...facts, exposure }, now, ctx.loaded.thresholds);
   const lastFail = facts.drills.filter((d) => !d.void && !d.passed).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
   const newProofs = lastFail
     ? facts.evidence.filter((e) => e.polarity === "positive" && !e.disagreed && (e.author === "dev" || e.decided_by === "dev") && Date.parse(e.at) > Date.parse(lastFail.at)).length

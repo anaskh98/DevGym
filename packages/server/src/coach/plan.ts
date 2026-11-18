@@ -31,7 +31,8 @@ export interface FocusContext {
 function priority(status: ItemStatus, faults: Set<string>): number {
   if (faults.has(status.item_id)) return 0;
   if (status.state === "shown") return 1;
-  return 2;
+  if (status.state === "learning") return 2;
+  return 3;
 }
 
 /**
@@ -51,7 +52,7 @@ export function pickFocus(results: LadderStatuses[], ctx: FocusContext, max = 3)
       const candidates = LEVELS.filter((l) => allowed.has(l))
         .flatMap((l) => area.levels[l])
         .map((item) => statuses.get(item.id)!)
-        .filter((s) => s.state === "learning" || s.state === "shown")
+        .filter((s) => s.state === "learning" || s.state === "shown" || (s.state === "not_assessed" && s.proofs > 0))
         .map((status) => ({ loaded, status }));
       if (candidates.length > 0) byArea.push(candidates);
     }

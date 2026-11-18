@@ -366,7 +366,9 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     (input) =>
       write(input, (i) => {
         let ladderId: string | undefined;
-        if (i.decision_id !== undefined) {
+        if (i.question_id === undefined && i.decision_id === undefined && i.item_id !== undefined) {
+          ladderId = ladderForItem(coachRoot, i.item_id, home).loaded.ladder_id;
+        } else if (i.decision_id !== undefined) {
           const decision = db.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i.decision_id) as { item_id: string | null } | undefined;
           const item = i.item_id ?? decision?.item_id ?? undefined;
           if (item) ladderId = ladderForItem(coachRoot, item, home).loaded.ladder_id;

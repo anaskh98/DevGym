@@ -126,7 +126,7 @@ export function proposeQuestions(db: Db, results: LadderStatuses[], max: number)
   for (const { loaded, statuses } of results) {
     for (const status of statuses.values()) {
       if (out.length >= max) break;
-      if (usedItems.has(status.item_id) || (status.state !== "not_seen" && status.state !== "learning")) continue;
+      if (usedItems.has(status.item_id) || status.state === "shown" || status.state === "proven") continue;
       // The same piece of evidence is asked about once; other or new evidence brings a new question.
       const row = nextEvidence(loaded.ladder_id, status.item_id);
       if (!row) continue;
@@ -170,10 +170,21 @@ export interface OpenQuestionInput {
 
 /** Opens one question for this session, just before the AI asks it. Any other open question is put aside. */
 export function openQuestion(db: Db, input: OpenQuestionInput, now: Date = new Date()): QuestionView {
-  if ((input.question_id === undefined) === (input.decision_id === undefined)) {
-    throw new StoreError("Give exactly one of question_id or decision_id");
+  if (input.question_id !== undefined && input.decision_id !== undefined) {
+    throw new StoreError("Give question_id or decision_id, not both");
   }
   let id = input.question_id;
+  if (input.question_id === undefined && input.decision_id === undefined) {
+    // A follow-up question on an item, for example after a drill when the work gives little chance to show it.
+    if (!input.item_id || !input.ladder_id) throw new StoreError("Give question_id, decision_id, or item_id");
+    id = randomUUID();
+    db.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket) VALUES (?, 'why', ?, ?, ?, 'drill')").run(
+      id,
+      input.ladder_id,
+      input.item_id,
+      `followup:${input.item_id}`,
+    );
+  }
   if (input.decision_id !== undefined) {
     const d = db.prepare("SELECT id, ticket_id, ladder_id, item_id, summary FROM decisions WHERE id = ?").get(input.decision_id) as
       | { id: string; ticket_id: string; ladder_id: string | null; item_id: string | null; summary: string }

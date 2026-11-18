@@ -223,3 +223,12 @@ describe("review fixes: held-back answers and releasing a non-answer", () => {
     expect(() => releaseAnswer(db, { question_id: q.question_id })).toThrow(/already rated/);
   });
 });
+
+describe("stage 1.5: a follow-up question on an item", () => {
+  it("opens a why-question on an item with no evidence or decision", () => {
+    const q = openQuestion(db, { session_id: "s1", item_id: "BE.ERR.M2", ladder_id: "builtin/backend", text: "After that drill: why must a retried charge carry an idempotency key?" }, NOW);
+    expect(q).toMatchObject({ kind: "why", item_id: "BE.ERR.M2", opened: true });
+    captureAnswer(db, "s1", "So a retry after a timeout cannot charge the card twice", new Date(NOW.getTime() + 60_000));
+    expect(rateAnswer(db, { question_id: q.question_id, rating: "clear" }).rating).toBe("clear");
+  });
+});

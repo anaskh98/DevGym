@@ -1,8 +1,14 @@
 // The state engine: plain code that turns stored evidence into an item's state and an area's level.
-// The AI never decides a state. Every rule below comes from the design (spec 6.3 and 6.6) and has a test.
+// The AI never decides a state. Every rule below comes from the design (spec 6.3, 6.6 and 11.2) and has a test.
+import type { Exposure, ExposureLevel } from "./exposure.js";
 import { LEVELS, type Area, type Level, type LadderItem, type Thresholds } from "./ladder/schema.js";
 
-export type ItemState = "not_seen" | "learning" | "shown" | "proven";
+/**
+ * not_seen: nothing at all. not_assessed: some evidence or chances, not enough to judge, and no sign of a gap.
+ * learning: a sign of a gap. shown: the work and explanation criteria were met (or, with little chance in the work,
+ * two drills and a clear answer). proven: shown in the work, plus a passed drill.
+ */
+export type ItemState = "not_seen" | "not_assessed" | "learning" | "shown" | "proven";
 
 export interface EvidenceFact {
   id: string;
@@ -51,6 +57,11 @@ export interface ItemStatus {
   last_proof_at: string | null;
   proven_at: string | null;
   needs: string[];
+  exposure: ExposureLevel;
+  exposure_functions: number;
+  /** How Shown was reached: in the work, or by drills when the work gave little chance. Null when not Shown. */
+  shown_by: "work" | "drill" | null;
+  shown_at: string | null;
 }
 
 export interface ItemInput {
@@ -58,6 +69,8 @@ export interface ItemInput {
   evidence: EvidenceFact[];
   answers: AnswerFact[];
   drills: DrillFact[];
+  /** Chances in the work to use the skill. Missing means none. */
+  exposure?: Exposure;
 }
 
 const DAY = 86_400_000;
@@ -142,21 +155,63 @@ export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStat
   const regressedIso = drops.length > 0 ? drops.reduce((a, b) => (ms(a) >= ms(b) ? a : b)) : null;
   const regressedAt = regressedIso === null ? null : ms(regressedIso);
 
-  const current = snapshot(input, credits, faults, regressedAt, now.getTime(), t);
-  const proven = input.drills
-    .filter((d) => d.passed && !d.void && (regressedAt === null || ms(d.at) > regressedAt))
-    .sort((a, b) => ms(a.at) - ms(b.at))
-    .find((d) => snapshot(input, credits, faults, regressedAt, ms(d.at), t).shown);
+  const exposure = input.exposure ?? { level: "none" as const, functions: 0 };
+  const after = (iso: string) => regressedAt === null || ms(iso) > regressedAt;
+  const nowMs = now.getTime();
+  const current = snapshot(input, credits, faults, regressedAt, nowMs, t);
 
+  // Shown in the work is sticky: once reached after the regression point, it stays until the next regression,
+  // so a developer is never pulled back for working on other things. Checked at each fact's moment and now.
+  const moments = [...new Set([...credits.map((e) => e.at), ...input.answers.map((a) => a.at)].filter(after).map(ms))]
+    .filter((m) => m <= nowMs)
+    .sort((a, b) => a - b);
+  moments.push(nowMs);
+  const workShownMs = moments.find((m) => snapshot(input, credits, faults, regressedAt, m, t).shown) ?? null;
+
+  // With little chance in the work: two passed drills on different prompts and one clear answer.
+  const passed = input.drills.filter((d) => d.passed && !d.void && after(d.at)).sort((a, b) => ms(a.at) - ms(b.at));
+  const firstClear = input.answers.filter((a) => a.rating === "clear" && after(a.at)).sort((a, b) => ms(a.at) - ms(b.at))[0];
+  const distinct: DrillFact[] = [];
+  for (const d of passed) if (!distinct.some((x) => x.drill_id === d.drill_id)) distinct.push(d);
+  const drillShownMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1]!.at), ms(firstClear.at)) : null;
+
+  // Proven needs Shown in the work: a drill passed at or after that moment. Drills alone never prove an item.
+  const proven = workShownMs === null ? undefined : passed.find((d) => ms(d.at) >= workShownMs);
+
+  // A gap: a regression, an open fault, a weak latest answer, or a failed latest drill with no pass after it.
+  const openFault = faults.some((f) => f.fixed_at === null && after(f.at));
+  const rated = [...input.answers].sort((a, b) => ms(a.at) - ms(b.at));
+  const latestAnswer = rated[rated.length - 1];
+  const tries = input.drills.filter((d) => !d.void).sort((a, b) => ms(a.at) - ms(b.at));
+  const latestDrill = tries[tries.length - 1];
+  const gap =
+    regressedAt !== null || openFault || (latestAnswer !== undefined && latestAnswer.rating !== "clear") || (latestDrill !== undefined && !latestDrill.passed);
+
+  const anything = credits.length > 0 || input.answers.length > 0 || input.drills.length > 0 || faults.length > 0 || exposure.functions > 0;
   let state: ItemState;
-  if (proven) state = "proven";
-  else if (current.shown) state = "shown";
-  else if (credits.length > 0 || input.answers.length > 0 || faults.length > 0 || regressedAt !== null) state = "learning";
+  let shownBy: ItemStatus["shown_by"] = null;
+  let shownMs: number | null = null;
+  if (proven) {
+    state = "proven";
+    shownBy = "work";
+    shownMs = workShownMs;
+  } else if (workShownMs !== null) {
+    state = "shown";
+    shownBy = "work";
+    shownMs = workShownMs;
+  } else if (drillShownMs !== null) {
+    state = "shown";
+    shownBy = "drill";
+    shownMs = drillShownMs;
+  } else if (gap) state = "learning";
+  else if (anything) state = "not_assessed";
   else state = "not_seen";
 
+  const lowExposure = exposure.level === "none" || exposure.level === "low";
   const needs: string[] = [];
-  if (state === "shown") needs.push("pass a drill");
+  if (state === "shown") needs.push(shownBy === "drill" ? "show it in your work, then pass a drill" : "pass a drill");
   else if (state !== "proven") {
+    if (lowExposure) needs.push("more chances in your work, or take a drill");
     if (current.proofs < t.proofs) needs.push(`${plural(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
     if (current.proofTickets < t.tickets) needs.push(`proof on ${plural(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
     for (const file of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file)}`);
@@ -176,6 +231,10 @@ export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStat
     last_proof_at: current.lastProofAt,
     proven_at: proven?.at ?? null,
     needs,
+    exposure: exposure.level,
+    exposure_functions: exposure.functions,
+    shown_by: shownBy,
+    shown_at: shownMs === null ? null : new Date(shownMs).toISOString(),
   };
 }
 

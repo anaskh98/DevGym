@@ -193,10 +193,13 @@ export const askQuestionInput = z
     session_id: id.describe("The Claude Code session id"),
     question_id: id.optional().describe("A pending question from coach_status"),
     decision_id: id.optional().describe("Or: a decision to ask an explain-back about"),
-    item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none"),
+    item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none. Alone: a follow-up question on that item"),
     text: shortText.describe("The question exactly as you will ask it. It must not give the answer away"),
   })
-  .refine((i) => (i.question_id === undefined) !== (i.decision_id === undefined), { message: "Give exactly one of question_id or decision_id" });
+  .refine((i) => !(i.question_id !== undefined && i.decision_id !== undefined), { message: "Give question_id or decision_id, not both" })
+  .refine((i) => i.question_id !== undefined || i.decision_id !== undefined || i.item_id !== undefined, {
+    message: "Give question_id, decision_id, or item_id (a follow-up question on an item)",
+  });
 
 export const releaseAnswerInput = z.strictObject({
   question_id: id,
