@@ -162,7 +162,11 @@ export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStat
 
   // Shown in the work is sticky: once reached after the regression point, it stays until the next regression,
   // so a developer is never pulled back for working on other things. Checked at each fact's moment and now.
-  const moments = [...new Set([...credits.map((e) => e.at), ...input.answers.map((a) => a.at)].filter(after).map(ms))]
+  const windowMs = t.window_days * DAY;
+  const factMoments = [...credits.map((e) => e.at), ...input.answers.map((a) => a.at)].filter(after).map(ms);
+  // A fault fixed, or leaving the window, can be the moment Shown is reached even with no new proof.
+  const faultMoments = faults.flatMap((f) => [...(f.fixed_at !== null ? [ms(f.fixed_at)] : []), ms(f.at) + windowMs + 1]);
+  const moments = [...new Set([...factMoments, ...faultMoments.filter((m) => regressedAt === null || m > regressedAt)])]
     .filter((m) => m <= nowMs)
     .sort((a, b) => a - b);
   moments.push(nowMs);
@@ -173,16 +177,19 @@ export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStat
   const firstClear = input.answers.filter((a) => a.rating === "clear" && after(a.at)).sort((a, b) => ms(a.at) - ms(b.at))[0];
   const distinct: DrillFact[] = [];
   for (const d of passed) if (!distinct.some((x) => x.drill_id === d.drill_id)) distinct.push(d);
-  const drillShownMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1]!.at), ms(firstClear.at)) : null;
+  const drillCandidateMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1]!.at), ms(firstClear.at)) : null;
+  const openAt = (m: number) => faults.some((f) => ms(f.at) <= m && ms(f.at) >= m - windowMs && (f.fixed_at === null || ms(f.fixed_at) > m));
+  const drillShownMs = drillCandidateMs !== null && !openAt(drillCandidateMs) ? drillCandidateMs : null;
 
   // Proven needs Shown in the work: a drill passed at or after that moment. Drills alone never prove an item.
   const proven = workShownMs === null ? undefined : passed.find((d) => ms(d.at) >= workShownMs);
 
   // A gap: a regression, an open fault, a weak latest answer, or a failed latest drill with no pass after it.
-  const openFault = faults.some((f) => f.fixed_at === null && after(f.at));
+  const openFault = current.openFaults.length > 0;
   const rated = [...input.answers].sort((a, b) => ms(a.at) - ms(b.at));
   const latestAnswer = rated[rated.length - 1];
-  const tries = input.drills.filter((d) => !d.void).sort((a, b) => ms(a.at) - ms(b.at));
+  // Voiding a failed drill (I disagree) must not raise the state, so it still counts as a gap until the next try.
+  const tries = input.drills.filter((d) => !d.void || !d.passed).sort((a, b) => ms(a.at) - ms(b.at));
   const latestDrill = tries[tries.length - 1];
   const gap =
     regressedAt !== null || openFault || (latestAnswer !== undefined && latestAnswer.rating !== "clear") || (latestDrill !== undefined && !latestDrill.passed);
@@ -211,17 +218,17 @@ export function itemStatus(input: ItemInput, now: Date, t: Thresholds): ItemStat
   const needs: string[] = [];
   if (state === "shown") needs.push(shownBy === "drill" ? "show it in your work, then pass a drill" : "pass a drill");
   else if (state !== "proven") {
+    for (const file of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file)}`);
+    if (current.proofs < t.proofs) needs.push(`${plural(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
+    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
+    if (current.clearTickets < t.clear_answers) needs.push(`${plural(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
+    if (!current.tradeoff) needs.push("an answer that names the trade-off");
     if (lowExposure) {
       needs.push("more chances in your work, or take a drill");
       // The drill-only path, spelled out, so nobody is told a drill cannot help.
       if (distinct.length < 2) needs.push(`or by drills: pass ${plural(2 - distinct.length, "more drill", "more drills")} on a new prompt`);
       if (!firstClear) needs.push("or by drills: 1 clear answer to a follow-up question");
     }
-    if (current.proofs < t.proofs) needs.push(`${plural(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
-    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
-    for (const file of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file)}`);
-    if (current.clearTickets < t.clear_answers) needs.push(`${plural(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
-    if (!current.tradeoff) needs.push("an answer that names the trade-off");
   }
 
   return {

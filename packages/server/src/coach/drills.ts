@@ -31,6 +31,9 @@ export function drillGate(
   // A drill opens when the item is Shown, or when the work gives little chance to show it (so it can be assessed apart).
   const lowExposure = status.exposure === "none" || status.exposure === "low";
   if (status.state === "proven") return { allowed: false, reason: "This item is already Proven." };
+  if (status.state === "shown" && status.shown_by === "drill") {
+    return { allowed: false, reason: "This item is Shown by drills. Show it in your work first; a drill after that can make it Proven." };
+  }
   if (status.state !== "shown" && !lowExposure) {
     return {
       allowed: false,
@@ -163,7 +166,8 @@ export function drillsReady(db: Db, results: LadderStatuses[], now: Date = new D
     for (const area of loaded.ladder.areas) {
       for (const items of Object.values(area.levels)) {
         for (const item of items) {
-          if (statuses.get(item.id)?.state !== "shown") continue;
+          const s = statuses.get(item.id);
+          if (s?.state !== "shown" || s.shown_by === "drill") continue;
           if (gateFor(db, { loaded, item }, now).gate.allowed) ready.push(item.id);
         }
       }

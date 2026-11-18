@@ -190,3 +190,12 @@ describe("stage 1.5: drills when the work gives little chance", () => {
     expect(drillGate(s("proven", "low"), [], 0, NOW, T).allowed).toBe(false);
   });
 });
+
+describe("stage 1.5 review fixes: drills", () => {
+  it("does not offer or allow a drill for an item shown by drills (I4)", () => {
+    const shownByDrill = { state: "shown", exposure: "low", shown_by: "drill" } as ItemStatus;
+    const out = drillGate(shownByDrill, [], 0, NOW, T);
+    expect(out.allowed).toBe(false);
+    expect(out.allowed ? "" : out.reason).toMatch(/your work/);
+  });
+});

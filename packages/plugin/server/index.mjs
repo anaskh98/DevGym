@@ -42969,19 +42969,24 @@ function itemStatus(input2, now, t) {
   const after = (iso) => regressedAt === null || ms(iso) > regressedAt;
   const nowMs = now.getTime();
   const current = snapshot(input2, credits, faults, regressedAt, nowMs, t);
-  const moments = [...new Set([...credits.map((e) => e.at), ...input2.answers.map((a) => a.at)].filter(after).map(ms))].filter((m) => m <= nowMs).sort((a, b) => a - b);
+  const windowMs = t.window_days * DAY;
+  const factMoments = [...credits.map((e) => e.at), ...input2.answers.map((a) => a.at)].filter(after).map(ms);
+  const faultMoments = faults.flatMap((f) => [...f.fixed_at !== null ? [ms(f.fixed_at)] : [], ms(f.at) + windowMs + 1]);
+  const moments = [.../* @__PURE__ */ new Set([...factMoments, ...faultMoments.filter((m) => regressedAt === null || m > regressedAt)])].filter((m) => m <= nowMs).sort((a, b) => a - b);
   moments.push(nowMs);
   const workShownMs = moments.find((m) => snapshot(input2, credits, faults, regressedAt, m, t).shown) ?? null;
   const passed = input2.drills.filter((d) => d.passed && !d.void && after(d.at)).sort((a, b) => ms(a.at) - ms(b.at));
   const firstClear = input2.answers.filter((a) => a.rating === "clear" && after(a.at)).sort((a, b) => ms(a.at) - ms(b.at))[0];
   const distinct = [];
   for (const d of passed) if (!distinct.some((x) => x.drill_id === d.drill_id)) distinct.push(d);
-  const drillShownMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1].at), ms(firstClear.at)) : null;
+  const drillCandidateMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1].at), ms(firstClear.at)) : null;
+  const openAt = (m) => faults.some((f) => ms(f.at) <= m && ms(f.at) >= m - windowMs && (f.fixed_at === null || ms(f.fixed_at) > m));
+  const drillShownMs = drillCandidateMs !== null && !openAt(drillCandidateMs) ? drillCandidateMs : null;
   const proven = workShownMs === null ? void 0 : passed.find((d) => ms(d.at) >= workShownMs);
-  const openFault = faults.some((f) => f.fixed_at === null && after(f.at));
+  const openFault = current.openFaults.length > 0;
   const rated = [...input2.answers].sort((a, b) => ms(a.at) - ms(b.at));
   const latestAnswer = rated[rated.length - 1];
-  const tries = input2.drills.filter((d) => !d.void).sort((a, b) => ms(a.at) - ms(b.at));
+  const tries = input2.drills.filter((d) => !d.void || !d.passed).sort((a, b) => ms(a.at) - ms(b.at));
   const latestDrill = tries[tries.length - 1];
   const gap = regressedAt !== null || openFault || latestAnswer !== void 0 && latestAnswer.rating !== "clear" || latestDrill !== void 0 && !latestDrill.passed;
   const anything = credits.length > 0 || input2.answers.length > 0 || input2.drills.length > 0 || faults.length > 0 || exposure.functions > 0;
@@ -43007,16 +43012,16 @@ function itemStatus(input2, now, t) {
   const needs = [];
   if (state === "shown") needs.push(shownBy === "drill" ? "show it in your work, then pass a drill" : "pass a drill");
   else if (state !== "proven") {
+    for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
+    if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
+    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
+    if (current.clearTickets < t.clear_answers) needs.push(`${plural2(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
+    if (!current.tradeoff) needs.push("an answer that names the trade-off");
     if (lowExposure) {
       needs.push("more chances in your work, or take a drill");
       if (distinct.length < 2) needs.push(`or by drills: pass ${plural2(2 - distinct.length, "more drill", "more drills")} on a new prompt`);
       if (!firstClear) needs.push("or by drills: 1 clear answer to a follow-up question");
     }
-    if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
-    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
-    for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
-    if (current.clearTickets < t.clear_answers) needs.push(`${plural2(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
-    if (!current.tradeoff) needs.push("an answer that names the trade-off");
   }
   return {
     item_id: input2.item.id,
@@ -43053,6 +43058,9 @@ var DRILL_REF = "drill:";
 function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
   const lowExposure = status.exposure === "none" || status.exposure === "low";
   if (status.state === "proven") return { allowed: false, reason: "This item is already Proven." };
+  if (status.state === "shown" && status.shown_by === "drill") {
+    return { allowed: false, reason: "This item is Shown by drills. Show it in your work first; a drill after that can make it Proven." };
+  }
   if (status.state !== "shown" && !lowExposure) {
     return {
       allowed: false,
@@ -43149,7 +43157,8 @@ function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
     for (const area of loaded.ladder.areas) {
       for (const items of Object.values(area.levels)) {
         for (const item of items) {
-          if (statuses.get(item.id)?.state !== "shown") continue;
+          const s = statuses.get(item.id);
+          if (s?.state !== "shown" || s.shown_by === "drill") continue;
           if (gateFor(db2, { loaded, item }, now).gate.allowed) ready2.push(item.id);
         }
       }
@@ -45115,12 +45124,16 @@ function buildFrame(db2, status, ctx) {
     needs: status.needs,
     stack,
     stack_note: stackNote,
-    study: status.state === "learning" ? item.study : [],
+    study: status.state === "learning" || latestDrillFailed(db2, ladderId2, item.id) ? item.study : [],
     spot,
     evidence_ids: ids.slice(0, 20),
     why_it_matters: item.why_it_matters ?? "",
     exercise_kinds: item.exercise_kinds ?? [...EXERCISE_KINDS]
   };
+}
+function latestDrillFailed(db2, ladderId2, itemId2) {
+  const row = db2.prepare("SELECT passed FROM drill_attempts WHERE ladder_id = ? AND item_id = ? AND void = 0 ORDER BY created_at DESC, rowid DESC LIMIT 1").get(ladderId2, itemId2);
+  return row !== void 0 && row.passed === 0;
 }
 function saveStackNote(db2, loaded, input2) {
   const found = findItem(loaded.ladder, input2.item_id);

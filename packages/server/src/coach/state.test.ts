@@ -307,3 +307,36 @@ describe("stage 1.5: needs on the drill-only path", () => {
     expect(two.needs).not.toContain("or by drills: pass 1 more drill on a new prompt");
   });
 });
+
+describe("stage 1.5 review fixes", () => {
+  const low: Exposure = { level: "low", functions: 1 };
+  const d = (drill_id: string, at: string, passed = true, isVoid = false) => drill(passed, { drill_id, at, void: isVoid });
+
+  it("stays shown long after a fault was fixed by a commit with no new proof (C1)", () => {
+    const fixedLater = fault({ ticket: "T-3", at: "2026-11-09T10:00:00Z", fixed_ticket: "T-4", fixed_at: "2026-11-14T10:00:00Z" });
+    expect(status([...proofs3(), fixedLater], clear2(), [], M2, new Date("2027-03-01T12:00:00Z")).state).toBe("shown");
+  });
+
+  it("does not reach shown by drill while a fault is open (I1)", () => {
+    const open = fault({ ticket: "T-3", at: "2026-11-13T10:00:00Z" });
+    const s = status([open], [answer("clear", { at: "2026-11-16T10:00:00Z" })], [d("d1", "2026-11-14T10:00:00Z"), d("d2", "2026-11-15T10:00:00Z")], M2, NOW, low);
+    expect(s.state).toBe("learning");
+  });
+
+  it("keeps a voided failed drill as a gap until the next try (I2)", () => {
+    expect(status([dev()], [], [d("d1", "2026-11-14T10:00:00Z", false, true)]).state).toBe("learning");
+    expect(status([dev()], [], [d("d1", "2026-11-14T10:00:00Z", false, true), d("d2", "2026-11-15T10:00:00Z", true)]).state).toBe("not_assessed");
+  });
+
+  it("explains every learning state: an old unfixed fault outside the window is not a hidden gap (I3)", () => {
+    const old = fault({ ticket: "T-3", at: "2026-03-01T10:00:00Z" });
+    const s = status([dev(), old]);
+    if (s.state === "learning") expect(s.needs.some((n) => n.startsWith("fix the open fault"))).toBe(true);
+    else expect(s.state).toBe("not_assessed");
+  });
+
+  it("puts the real gap before the exposure hint (M2)", () => {
+    const s = status([fault({ ticket: "T-3" })], [], [], M2, NOW, low);
+    expect(s.needs[0]).toMatch(/fix the open fault|code proof/);
+  });
+});

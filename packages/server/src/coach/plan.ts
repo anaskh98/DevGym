@@ -112,12 +112,20 @@ export function buildFrame(db: Db, status: ItemStatus, ctx: { ladder: LoadedLadd
     needs: status.needs,
     stack,
     stack_note: stackNote,
-    study: status.state === "learning" ? item.study : [],
+    study: status.state === "learning" || latestDrillFailed(db, ladderId, item.id) ? item.study : [],
     spot,
     evidence_ids: ids.slice(0, 20),
     why_it_matters: item.why_it_matters ?? "",
     exercise_kinds: item.exercise_kinds ?? [...EXERCISE_KINDS],
   };
+}
+
+/** True when the item's latest counted drill was failed: the moment study topics help most. */
+function latestDrillFailed(db: Db, ladderId: string, itemId: string): boolean {
+  const row = db.prepare("SELECT passed FROM drill_attempts WHERE ladder_id = ? AND item_id = ? AND void = 0 ORDER BY created_at DESC, rowid DESC LIMIT 1").get(ladderId, itemId) as
+    | { passed: number }
+    | undefined;
+  return row !== undefined && row.passed === 0;
 }
 
 /** Saves a best-practice note the AI wrote for a stack the ladder does not cover. Written once, reused after. */

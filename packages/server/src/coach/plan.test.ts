@@ -150,3 +150,15 @@ describe("stage 1.5: why it matters, exercise kinds, study rule", () => {
     ).not.toThrow();
   });
 });
+
+describe("stage 1.5 review fixes: study after a failed drill (I5)", () => {
+  it("gives study topics to a shown item whose latest drill failed", () => {
+    shown("BE.ERR.M2");
+    const q = randomUUID();
+    db.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, ticket, answer, answered_at, closed_reason) VALUES (?, 'drill', 'builtin/backend', 'BE.ERR.M2', 'drill', 'x', '2026-11-15T10:00:00Z', 'answered')").run(q);
+    db.prepare("INSERT INTO drill_attempts (id, ladder_id, item_id, drill_id, question_id, passed, created_at) VALUES (?, 'builtin/backend', 'BE.ERR.M2', 'd1', ?, 0, '2026-11-15T10:00:00Z')").run(randomUUID(), q);
+    const status = computeStatuses(db, loaded, NOW).get("BE.ERR.M2")!;
+    expect(status.state).toBe("shown");
+    expect(buildFrame(db, status, { ladder: loaded, stacks }).study.length).toBeGreaterThan(1);
+  });
+});
