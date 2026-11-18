@@ -2,21 +2,27 @@
 
 Short and simple. Needs **Node 22.13 or newer** on your PATH and Claude Code.
 
-## 1. Install it from this branch
+## 1. Install it
+
+**Option A: install from GitHub (the normal way).** In any terminal:
+
+```bash
+claude plugin marketplace add anaskh98/ftc
+claude plugin install fork-trail-coach@md-labs
+```
+
+Restart Claude Code. (Not tested by me: I tested option B.)
+
+**Option B: load it from a local copy (best for testing a change).**
 
 ```bash
 git clone https://github.com/anaskh98/ftc.git
-cd ftc
-git checkout dev
-```
-
-Start Claude Code **inside your own project** (any git repo, ideally one with some commits of yours), and load the plugin:
-
-```bash
+cd ftc            # the branch is main
 claude --plugin-dir /path/to/ftc/packages/plugin
 ```
 
-Check it works: `/fork-trail-coach:status`
+Start Claude Code **inside your own project** (a git repo, ideally with some commits of yours).
+Check it works: `/fork-trail-coach:status`. It should list the commands and say the local service is running.
 
 ## 2. First run: pick your track
 
@@ -52,7 +58,22 @@ Nothing else to do. While you code with Claude:
 | `/fork-trail-coach:check-ticket PROJ-1` | After coding: code that is missing, extra or different from the ticket (private) |
 | `/fork-trail-coach:pr-decisions PROJ-1` | Before the PR: decisions section, fault review, up to 3 questions |
 
-## 5. A good first test (10 minutes)
+## 5. The flow from A to Z (about 20 minutes)
+
+Use a scratch git repo with a `tickets/` folder (a ticket is a Markdown file such as `tickets/PAY-1.md` with `id` and `title` at the top), or Jira.
+
+1. **Setup:** `/fork-trail-coach:coach`, choose a track.
+2. **Before coding:** `/fork-trail-coach:fork PAY-1`. Answer the questions about unclear needs. (This earns credit for spotting unclear needs.)
+3. **Code with Claude:** `/fork-trail-coach:paper-trail PAY-1`, then ask Claude to build it. Say it your way once (for example: "No, use a queue for the retries"). Claude logs that decision as yours, quoting your words. Commit as you go (put `PAY-1` in the message).
+4. **After coding:** `/fork-trail-coach:check-ticket PAY-1`. See what is missing, extra or different. Decide about each in your own words.
+5. **Before the PR:** `/fork-trail-coach:pr-decisions PAY-1`. It adds the Decisions section (review it before it is posted), reviews the final change for faults, and asks up to 3 short questions. Say `later` to skip any.
+6. **Your picture:** `/fork-trail-coach:coach`. Look for the state (Not assessed, Learning, Shown, Proven) and exposure, shown separately.
+7. **Why:** `/fork-trail-coach:coach why BE.ERR.M2` lists the evidence. Try disagreeing with a proof.
+8. **Drill:** `/fork-trail-coach:coach drill BE.ERR.M2`. Give a weak answer, then a strong one.
+9. **Dashboard:** `/fork-trail-coach:coach open`. Check the Growth section and the My data page.
+10. **Delete test:** on the My data page, delete everything; the levels should come back empty.
+
+## 5b. A quick first test (10 minutes)
 
 1. `/fork-trail-coach:coach` and choose a track.
 2. Make 2 or 3 commits in your repo that handle an outside call or errors.

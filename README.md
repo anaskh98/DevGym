@@ -29,7 +29,7 @@ claude plugin marketplace add <owner>/<repo>
 ```
 
 ```bash
-claude plugin install fork-trail-coach@fork-trail-coach
+claude plugin install fork-trail-coach@md-labs
 ```
 
 Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets/` folder, or with Claude Code's Atlassian connector connected so Fork can read Jira issues by key (for example `/fork-trail-coach:fork PROJ-123`):
