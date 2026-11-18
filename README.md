@@ -1,3 +1,5 @@
+<img src="packages/plugin/.claude-plugin/icon.png" width="96" alt="DevGym icon: code brackets with a dumbbell as the slash">
+
 # DevGym
 
 One Claude Code plugin with a small local service and web app.

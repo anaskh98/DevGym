@@ -1,6 +1,5 @@
 /** A few hand-drawn 24px line icons. Decorative: always hidden from screen readers. */
 const PATHS = {
-  logo: "M12 21v-7m0 0L6 7m6 7 6-7M6 7V3m12 4V3",
   fork: "M6 3v6a6 6 0 0 0 6 6m6-12v6a6 6 0 0 1-6 6m0 0v6",
   trail: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
   grow: "M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5m-5 0 8-8m-3 0h3v3",

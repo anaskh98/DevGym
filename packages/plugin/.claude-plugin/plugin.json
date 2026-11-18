@@ -1,6 +1,6 @@
 {
   "name": "devgym",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "description": "DevGym: Clarify a ticket before coding, Track the decisions while coding, Explain them and Check the change after, and Grow your level on a backend or frontend ladder from your own code. Profiles stay on your machine.",
   "author": {
     "name": "Plugin team"

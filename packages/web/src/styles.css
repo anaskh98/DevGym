@@ -202,12 +202,20 @@ code {
   display: grid;
   place-items: center;
   flex: none;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.6rem;
+  height: 2.6rem;
   color: #fff;
   background: var(--hero);
-  border-radius: 50%;
+  border-radius: 12px;
   box-shadow: 0 6px 14px -6px rgb(13 52 36 / 0.7);
+  transition: transform var(--t) var(--ease);
+}
+.rail__logo .logo {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+.rail__name:hover .rail__logo {
+  transform: rotate(-6deg) scale(1.05);
 }
 
 .rail__label {

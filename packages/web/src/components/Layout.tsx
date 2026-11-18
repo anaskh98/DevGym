@@ -1,6 +1,7 @@
 import { NavLink, Outlet, ScrollRestoration } from "react-router";
 import { apiConfig, apiHost } from "../api/config";
 import { Icon, type IconName } from "./Icon";
+import { Logo } from "./Logo";
 
 const SECTIONS: { to: string; label: string; icon: IconName }[] = [
   { to: "/clarify", label: "Clarify", icon: "fork" },
@@ -36,7 +37,7 @@ export function Layout() {
       <header className="rail">
         <p className="rail__name">
           <span className="rail__logo">
-            <Icon name="logo" />
+            <Logo />
           </span>
           <span>DevGym</span>
         </p>
