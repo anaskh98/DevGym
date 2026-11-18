@@ -109,19 +109,29 @@ export function proposeQuestions(db: Db, results: LadderStatuses[], max: number)
     usedItems.add(q.item_id);
   }
   const insert = db.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, decision_id, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  const newestDevRow = db.prepare(
-    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC LIMIT 1",
+  const devRows = db.prepare(
+    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC",
   );
   const askedAbout = db.prepare("SELECT 1 FROM pending_questions WHERE target_ref = ? LIMIT 1");
+  const clearTickets = db.prepare("SELECT DISTINCT ticket FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating = 'clear'");
+  /**
+   * The newest evidence not asked about yet, preferring a ticket with no clear answer: Shown needs clear answers
+   * on two different tickets, so a second question must be able to come from another ticket.
+   */
+  const nextEvidence = (ladderId: string, itemId: string): EvidenceRow | undefined => {
+    const unasked = (devRows.all(ladderId, itemId) as unknown as EvidenceRow[]).filter((r) => !askedAbout.get(`${EVIDENCE_REF}${r.id}`));
+    const answered = new Set((clearTickets.all(ladderId, itemId) as { ticket: string }[]).map((r) => r.ticket));
+    return unasked.find((r) => !answered.has(r.ticket)) ?? unasked[0];
+  };
 
   // 1. Why-questions on the developer's own code, for items still Not seen or Learning.
   for (const { loaded, statuses } of results) {
     for (const status of statuses.values()) {
       if (out.length >= max) break;
       if (usedItems.has(status.item_id) || (status.state !== "not_seen" && status.state !== "learning")) continue;
-      const row = newestDevRow.get(loaded.ladder_id, status.item_id) as EvidenceRow | undefined;
-      // The same piece of evidence is asked about once; new evidence brings a new question.
-      if (!row || askedAbout.get(`${EVIDENCE_REF}${row.id}`)) continue;
+      // The same piece of evidence is asked about once; other or new evidence brings a new question.
+      const row = nextEvidence(loaded.ladder_id, status.item_id);
+      if (!row) continue;
       const about = aboutEvidence(row);
       const id = randomUUID();
       insert.run(id, "why", loaded.ladder_id, status.item_id, `${EVIDENCE_REF}${row.id}`, null, row.ticket);

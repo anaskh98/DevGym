@@ -168,3 +168,27 @@ describe("reply helpers", () => {
     expect(quoteIn("A slow success", "slow")).toBe(false);
   });
 });
+
+describe("a second why-question on the same item", () => {
+  it("asks about other evidence, from another ticket, after the first is answered", () => {
+    db.prepare("INSERT INTO tickets (id, title, body, source) VALUES ('PAY-2', 't', 'b', 'test')").run();
+    db.prepare(
+      "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES ('old', 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', 'PAY-1', 'err.timeout-set', 'src/a.ts', 'a', '2026-11-08T10:00:00Z')",
+    ).run();
+    db.prepare(
+      "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES ('mid', 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', 'PAY-1', 'err.timeout-set', 'src/b.ts', 'b', '2026-11-09T10:00:00Z')",
+    ).run();
+    db.prepare(
+      "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES ('new', 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', 'PAY-2', 'err.retry-backoff', 'src/c.ts', 'c', '2026-11-10T10:00:00Z')",
+    ).run();
+    const [first] = propose();
+    expect(first!.ticket).toBe("PAY-2");
+    openQuestion(db, { session_id: "s1", question_id: first!.question_id, text: "Why retry with backoff?" }, NOW);
+    captureAnswer(db, "s1", "Backoff gives the provider room to recover instead of hammering it", new Date(NOW.getTime() + 60_000));
+    rateAnswer(db, { question_id: first!.question_id, rating: "clear" });
+    const [second] = propose();
+    expect(second).toBeDefined();
+    expect(second!.item_id).toBe("BE.ERR.M2");
+    expect(second!.ticket).toBe("PAY-1");
+  });
+});

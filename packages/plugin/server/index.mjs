@@ -42612,16 +42612,22 @@ function proposeQuestions(db2, results, max) {
     usedItems.add(q.item_id);
   }
   const insert = db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, decision_id, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  const newestDevRow = db2.prepare(
-    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC LIMIT 1"
+  const devRows = db2.prepare(
+    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC"
   );
   const askedAbout = db2.prepare("SELECT 1 FROM pending_questions WHERE target_ref = ? LIMIT 1");
+  const clearTickets = db2.prepare("SELECT DISTINCT ticket FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating = 'clear'");
+  const nextEvidence = (ladderId2, itemId2) => {
+    const unasked = devRows.all(ladderId2, itemId2).filter((r) => !askedAbout.get(`${EVIDENCE_REF}${r.id}`));
+    const answered = new Set(clearTickets.all(ladderId2, itemId2).map((r) => r.ticket));
+    return unasked.find((r) => !answered.has(r.ticket)) ?? unasked[0];
+  };
   for (const { loaded, statuses } of results) {
     for (const status of statuses.values()) {
       if (out2.length >= max) break;
       if (usedItems.has(status.item_id) || status.state !== "not_seen" && status.state !== "learning") continue;
-      const row = newestDevRow.get(loaded.ladder_id, status.item_id);
-      if (!row || askedAbout.get(`${EVIDENCE_REF}${row.id}`)) continue;
+      const row = nextEvidence(loaded.ladder_id, status.item_id);
+      if (!row) continue;
       const about = aboutEvidence(row);
       const id2 = randomUUID3();
       insert.run(id2, "why", loaded.ladder_id, status.item_id, `${EVIDENCE_REF}${row.id}`, null, row.ticket);
