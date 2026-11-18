@@ -7,7 +7,7 @@ Short and simple. Needs **Node 22.13 or newer** on your PATH and Claude Code.
 **Option A: install from GitHub (the normal way).** In any terminal:
 
 ```bash
-claude plugin marketplace add anaskh98/ftc
+claude plugin marketplace add anaskh98/DevGym
 claude plugin install devgym@md-labs
 ```
 
@@ -16,9 +16,9 @@ Restart Claude Code. (Not tested by me: I tested option B.)
 **Option B: load it from a local copy (best for testing a change).**
 
 ```bash
-git clone https://github.com/anaskh98/ftc.git
-cd ftc            # the branch is main
-claude --plugin-dir /path/to/ftc/packages/plugin
+git clone https://github.com/anaskh98/DevGym.git
+cd DevGym         # the branch is main
+claude --plugin-dir /path/to/DevGym/packages/plugin
 ```
 
 Start Claude Code **inside your own project** (a git repo, ideally with some commits of yours).

@@ -25,7 +25,7 @@ The full demo, step by step: [docs/demo.md](docs/demo.md).
 ## Install the plugin
 
 ```bash
-claude plugin marketplace add <owner>/<repo>
+claude plugin marketplace add anaskh98/DevGym
 ```
 
 ```bash

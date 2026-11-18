@@ -16,7 +16,7 @@ before showing it.
 
 | # | Do | Show |
 | --- | --- | --- |
-| 1 | `claude plugin marketplace add <owner>/<repo>` then `claude plugin install devgym@devgym`. Start `claude` in the roomly clone, run `/mcp` | `plugin:devgym:devgym` connected |
+| 1 | `claude plugin marketplace add anaskh98/DevGym` then `claude plugin install devgym@md-labs`. Start `claude` in the roomly clone, run `/mcp` | `plugin:devgym:devgym` connected |
 | 2 | `/devgym:clarify DEMO-1`. Answer two questions as the PO, skip the rest. Then, in this repo, `pnpm eval:save-run` | The table of questions: 2 "answered by PO", the rest "assumed by dev" |
 | 3 | On a branch, `/devgym:track DEMO-1`, then ask Claude to implement the ticket. Override one of its choices | The edit hook's reminders; decisions logged as AI, dev, and dev changed AI |
 | 4 | `/devgym:explain DEMO-1` and answer the 2 or 3 questions | Ratings: clear, partial, not yet |
