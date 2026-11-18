@@ -28917,6 +28917,41 @@ var migrations = [
       );
       CREATE INDEX idx_skill_exposure_item ON skill_exposure(ladder_id, item_id);
     `
+  },
+  {
+    id: 9,
+    name: "coach_ownership_history",
+    sql: `
+      -- What the developer typed, so a claim "the developer chose this" can be checked against their own words.
+      -- Local only. Deleted after 120 days. Slash commands are never saved.
+      CREATE TABLE developer_messages (
+        id         TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        message    TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_developer_messages_session ON developer_messages(session_id);
+
+      -- A bug that reached the main branch: the commit that fixed it and the developer's commit that brought it in.
+      CREATE TABLE shipped_bugs (
+        id            TEXT PRIMARY KEY,
+        repo_root     TEXT NOT NULL,
+        fix_commit    TEXT NOT NULL,
+        origin_commit TEXT NOT NULL,
+        ladder_id     TEXT NOT NULL,
+        item_id       TEXT NOT NULL,
+        signal_id     TEXT NOT NULL,
+        file_path     TEXT NOT NULL,
+        symbol        TEXT,
+        ticket        TEXT NOT NULL,
+        at            TEXT NOT NULL,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (repo_root, fix_commit, origin_commit, file_path, signal_id)
+      );
+
+      -- The words of the developer that made a decision theirs. Checked against developer_messages.
+      ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
+    `
   }
 ];
 function migrate(db2, list = migrations) {
@@ -37123,7 +37158,7 @@ function saveAssumptions(db2, input2) {
   });
   return { assumption_ids: ids };
 }
-function logDecision(db2, input2, root = process.cwd(), ladderId2 = null) {
+function logDecision(db2, input2, root = process.cwd(), ladderId2 = null, originQuote = null) {
   requireRow(db2, "tickets", "Ticket", input2.ticket_id);
   const decisionId = randomUUID();
   let pointerId = null;
@@ -37137,7 +37172,7 @@ function logDecision(db2, input2, root = process.cwd(), ladderId2 = null) {
       ).run(pointerId, p.repo, p.pr_number ?? null, tidyPath(p.file_path, root), p.symbol ?? null, p.commit ?? null, p.line_hint ?? null);
     }
     db2.prepare(
-      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files, ladder_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO decisions (id, ticket_id, session_id, summary, alternatives, origin, pointer_id, related_files, ladder_id, item_id, origin_quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
       decisionId,
       input2.ticket_id,
@@ -37148,7 +37183,8 @@ function logDecision(db2, input2, root = process.cwd(), ladderId2 = null) {
       pointerId,
       JSON.stringify(relatedFiles),
       ladderId2,
-      input2.item_id ?? null
+      input2.item_id ?? null,
+      originQuote
     );
   });
   return { decision_id: decisionId, pointer_id: pointerId };
@@ -42378,6 +42414,199 @@ function repoIdentitySync(cwd) {
   }
 }
 
+// src/coach/review.ts
+import { randomUUID as randomUUID8 } from "node:crypto";
+
+// src/git/diff.ts
+import { createHash } from "node:crypto";
+function cleanPath(raw) {
+  let path = raw.trim();
+  if (path === "/dev/null") return null;
+  if (path.startsWith('"') && path.endsWith('"')) {
+    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
+  }
+  return path.replace(/^[ab]\//, "");
+}
+var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+function parseUnifiedDiff(text2) {
+  const files = [];
+  let file2 = null;
+  let inHunk = false;
+  let oldLine = 0;
+  let newLine = 0;
+  for (const rawLine of text2.split("\n")) {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    if (line.startsWith("diff --git ")) {
+      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
+      files.push(file2);
+      inHunk = false;
+      continue;
+    }
+    if (!file2) continue;
+    if (!inHunk) {
+      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
+      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
+      else if (line.startsWith("--- ")) {
+        const old = cleanPath(line.slice(4));
+        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
+        if (old) file2.path = file2.path || old;
+      } else if (line.startsWith("+++ ")) {
+        const next = cleanPath(line.slice(4));
+        if (next) file2.path = next;
+        else if (file2.oldPath === null) {
+        }
+      } else if (line.startsWith("Binary files ")) file2.binary = true;
+    }
+    const hunk = HUNK.exec(line);
+    if (hunk) {
+      inHunk = true;
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[2]);
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
+    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
+    else if (line.startsWith(" ")) {
+      oldLine++;
+      newLine++;
+    }
+  }
+  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
+  return files;
+}
+var EXCLUDES = [
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/npm-shrinkwrap.json",
+  "**/*.lock",
+  "**/dist/**",
+  "**/build/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/*.min.*",
+  "**/*.generated.*",
+  "**/__generated__/**"
+].map((glob) => `:(exclude,glob)${glob}`);
+async function commitDiff(root, sha, exec = run2) {
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "-M", sha, "--", ".", ...EXCLUDES], root);
+  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
+  return parseUnifiedDiff(result.stdout);
+}
+function changeId(diff) {
+  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
++${f.added.map((l) => l.text).join("\n")}
+-${f.removed.map((l) => l.text).join("\n")}`);
+  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
+}
+
+// src/git/log.ts
+var SEP = "";
+async function repoTopLevel(cwd, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
+  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
+}
+async function currentBranch(root, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
+  const name2 = result.stdout.trim();
+  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
+}
+async function developerEmails(root, extra, exec = run2) {
+  const result = await exec("git", ["config", "user.email"], root);
+  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
+  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
+}
+async function listCommits(root, opts) {
+  const exec = opts.exec ?? run2;
+  const args2 = ["log", "--branches", "--source", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%S${SEP}%s`];
+  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
+  const result = await exec("git", args2, root);
+  if (result.code !== 0) return [];
+  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
+  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
+    const [sha = "", authorEmail = "", authorDate = "", source = "", ...subject] = line.split(SEP);
+    const branch = source.replace(/^refs\/heads\//, "");
+    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...branch ? { source: branch } : {} };
+  }).filter((c) => opts.anyAuthor === true || emails.has(c.authorEmail)).reverse();
+}
+async function defaultBranchCommits(root, exec = run2) {
+  for (const ref of ["origin/HEAD", "main", "master"]) {
+    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
+    if (found.code !== 0) continue;
+    const list = await exec("git", ["rev-list", ref], root);
+    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+  }
+  return /* @__PURE__ */ new Set();
+}
+
+// src/coach/attribution.ts
+import { createHash as createHash2 } from "node:crypto";
+function normalizeLine(line) {
+  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
+  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
+  return s.length >= 4 ? s : null;
+}
+function lineHash(normalized) {
+  return createHash2("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+function aiHashesFor(db2, repoRoot, filePath) {
+  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
+  return new Set(rows2.map((r) => r.hash));
+}
+function firstHashAt(db2, repoRoot) {
+  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
+  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
+}
+function sqliteTime(date5) {
+  return date5.toISOString().replace("T", " ").slice(0, 19);
+}
+function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
+  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
+  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
+}
+
+// src/coach/capture.ts
+import { randomUUID as randomUUID3 } from "node:crypto";
+
+// src/rules/engine.ts
+var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
+var IMPORT_LINES = [
+  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
+  /^\s*using\s+[\w.]+\s*;\s*$/,
+  /^\s*package\s+[\w.]+\s*;?\s*$/,
+  /^\s*from\s+[\w.]+\s+import\s.+$/,
+  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
+];
+function isCodeLine(line) {
+  if (line.trim() === "") return false;
+  if (COMMENT.test(line)) return false;
+  return !IMPORT_LINES.some((re) => re.test(line));
+}
+function extensionOf(filePath) {
+  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
+  const dot = name2.lastIndexOf(".");
+  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
+}
+function checkFlags(rule) {
+  for (const re of [rule.pattern, rule.unless]) {
+    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
+  }
+}
+function ruleMatches(rule, filePath, line) {
+  checkFlags(rule);
+  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
+  if (!isCodeLine(line)) return false;
+  if (!rule.pattern.test(line)) return false;
+  return !(rule.unless && rule.unless.test(line));
+}
+function matchLine(rules, filePath, line) {
+  return rules.filter((rule) => ruleMatches(rule, filePath, line));
+}
+
 // src/coach/ladder/schema.ts
 var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
@@ -42468,37 +42697,6 @@ var ladderSchema = external_exports.strictObject({
     }
   }
 });
-
-// src/coach/settings.ts
-function read(db2, key, fallback) {
-  const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
-  return row ? JSON.parse(row.value) : fallback;
-}
-function write(db2, key, value) {
-  db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
-}
-function getTracks(db2) {
-  return read(db2, "tracks", []).filter((t) => TRACKS.includes(t));
-}
-function setTracks(db2, tracks) {
-  write(db2, "tracks", [...new Set(tracks)]);
-}
-function getExtraEmails(db2) {
-  return read(db2, "extra_emails", []);
-}
-function setExtraEmails(db2, emails) {
-  write(db2, "extra_emails", [...new Set(emails.map((e) => e.trim().toLowerCase()))]);
-}
-
-// src/coach/questions.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
-
-// src/coach/quote.ts
-var squeeze = (text2) => text2.replace(/\s+/g, " ").trim().toLowerCase();
-function quoteIn(answer, quote) {
-  const q = squeeze(quote);
-  return q.length >= 12 && squeeze(answer).includes(q);
-}
 
 // src/coach/signals.ts
 var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
@@ -42701,164 +42899,252 @@ function signalById(id2) {
   return BY_ID.get(id2);
 }
 
-// src/coach/questions.ts
-var EVIDENCE_REF = "evidence:";
-function aboutEvidence(row) {
-  const meaning = row.signal_id && signalById(row.signal_id)?.meaning || row.note || "a choice";
-  const where = row.file_path ? ` in ${row.file_path}${row.symbol ? ` (${row.symbol})` : ""}` : "";
-  return `${row.polarity === "negative" ? "A fault: " : ""}${meaning}${where}`;
+// src/coach/capture.ts
+function isGeneratedPath(path) {
+  const p = path.replaceAll("\\", "/").toLowerCase();
+  const name2 = p.split("/").pop() ?? "";
+  if (["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "npm-shrinkwrap.json"].includes(name2) || name2.endsWith(".lock")) return true;
+  if (/(^|\/)(dist|build|vendor|node_modules|__generated__)\//.test(p)) return true;
+  return /\.min\.[a-z0-9]+$/.test(name2) || /\.generated\.[a-z0-9]+$/.test(name2);
 }
-function aboutFor(db2, row) {
-  if (row.target_ref?.startsWith(EVIDENCE_REF)) {
-    const e = db2.prepare("SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE id = ?").get(row.target_ref.slice(EVIDENCE_REF.length));
-    if (e) return aboutEvidence(e);
-  }
-  if (row.decision_id !== null) {
-    const d = db2.prepare("SELECT summary FROM decisions WHERE id = ?").get(row.decision_id);
-    if (d) return d.summary;
-  }
-  return row.question ?? "";
+var MAX_ADDED_LINES = 3e3;
+function isoWeek(isoDate) {
+  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
+  const date5 = new Date(Date.UTC(y, m - 1, d));
+  const day = (date5.getUTCDay() + 6) % 7;
+  date5.setUTCDate(date5.getUTCDate() - day + 3);
+  const year = date5.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(year, 0, 4));
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - (firstThursday.getUTCDay() + 6) % 7 + 3);
+  const week = 1 + Math.round((date5.getTime() - firstThursday.getTime()) / (7 * 864e5));
+  return `${year}-W${String(week).padStart(2, "0")}`;
 }
-function view(db2, row) {
-  return { question_id: row.id, kind: row.kind, item_id: row.item_id, ticket: row.ticket, about: aboutFor(db2, row), opened: row.open_session !== null };
-}
-function proposeQuestions(db2, results, max) {
-  const active = new Map(results.map((r) => [r.loaded.ladder_id, new Set(r.statuses.keys())]));
-  const inLadder = (ladderId2, itemId2) => active.get(ladderId2)?.has(itemId2) === true;
-  const pending = db2.prepare("SELECT * FROM pending_questions WHERE answered_at IS NULL AND kind != 'drill' AND (closed_reason IS NULL OR closed_reason IN ('later', 'timeout')) ORDER BY created_at, rowid").all().filter((q) => inLadder(q.ladder_id, q.item_id));
-  const out2 = [];
-  const usedItems = /* @__PURE__ */ new Set();
-  for (const q of pending) {
-    if (out2.length >= max || usedItems.has(q.item_id)) continue;
-    out2.push(view(db2, q));
-    usedItems.add(q.item_id);
+var NOT_TICKETS = /* @__PURE__ */ new Set(["UTF", "SHA", "HTTP", "ISO", "RFC", "TLS", "SSL", "MD", "AES", "RSA", "CVE", "ES", "IPV", "H", "X", "TS", "PEP", "JSR"]);
+function ticketForCommit(c, ctx) {
+  for (const match of c.subject.matchAll(/\b([A-Z][A-Z0-9]+)-\d+\b/g)) {
+    if (!NOT_TICKETS.has(match[1])) return match[0];
   }
-  const insert = db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, decision_id, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  const devRows = db2.prepare(
-    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC"
-  );
-  const askedAbout = db2.prepare("SELECT 1 FROM pending_questions WHERE target_ref = ? LIMIT 1");
-  const clearTickets = db2.prepare("SELECT DISTINCT ticket FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating = 'clear'");
-  const nextEvidence = (ladderId2, itemId2) => {
-    const unasked = devRows.all(ladderId2, itemId2).filter((r) => !askedAbout.get(`${EVIDENCE_REF}${r.id}`));
-    const answered = new Set(clearTickets.all(ladderId2, itemId2).map((r) => r.ticket));
-    return unasked.find((r) => !answered.has(r.ticket)) ?? unasked[0];
-  };
-  for (const { loaded, statuses } of results) {
-    for (const status of statuses.values()) {
-      if (out2.length >= max) break;
-      if (usedItems.has(status.item_id) || status.state === "shown" || status.state === "proven") continue;
-      const row = nextEvidence(loaded.ladder_id, status.item_id);
-      if (!row) continue;
-      const about = aboutEvidence(row);
-      const id2 = randomUUID3();
-      insert.run(id2, "why", loaded.ladder_id, status.item_id, `${EVIDENCE_REF}${row.id}`, null, row.ticket);
-      out2.push({ question_id: id2, kind: "why", item_id: status.item_id, ticket: row.ticket, about, opened: false });
-      usedItems.add(status.item_id);
+  const branch = c.source ?? ctx.branch;
+  if (!ctx.onDefault && branch) return branch;
+  return `week:${isoWeek(c.authorDate)}`;
+}
+async function showFile(root, rev, path, exec) {
+  const result = await exec("git", ["show", `${rev}:${path}`], root);
+  return result.code === 0 ? result.stdout : null;
+}
+function targetsBySignal(ladders) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const l of ladders) {
+    for (const area of l.ladder.areas) {
+      for (const level of LEVELS) {
+        for (const item of area.levels[level]) {
+          for (const ref of item.signals) {
+            const list = map2.get(ref.id) ?? [];
+            list.push({ ladder_id: l.ladder_id, item_id: item.id, ref });
+            map2.set(ref.id, list);
+          }
+        }
+      }
     }
   }
-  const decisions = db2.prepare(
-    `SELECT d.id, d.ladder_id, d.item_id, d.ticket_id, d.summary FROM decisions d
-       WHERE d.item_id IS NOT NULL AND d.origin = 'ai'
-         AND NOT EXISTS (SELECT 1 FROM explain_backs e WHERE e.decision_id = d.id)
-         AND NOT EXISTS (SELECT 1 FROM pending_questions q WHERE q.decision_id = d.id)
-       ORDER BY d.created_at, d.rowid`
-  ).all();
-  for (const d of decisions) {
-    if (out2.length >= max) break;
-    if (usedItems.has(d.item_id) || !inLadder(d.ladder_id, d.item_id)) continue;
-    const id2 = randomUUID3();
-    insert.run(id2, "explain_back", d.ladder_id, d.item_id, null, d.id, d.ticket_id);
-    out2.push({ question_id: id2, kind: "explain_back", item_id: d.item_id, ticket: d.ticket_id, about: d.summary, opened: false });
-    usedItems.add(d.item_id);
+  return map2;
+}
+function exposureBySignal(ladders) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const l of ladders) {
+    for (const area of l.ladder.areas) {
+      for (const level of LEVELS) {
+        for (const item of area.levels[level]) {
+          for (const id2 of item.exposure_signals ?? []) {
+            const list = map2.get(id2) ?? [];
+            list.push({ ladder_id: l.ladder_id, item_id: item.id });
+            map2.set(id2, list);
+          }
+        }
+      }
+    }
+  }
+  return map2;
+}
+async function symbolsFor(path, source, lines) {
+  const out2 = /* @__PURE__ */ new Map();
+  for (const line of lines) {
+    out2.set(line, source !== null && isSupported(path) ? (await symbolAtLine(path, source, line))?.name ?? null : null);
   }
   return out2;
 }
-function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
-  if (input2.question_id !== void 0 && input2.decision_id !== void 0) {
-    throw new StoreError("Give question_id or decision_id, not both");
+async function readCommit(db2, top, repoKey, sha, diff, targets, exposureTargets, exec) {
+  const rows2 = /* @__PURE__ */ new Map();
+  const fixes = /* @__PURE__ */ new Map();
+  const exposure = /* @__PURE__ */ new Map();
+  for (const file2 of diff) {
+    if (file2.binary || isGeneratedPath(file2.path) || file2.added.length > MAX_ADDED_LINES) continue;
+    const hits = [];
+    const chances = [];
+    for (const added of file2.added) {
+      for (const rule of matchLine(SIGNALS, file2.path, added.text)) {
+        if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+        if (exposureTargets.has(rule.id)) chances.push({ line: added.line, signal: rule.id });
+      }
+    }
+    const symbols = hits.length > 0 || chances.length > 0 ? await symbolsFor(file2.path, await showFile(top, sha, file2.path, exec), [...new Set([...hits, ...chances].map((h) => h.line))]) : /* @__PURE__ */ new Map();
+    for (const chance of chances) {
+      const symbol2 = symbols.get(chance.line) ?? null;
+      for (const t of exposureTargets.get(chance.signal) ?? []) {
+        const key = [t.ladder_id, t.item_id, chance.signal, file2.path, symbol2 ?? ""].join("\0");
+        if (!exposure.has(key)) exposure.set(key, { ...t, file_path: file2.path, symbol: symbol2, signal_id: chance.signal });
+      }
+    }
+    if (hits.length > 0) {
+      const ai = aiHashesFor(db2, repoKey, file2.path);
+      for (const hit of hits) {
+        const normalized = normalizeLine(hit.text);
+        const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
+        const symbol2 = symbols.get(hit.line) ?? null;
+        for (const t of targets.get(hit.signal) ?? []) {
+          const key = [t.ladder_id, t.item_id, hit.signal, file2.path, symbol2 ?? "", author].join("\0");
+          if (!rows2.has(key)) {
+            rows2.set(key, {
+              ladder_id: t.ladder_id,
+              item_id: t.item_id,
+              polarity: t.ref.polarity,
+              author,
+              regresses: t.ref.regresses === true,
+              file_path: file2.path,
+              symbol: symbol2,
+              signal_id: hit.signal
+            });
+          }
+        }
+      }
+    }
+    const removedHits = [];
+    for (const removed of file2.removed) {
+      for (const rule of matchLine(SIGNALS, file2.path, removed.text)) {
+        if ((targets.get(rule.id) ?? []).some((t) => t.ref.polarity === "negative")) removedHits.push({ line: removed.line, signal: rule.id });
+      }
+    }
+    if (removedHits.length > 0) {
+      const oldPath = file2.oldPath ?? file2.path;
+      const source = await showFile(top, `${sha}^`, oldPath, exec);
+      const symbols2 = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
+      for (const hit of removedHits) {
+        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols2.get(hit.line) ?? null };
+        fixes.set([fix.signal_id, fix.file_path, fix.symbol ?? ""].join("\0"), fix);
+      }
+    }
   }
-  let id2 = input2.question_id;
-  if (input2.question_id === void 0 && input2.decision_id === void 0) {
-    if (!input2.item_id || !input2.ladder_id) throw new StoreError("Give question_id, decision_id, or item_id");
-    id2 = randomUUID3();
-    db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket) VALUES (?, 'why', ?, ?, ?, 'drill')").run(
-      id2,
-      input2.ladder_id,
-      input2.item_id,
-      `followup:${input2.item_id}`
-    );
-  }
-  if (input2.decision_id !== void 0) {
-    const d = db2.prepare("SELECT id, ticket_id, ladder_id, item_id, summary FROM decisions WHERE id = ?").get(input2.decision_id);
-    if (!d) throw new StoreError(`Decision '${input2.decision_id}' does not exist`);
-    const itemId2 = input2.item_id ?? d.item_id;
-    const ladderId2 = input2.ladder_id ?? d.ladder_id;
-    if (!itemId2 || !ladderId2) throw new StoreError("This decision has no ladder item. Pass item_id with the ladder item it is about");
-    id2 = randomUUID3();
-    db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, decision_id, ticket) VALUES (?, 'explain_back', ?, ?, ?, ?)").run(
-      id2,
-      ladderId2,
-      itemId2,
-      d.id,
-      d.ticket_id
-    );
-  }
-  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(id2);
-  if (!row) throw new StoreError(`Question '${id2}' does not exist`);
-  if (row.answered_at !== null) throw new StoreError("This question was already answered");
-  db2.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE open_session = ? AND answered_at IS NULL AND id != ?").run(input2.session_id, row.id);
-  db2.prepare("UPDATE pending_questions SET question = ?, opened_at = ?, open_session = ?, closed_reason = NULL WHERE id = ?").run(
-    input2.text,
-    now.toISOString(),
-    input2.session_id,
-    row.id
-  );
-  return view(db2, { ...row, question: input2.text, open_session: input2.session_id });
+  return { rows: [...rows2.values()], fixes: [...fixes.values()], exposure: [...exposure.values()] };
 }
-function releaseAnswer(db2, input2) {
-  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
-  if (!row) throw new StoreError(`Question '${input2.question_id}' does not exist`);
-  if (row.answered_at === null) throw new StoreError("This question has no answer to release");
-  if (row.rating !== null) throw new StoreError("This answer was already rated, so it cannot be released");
-  if (db2.prepare("SELECT 1 FROM drill_attempts WHERE question_id = ?").get(row.id)) throw new StoreError("This drill was already scored, so it cannot be released");
-  db2.prepare("UPDATE pending_questions SET answer = NULL, answered_at = NULL, closed_reason = 'later', open_session = NULL WHERE id = ?").run(row.id);
-  return { released: true };
+function captureStart(db2, repoKey) {
+  const key = `capture_start:${repoKey}`;
+  const saved = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
+  if (saved) return JSON.parse(saved.value);
+  const first = firstHashAt(db2, repoKey);
+  if (first !== null) db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?)").run(key, JSON.stringify(first));
+  return first;
 }
-function rateAnswer(db2, input2) {
-  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
-  if (!row) throw new StoreError(`Question '${input2.question_id}' does not exist`);
-  if (row.kind === "drill") throw new StoreError("This is a drill. Use score_drill for it");
-  if (row.answered_at === null || row.answer === null) throw new StoreError("This question has no answer yet. Ask it and wait for the developer's reply");
-  if (row.rating !== null) throw new StoreError("This answer was already rated");
-  let namesTradeoff = false;
-  let note;
-  if (input2.tradeoff_quote !== void 0) {
-    namesTradeoff = quoteIn(row.answer, input2.tradeoff_quote);
-    if (!namesTradeoff) note = "The quote is not in the answer, so the trade-off flag was dropped.";
+async function closeReviewFaults(db2, top, key, sha, diff, ticket, at, exec) {
+  const open2 = db2.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind = 'review' AND signal_id IS NULL AND polarity = 'negative' AND fixed_at IS NULL AND at < ?");
+  const close = db2.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
+  const faults = open2.all(key, at);
+  for (const file2 of diff) {
+    const mine = faults.filter((f) => f.file_path === file2.path || f.file_path === file2.oldPath);
+    if (mine.length === 0 || file2.removed.length === 0) continue;
+    const source = await showFile(top, `${sha}^`, file2.oldPath ?? file2.path, exec);
+    const symbols = new Set((await symbolsFor(file2.oldPath ?? file2.path, source, file2.removed.map((l) => l.line))).values());
+    for (const f of mine) if (f.symbol === null || symbols.has(f.symbol)) close.run(at, ticket, f.id);
   }
-  db2.prepare("UPDATE pending_questions SET rating = ?, names_tradeoff = ?, tradeoff_quote = ?, rated_at = ? WHERE id = ?").run(
-    input2.rating,
-    namesTradeoff ? 1 : 0,
-    namesTradeoff ? input2.tradeoff_quote : null,
-    (/* @__PURE__ */ new Date()).toISOString(),
-    row.id
+}
+async function catchUp(db2, opts) {
+  const exec = opts.exec ?? run2;
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const t = opts.ladders[0]?.thresholds ?? DEFAULT_THRESHOLDS;
+  const nothing = (note) => ({
+    started: note === void 0,
+    ...note === void 0 ? {} : { note },
+    commits_read: 0,
+    evidence_added: 0,
+    faults_fixed: 0,
+    more_left: false,
+    remaining: 0
+  });
+  const identity = await repoIdentity(opts.root, exec);
+  if (identity === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  const { top, key } = identity;
+  const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
+  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
+  const since = captureStart(db2, key);
+  pruneAiLines(db2, t.hash_keep_days, now);
+  const history = opts.history === true;
+  if (since === null && !history) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
+  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key).map((r) => r.sha));
+  const listed = await listCommits(top, { authorEmails: emails, ...history || since === null ? {} : { sinceIso: since }, exec });
+  const wanted = history && since !== null ? listed.filter((c) => Date.parse(c.authorDate) < Date.parse(since)) : listed;
+  const unseen = wanted.filter((c) => !seen.has(c.sha));
+  const batch = unseen.slice(0, t.catchup_max);
+  if (batch.length === 0) return nothing();
+  const onDefault = await defaultBranchCommits(top, exec);
+  const branch = await currentBranch(top, exec);
+  const targets = targetsBySignal(opts.ladders);
+  const exposureTargets = exposureBySignal(opts.ladders);
+  const insertExposure = db2.prepare(
+    "INSERT INTO skill_exposure (id, ladder_id, item_id, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
-  if (row.kind === "explain_back" && row.decision_id !== null) {
-    db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating, question_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-      randomUUID3(),
-      row.decision_id,
-      row.question ?? "",
-      row.answer,
-      input2.rating,
-      row.id,
-      row.item_id
-    );
+  const sameChange = db2.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
+  const markSeenStmt = db2.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id, history) VALUES (?, ?, ?, ?)");
+  const markSeen = { run: (k, sha, id2) => markSeenStmt.run(k, sha, id2, history ? 1 : 0) };
+  const insert = db2.prepare(`
+    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at, history)
+    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const fix = db2.prepare(`
+    UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ?
+    WHERE repo_root = ? AND polarity = 'negative' AND fixed_at IS NULL AND signal_id = ? AND file_path = ? AND symbol IS ? AND at < ?`);
+  let evidenceAdded = 0;
+  let faultsFixed = 0;
+  for (const c of batch) {
+    let diff;
+    try {
+      diff = await commitDiff(top, c.sha, exec);
+    } catch {
+      markSeen.run(key, c.sha, `skipped:${c.sha}`);
+      continue;
+    }
+    const id2 = changeId(diff);
+    if (sameChange.get(key, id2)) {
+      markSeen.run(key, c.sha, id2);
+      continue;
+    }
+    const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
+    let found;
+    try {
+      found = await readCommit(db2, top, key, c.sha, diff, targets, exposureTargets, exec);
+    } catch {
+      markSeen.run(key, c.sha, id2);
+      continue;
+    }
+    const { rows: rows2, fixes, exposure } = found;
+    try {
+      await closeReviewFaults(db2, top, key, c.sha, diff, ticket, c.authorDate, exec);
+    } catch {
+    }
+    transaction(db2, () => {
+      for (const r of rows2) {
+        insert.run(randomUUID3(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
+        evidenceAdded++;
+      }
+      for (const x of exposure) insertExposure.run(randomUUID3(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
+      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
+      markSeen.run(key, c.sha, id2);
+    });
   }
-  return { rating: input2.rating, names_tradeoff: namesTradeoff, ...note ? { note } : {} };
+  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
 }
 
-// src/coach/drills.ts
+// src/coach/status.ts
+import { randomUUID as randomUUID7 } from "node:crypto";
+
+// src/coach/bugs.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 
 // src/coach/facts.ts
@@ -42890,6 +43176,122 @@ function factsForItem(db2, ladderId2, itemId2) {
   return { evidence, answers, drills };
 }
 
+// src/coach/settings.ts
+function read(db2, key, fallback) {
+  const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
+  return row ? JSON.parse(row.value) : fallback;
+}
+function write(db2, key, value) {
+  db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
+}
+function getTracks(db2) {
+  return read(db2, "tracks", []).filter((t) => TRACKS.includes(t));
+}
+function setTracks(db2, tracks) {
+  write(db2, "tracks", [...new Set(tracks)]);
+}
+function getExtraEmails(db2) {
+  return read(db2, "extra_emails", []);
+}
+function setExtraEmails(db2, emails) {
+  write(db2, "extra_emails", [...new Set(emails.map((e) => e.trim().toLowerCase()))]);
+}
+
+// src/coach/bugs.ts
+var FIX_WORDS = /\b(fix(es|ed)?|bug(fix)?|hotfix|revert(s|ed)?)\b/i;
+var MAX_FIXES_PER_RUN = 50;
+async function blameLine(top, rev, path, line, exec) {
+  const out2 = await exec("git", ["blame", "--porcelain", "-L", `${line},${line}`, rev, "--", path], top);
+  if (out2.code !== 0) return null;
+  const sha = /^([0-9a-f]{40}) /.exec(out2.stdout)?.[1];
+  const email3 = /^author-mail <([^>]*)>/m.exec(out2.stdout)?.[1];
+  return sha && email3 ? { sha, email: email3.toLowerCase() } : null;
+}
+async function scanShippedBugs(db2, opts) {
+  const exec = opts.exec ?? run2;
+  const none = { scanned: 0, found: 0, remaining: 0 };
+  const identity = await repoIdentity(opts.root, exec);
+  if (identity === null) return none;
+  const { top, key } = identity;
+  const emails = await developerEmails(top, getExtraEmails(db2), exec);
+  if (emails.length === 0) return none;
+  const settingKey = `fixes_scanned:${key}`;
+  const saved = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(settingKey);
+  const scanned = new Set(saved ? JSON.parse(saved.value) : []);
+  const onMain = await defaultBranchCommits(top, exec);
+  const fixes = (await listCommits(top, { authorEmails: [], anyAuthor: true, exec })).filter((c) => FIX_WORDS.test(c.subject) && (onMain.size === 0 || onMain.has(c.sha)) && !scanned.has(c.sha)).reverse();
+  const batch = fixes.slice(0, MAX_FIXES_PER_RUN);
+  const targets = targetsBySignal(opts.ladders);
+  const insertBug = db2.prepare(
+    "INSERT OR IGNORE INTO shipped_bugs (id, repo_root, fix_commit, origin_commit, ladder_id, item_id, signal_id, file_path, symbol, ticket, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)"
+  );
+  const insertEvidence = db2.prepare(
+    `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, history, repo_root, commit_sha, file_path, ticket, signal_id, at, fixed_at, fixed_ticket, note)
+     VALUES (?, ?, ?, 'review', 'negative', 'dev', 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'a bug that reached main and was fixed later')`
+  );
+  let found = 0;
+  for (const fix of batch) {
+    scanned.add(fix.sha);
+    let diff;
+    try {
+      diff = await commitDiff(top, fix.sha, exec);
+    } catch {
+      continue;
+    }
+    const fixTicket = ticketForCommit(fix, { onDefault: true, branch: null });
+    for (const file2 of diff) {
+      if (file2.binary) continue;
+      for (const removed of file2.removed) {
+        for (const rule of matchLine(SIGNALS, file2.oldPath ?? file2.path, removed.text)) {
+          const negative = (targets.get(rule.id) ?? []).filter((t) => t.ref.polarity === "negative");
+          if (negative.length === 0) continue;
+          const origin = await blameLine(top, `${fix.sha}^`, file2.oldPath ?? file2.path, removed.line, exec);
+          if (!origin || !emails.includes(origin.email)) continue;
+          const originInfo = (await exec("git", ["show", "-s", "--format=%aI%x1f%s", origin.sha], top)).stdout.trim().split("");
+          const originTicket = ticketForCommit(
+            { sha: origin.sha, authorEmail: origin.email, authorDate: originInfo[0] ?? fix.authorDate, subject: originInfo[1] ?? "" },
+            { onDefault: true, branch: null }
+          );
+          for (const t of negative) {
+            const inserted = insertBug.run(randomUUID4(), key, fix.sha, origin.sha, t.ladder_id, t.item_id, rule.id, file2.path, originTicket, fix.authorDate);
+            if (Number(inserted.changes) === 0) continue;
+            insertEvidence.run(randomUUID4(), t.ladder_id, t.item_id, key, origin.sha, file2.path, originTicket, rule.id, originInfo[0] ?? fix.authorDate, fix.authorDate, fixTicket);
+            found++;
+          }
+        }
+      }
+    }
+  }
+  db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(settingKey, JSON.stringify([...scanned]));
+  return { scanned: batch.length, found, remaining: fixes.length - batch.length };
+}
+function repeats(db2, now = /* @__PURE__ */ new Date()) {
+  const rows2 = db2.prepare("SELECT ladder_id, item_id, signal_id, ticket, kind, at FROM skill_evidence WHERE polarity = 'negative' AND signal_id IS NOT NULL ORDER BY at").all();
+  const groups = /* @__PURE__ */ new Map();
+  for (const r of rows2) {
+    const k = `${r.ladder_id}\0${r.item_id}\0${r.signal_id}`;
+    const g = groups.get(k) ?? { ladder_id: r.ladder_id, item_id: r.item_id, signal_id: r.signal_id, tickets: /* @__PURE__ */ new Set(), times: 0, shipped: 0, last: 0 };
+    g.tickets.add(r.ticket);
+    g.times++;
+    if (r.kind === "review") g.shipped++;
+    g.last = Math.max(g.last, Date.parse(toIso(r.at)));
+    groups.set(k, g);
+  }
+  return [...groups.values()].filter((g) => g.tickets.size >= 3).map((g) => ({
+    ladder_id: g.ladder_id,
+    item_id: g.item_id,
+    signal_id: g.signal_id,
+    times: g.times,
+    tickets: g.tickets.size,
+    shipped: g.shipped,
+    last_at: new Date(g.last).toISOString(),
+    coming_back: now.getTime() - g.last <= 60 * 864e5
+  })).sort((a, b) => Number(b.coming_back) - Number(a.coming_back) || Date.parse(b.last_at) - Date.parse(a.last_at));
+}
+
+// src/coach/drills.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+
 // src/coach/exposure.ts
 function exposureFor(db2, ladderId2, itemId2, now, t) {
   const since = now.getTime() - t.exposure_window_days * 864e5;
@@ -42905,6 +43307,13 @@ function exposureFor(db2, ladderId2, itemId2, now, t) {
   const functions = seen.size;
   const level = functions >= t.exposure_high ? "high" : functions >= t.exposure_medium ? "medium" : functions >= t.exposure_low ? "low" : "none";
   return { level, functions };
+}
+
+// src/coach/quote.ts
+var squeeze = (text2) => text2.replace(/\s+/g, " ").trim().toLowerCase();
+function quoteIn(answer, quote) {
+  const q = squeeze(quote);
+  return q.length >= 12 && squeeze(answer).includes(q);
 }
 
 // src/coach/state.ts
@@ -42933,7 +43342,7 @@ function snapshot(input2, credits, faults, regressedAt, at, t) {
   let fromHistory = 0;
   const kept = [];
   for (const e of [...groups.values()].sort((a, b) => ms(a.at) - ms(b.at))) {
-    if (e.kind === "judge" && hasSignals) {
+    if ((e.kind === "judge" || e.kind === "decision") && hasSignals) {
       if (judged >= t.judge_cap) continue;
       judged++;
     }
@@ -43095,7 +43504,7 @@ function startDrill(db2, ctx, input2, now = /* @__PURE__ */ new Date()) {
   const { facts, gate } = gateFor(db2, ctx, now);
   if (!gate.allowed) throw new StoreError(gate.reason);
   const drill = pickDrill(ctx.item, facts.drills);
-  const id2 = randomUUID4();
+  const id2 = randomUUID5();
   db2.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE open_session = ? AND answered_at IS NULL").run(input2.session_id);
   db2.prepare(
     "INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket, question, opened_at, open_session) VALUES (?, 'drill', ?, ?, ?, 'drill', ?, ?, ?)"
@@ -43132,7 +43541,7 @@ function scoreDrill(db2, ctx, input2) {
   const flagsHit = keep(input2.red_flags, flagIds);
   const passed = keptHits.length >= passCount(drill) && flagsHit.length === 0;
   db2.prepare("INSERT INTO drill_attempts (id, ladder_id, item_id, drill_id, question_id, hits, red_flags, passed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
-    randomUUID4(),
+    randomUUID5(),
     ctx.loaded.ladder_id,
     ctx.item.id,
     drill.id,
@@ -43168,7 +43577,7 @@ function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/coach/ladder/load.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import { existsSync as existsSync3, readFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join7 } from "node:path";
@@ -44935,7 +45344,7 @@ function loadLadder(track, opts) {
   const builtin = BUILTIN_LADDERS[track];
   const tries = [
     // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
-    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
+    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
     { source: "home", path: join7(home, FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
@@ -45171,418 +45580,162 @@ function checkItemArea(db2, area, allowedKinds = EXERCISE_KINDS) {
   }
 }
 
-// src/coach/status.ts
+// src/coach/questions.ts
 import { randomUUID as randomUUID6 } from "node:crypto";
-
-// src/git/diff.ts
-import { createHash as createHash2 } from "node:crypto";
-function cleanPath(raw) {
-  let path = raw.trim();
-  if (path === "/dev/null") return null;
-  if (path.startsWith('"') && path.endsWith('"')) {
-    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
-  }
-  return path.replace(/^[ab]\//, "");
+var EVIDENCE_REF = "evidence:";
+function aboutEvidence(row) {
+  const meaning = row.signal_id && signalById(row.signal_id)?.meaning || row.note || "a choice";
+  const where = row.file_path ? ` in ${row.file_path}${row.symbol ? ` (${row.symbol})` : ""}` : "";
+  return `${row.polarity === "negative" ? "A fault: " : ""}${meaning}${where}`;
 }
-var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-function parseUnifiedDiff(text2) {
-  const files = [];
-  let file2 = null;
-  let inHunk = false;
-  let oldLine = 0;
-  let newLine = 0;
-  for (const rawLine of text2.split("\n")) {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-    if (line.startsWith("diff --git ")) {
-      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
-      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
-      files.push(file2);
-      inHunk = false;
-      continue;
-    }
-    if (!file2) continue;
-    if (!inHunk) {
-      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
-      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
-      else if (line.startsWith("--- ")) {
-        const old = cleanPath(line.slice(4));
-        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
-        if (old) file2.path = file2.path || old;
-      } else if (line.startsWith("+++ ")) {
-        const next = cleanPath(line.slice(4));
-        if (next) file2.path = next;
-        else if (file2.oldPath === null) {
-        }
-      } else if (line.startsWith("Binary files ")) file2.binary = true;
-    }
-    const hunk = HUNK.exec(line);
-    if (hunk) {
-      inHunk = true;
-      oldLine = Number(hunk[1]);
-      newLine = Number(hunk[2]);
-      continue;
-    }
-    if (!inHunk) continue;
-    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
-    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
-    else if (line.startsWith(" ")) {
-      oldLine++;
-      newLine++;
+function aboutFor(db2, row) {
+  if (row.target_ref?.startsWith(EVIDENCE_REF)) {
+    const e = db2.prepare("SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE id = ?").get(row.target_ref.slice(EVIDENCE_REF.length));
+    if (e) return aboutEvidence(e);
+  }
+  if (row.decision_id !== null) {
+    const d = db2.prepare("SELECT summary FROM decisions WHERE id = ?").get(row.decision_id);
+    if (d) return d.summary;
+  }
+  return row.question ?? "";
+}
+function view(db2, row) {
+  return { question_id: row.id, kind: row.kind, item_id: row.item_id, ticket: row.ticket, about: aboutFor(db2, row), opened: row.open_session !== null };
+}
+function proposeQuestions(db2, results, max) {
+  const active = new Map(results.map((r) => [r.loaded.ladder_id, new Set(r.statuses.keys())]));
+  const inLadder = (ladderId2, itemId2) => active.get(ladderId2)?.has(itemId2) === true;
+  const pending = db2.prepare("SELECT * FROM pending_questions WHERE answered_at IS NULL AND kind != 'drill' AND (closed_reason IS NULL OR closed_reason IN ('later', 'timeout')) ORDER BY created_at, rowid").all().filter((q) => inLadder(q.ladder_id, q.item_id));
+  const out2 = [];
+  const usedItems = /* @__PURE__ */ new Set();
+  for (const q of pending) {
+    if (out2.length >= max || usedItems.has(q.item_id)) continue;
+    out2.push(view(db2, q));
+    usedItems.add(q.item_id);
+  }
+  const insert = db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, decision_id, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const devRows = db2.prepare(
+    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC"
+  );
+  const askedAbout = db2.prepare("SELECT 1 FROM pending_questions WHERE target_ref = ? LIMIT 1");
+  const clearTickets = db2.prepare("SELECT DISTINCT ticket FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating = 'clear'");
+  const nextEvidence = (ladderId2, itemId2) => {
+    const unasked = devRows.all(ladderId2, itemId2).filter((r) => !askedAbout.get(`${EVIDENCE_REF}${r.id}`));
+    const answered = new Set(clearTickets.all(ladderId2, itemId2).map((r) => r.ticket));
+    return unasked.find((r) => !answered.has(r.ticket)) ?? unasked[0];
+  };
+  for (const { loaded, statuses } of results) {
+    for (const status of statuses.values()) {
+      if (out2.length >= max) break;
+      if (usedItems.has(status.item_id) || status.state === "shown" || status.state === "proven") continue;
+      const row = nextEvidence(loaded.ladder_id, status.item_id);
+      if (!row) continue;
+      const about = aboutEvidence(row);
+      const id2 = randomUUID6();
+      insert.run(id2, "why", loaded.ladder_id, status.item_id, `${EVIDENCE_REF}${row.id}`, null, row.ticket);
+      out2.push({ question_id: id2, kind: "why", item_id: status.item_id, ticket: row.ticket, about, opened: false });
+      usedItems.add(status.item_id);
     }
   }
-  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
-  return files;
-}
-var EXCLUDES = [
-  "**/package-lock.json",
-  "**/pnpm-lock.yaml",
-  "**/yarn.lock",
-  "**/npm-shrinkwrap.json",
-  "**/*.lock",
-  "**/dist/**",
-  "**/build/**",
-  "**/node_modules/**",
-  "**/vendor/**",
-  "**/*.min.*",
-  "**/*.generated.*",
-  "**/__generated__/**"
-].map((glob) => `:(exclude,glob)${glob}`);
-async function commitDiff(root, sha, exec = run2) {
-  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "-M", sha, "--", ".", ...EXCLUDES], root);
-  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
-  return parseUnifiedDiff(result.stdout);
-}
-function changeId(diff) {
-  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
-+${f.added.map((l) => l.text).join("\n")}
--${f.removed.map((l) => l.text).join("\n")}`);
-  return createHash2("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
-}
-
-// src/git/log.ts
-var SEP = "";
-async function repoTopLevel(cwd, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
-  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
-}
-async function currentBranch(root, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
-  const name2 = result.stdout.trim();
-  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
-}
-async function developerEmails(root, extra, exec = run2) {
-  const result = await exec("git", ["config", "user.email"], root);
-  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
-  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
-}
-async function listCommits(root, opts) {
-  const exec = opts.exec ?? run2;
-  const args2 = ["log", "--branches", "--source", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%S${SEP}%s`];
-  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
-  const result = await exec("git", args2, root);
-  if (result.code !== 0) return [];
-  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
-  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
-    const [sha = "", authorEmail = "", authorDate = "", source = "", ...subject] = line.split(SEP);
-    const branch = source.replace(/^refs\/heads\//, "");
-    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...branch ? { source: branch } : {} };
-  }).filter((c) => emails.has(c.authorEmail)).reverse();
-}
-async function defaultBranchCommits(root, exec = run2) {
-  for (const ref of ["origin/HEAD", "main", "master"]) {
-    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
-    if (found.code !== 0) continue;
-    const list = await exec("git", ["rev-list", ref], root);
-    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
-  }
-  return /* @__PURE__ */ new Set();
-}
-
-// src/coach/attribution.ts
-import { createHash as createHash3 } from "node:crypto";
-function normalizeLine(line) {
-  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
-  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
-  return s.length >= 4 ? s : null;
-}
-function lineHash(normalized) {
-  return createHash3("sha256").update(normalized).digest("hex").slice(0, 16);
-}
-function aiHashesFor(db2, repoRoot, filePath) {
-  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
-  return new Set(rows2.map((r) => r.hash));
-}
-function firstHashAt(db2, repoRoot) {
-  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
-  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
-}
-function sqliteTime(date5) {
-  return date5.toISOString().replace("T", " ").slice(0, 19);
-}
-function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
-  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
-  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
-}
-
-// src/coach/capture.ts
-import { randomUUID as randomUUID5 } from "node:crypto";
-
-// src/rules/engine.ts
-var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
-var IMPORT_LINES = [
-  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
-  /^\s*using\s+[\w.]+\s*;\s*$/,
-  /^\s*package\s+[\w.]+\s*;?\s*$/,
-  /^\s*from\s+[\w.]+\s+import\s.+$/,
-  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
-];
-function isCodeLine(line) {
-  if (line.trim() === "") return false;
-  if (COMMENT.test(line)) return false;
-  return !IMPORT_LINES.some((re) => re.test(line));
-}
-function extensionOf(filePath) {
-  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
-  const dot = name2.lastIndexOf(".");
-  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
-}
-function checkFlags(rule) {
-  for (const re of [rule.pattern, rule.unless]) {
-    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
-  }
-}
-function ruleMatches(rule, filePath, line) {
-  checkFlags(rule);
-  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
-  if (!isCodeLine(line)) return false;
-  if (!rule.pattern.test(line)) return false;
-  return !(rule.unless && rule.unless.test(line));
-}
-function matchLine(rules, filePath, line) {
-  return rules.filter((rule) => ruleMatches(rule, filePath, line));
-}
-
-// src/coach/capture.ts
-function isGeneratedPath(path) {
-  const p = path.replaceAll("\\", "/").toLowerCase();
-  const name2 = p.split("/").pop() ?? "";
-  if (["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "npm-shrinkwrap.json"].includes(name2) || name2.endsWith(".lock")) return true;
-  if (/(^|\/)(dist|build|vendor|node_modules|__generated__)\//.test(p)) return true;
-  return /\.min\.[a-z0-9]+$/.test(name2) || /\.generated\.[a-z0-9]+$/.test(name2);
-}
-var MAX_ADDED_LINES = 3e3;
-function isoWeek(isoDate) {
-  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
-  const date5 = new Date(Date.UTC(y, m - 1, d));
-  const day = (date5.getUTCDay() + 6) % 7;
-  date5.setUTCDate(date5.getUTCDate() - day + 3);
-  const year = date5.getUTCFullYear();
-  const firstThursday = new Date(Date.UTC(year, 0, 4));
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - (firstThursday.getUTCDay() + 6) % 7 + 3);
-  const week = 1 + Math.round((date5.getTime() - firstThursday.getTime()) / (7 * 864e5));
-  return `${year}-W${String(week).padStart(2, "0")}`;
-}
-var NOT_TICKETS = /* @__PURE__ */ new Set(["UTF", "SHA", "HTTP", "ISO", "RFC", "TLS", "SSL", "MD", "AES", "RSA", "CVE", "ES", "IPV", "H", "X", "TS", "PEP", "JSR"]);
-function ticketForCommit(c, ctx) {
-  for (const match of c.subject.matchAll(/\b([A-Z][A-Z0-9]+)-\d+\b/g)) {
-    if (!NOT_TICKETS.has(match[1])) return match[0];
-  }
-  const branch = c.source ?? ctx.branch;
-  if (!ctx.onDefault && branch) return branch;
-  return `week:${isoWeek(c.authorDate)}`;
-}
-async function showFile(root, rev, path, exec) {
-  const result = await exec("git", ["show", `${rev}:${path}`], root);
-  return result.code === 0 ? result.stdout : null;
-}
-function targetsBySignal(ladders) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const l of ladders) {
-    for (const area of l.ladder.areas) {
-      for (const level of LEVELS) {
-        for (const item of area.levels[level]) {
-          for (const ref of item.signals) {
-            const list = map2.get(ref.id) ?? [];
-            list.push({ ladder_id: l.ladder_id, item_id: item.id, ref });
-            map2.set(ref.id, list);
-          }
-        }
-      }
-    }
-  }
-  return map2;
-}
-function exposureBySignal(ladders) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const l of ladders) {
-    for (const area of l.ladder.areas) {
-      for (const level of LEVELS) {
-        for (const item of area.levels[level]) {
-          for (const id2 of item.exposure_signals ?? []) {
-            const list = map2.get(id2) ?? [];
-            list.push({ ladder_id: l.ladder_id, item_id: item.id });
-            map2.set(id2, list);
-          }
-        }
-      }
-    }
-  }
-  return map2;
-}
-async function symbolsFor(path, source, lines) {
-  const out2 = /* @__PURE__ */ new Map();
-  for (const line of lines) {
-    out2.set(line, source !== null && isSupported(path) ? (await symbolAtLine(path, source, line))?.name ?? null : null);
+  const decisions = db2.prepare(
+    `SELECT d.id, d.ladder_id, d.item_id, d.ticket_id, d.summary FROM decisions d
+       WHERE d.item_id IS NOT NULL AND d.origin = 'ai'
+         AND NOT EXISTS (SELECT 1 FROM explain_backs e WHERE e.decision_id = d.id)
+         AND NOT EXISTS (SELECT 1 FROM pending_questions q WHERE q.decision_id = d.id)
+       ORDER BY d.created_at, d.rowid`
+  ).all();
+  for (const d of decisions) {
+    if (out2.length >= max) break;
+    if (usedItems.has(d.item_id) || !inLadder(d.ladder_id, d.item_id)) continue;
+    const id2 = randomUUID6();
+    insert.run(id2, "explain_back", d.ladder_id, d.item_id, null, d.id, d.ticket_id);
+    out2.push({ question_id: id2, kind: "explain_back", item_id: d.item_id, ticket: d.ticket_id, about: d.summary, opened: false });
+    usedItems.add(d.item_id);
   }
   return out2;
 }
-async function readCommit(db2, top, repoKey, sha, diff, targets, exposureTargets, exec) {
-  const rows2 = /* @__PURE__ */ new Map();
-  const fixes = /* @__PURE__ */ new Map();
-  const exposure = /* @__PURE__ */ new Map();
-  for (const file2 of diff) {
-    if (file2.binary || isGeneratedPath(file2.path) || file2.added.length > MAX_ADDED_LINES) continue;
-    const hits = [];
-    const chances = [];
-    for (const added of file2.added) {
-      for (const rule of matchLine(SIGNALS, file2.path, added.text)) {
-        if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
-        if (exposureTargets.has(rule.id)) chances.push({ line: added.line, signal: rule.id });
-      }
-    }
-    const symbols = hits.length > 0 || chances.length > 0 ? await symbolsFor(file2.path, await showFile(top, sha, file2.path, exec), [...new Set([...hits, ...chances].map((h) => h.line))]) : /* @__PURE__ */ new Map();
-    for (const chance of chances) {
-      const symbol2 = symbols.get(chance.line) ?? null;
-      for (const t of exposureTargets.get(chance.signal) ?? []) {
-        const key = [t.ladder_id, t.item_id, chance.signal, file2.path, symbol2 ?? ""].join("\0");
-        if (!exposure.has(key)) exposure.set(key, { ...t, file_path: file2.path, symbol: symbol2, signal_id: chance.signal });
-      }
-    }
-    if (hits.length > 0) {
-      const ai = aiHashesFor(db2, repoKey, file2.path);
-      for (const hit of hits) {
-        const normalized = normalizeLine(hit.text);
-        const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
-        const symbol2 = symbols.get(hit.line) ?? null;
-        for (const t of targets.get(hit.signal) ?? []) {
-          const key = [t.ladder_id, t.item_id, hit.signal, file2.path, symbol2 ?? "", author].join("\0");
-          if (!rows2.has(key)) {
-            rows2.set(key, {
-              ladder_id: t.ladder_id,
-              item_id: t.item_id,
-              polarity: t.ref.polarity,
-              author,
-              regresses: t.ref.regresses === true,
-              file_path: file2.path,
-              symbol: symbol2,
-              signal_id: hit.signal
-            });
-          }
-        }
-      }
-    }
-    const removedHits = [];
-    for (const removed of file2.removed) {
-      for (const rule of matchLine(SIGNALS, file2.path, removed.text)) {
-        if ((targets.get(rule.id) ?? []).some((t) => t.ref.polarity === "negative")) removedHits.push({ line: removed.line, signal: rule.id });
-      }
-    }
-    if (removedHits.length > 0) {
-      const oldPath = file2.oldPath ?? file2.path;
-      const source = await showFile(top, `${sha}^`, oldPath, exec);
-      const symbols2 = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
-      for (const hit of removedHits) {
-        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols2.get(hit.line) ?? null };
-        fixes.set([fix.signal_id, fix.file_path, fix.symbol ?? ""].join("\0"), fix);
-      }
-    }
+function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
+  if (input2.question_id !== void 0 && input2.decision_id !== void 0) {
+    throw new StoreError("Give question_id or decision_id, not both");
   }
-  return { rows: [...rows2.values()], fixes: [...fixes.values()], exposure: [...exposure.values()] };
-}
-function captureStart(db2, repoKey) {
-  const key = `capture_start:${repoKey}`;
-  const saved = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
-  if (saved) return JSON.parse(saved.value);
-  const first = firstHashAt(db2, repoKey);
-  if (first !== null) db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?)").run(key, JSON.stringify(first));
-  return first;
-}
-async function catchUp(db2, opts) {
-  const exec = opts.exec ?? run2;
-  const now = opts.now ?? /* @__PURE__ */ new Date();
-  const t = opts.ladders[0]?.thresholds ?? DEFAULT_THRESHOLDS;
-  const nothing = (note) => ({
-    started: note === void 0,
-    ...note === void 0 ? {} : { note },
-    commits_read: 0,
-    evidence_added: 0,
-    faults_fixed: 0,
-    more_left: false
-  });
-  const identity = await repoIdentity(opts.root, exec);
-  if (identity === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
-  const { top, key } = identity;
-  const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
-  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
-  const since = captureStart(db2, key);
-  pruneAiLines(db2, t.hash_keep_days, now);
-  if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
-  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key).map((r) => r.sha));
-  const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
-  const batch = unseen.slice(0, t.catchup_max);
-  if (batch.length === 0) return nothing();
-  const onDefault = await defaultBranchCommits(top, exec);
-  const branch = await currentBranch(top, exec);
-  const targets = targetsBySignal(opts.ladders);
-  const exposureTargets = exposureBySignal(opts.ladders);
-  const insertExposure = db2.prepare(
-    "INSERT INTO skill_exposure (id, ladder_id, item_id, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  let id2 = input2.question_id;
+  if (input2.question_id === void 0 && input2.decision_id === void 0) {
+    if (!input2.item_id || !input2.ladder_id) throw new StoreError("Give question_id, decision_id, or item_id");
+    id2 = randomUUID6();
+    db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket) VALUES (?, 'why', ?, ?, ?, 'drill')").run(
+      id2,
+      input2.ladder_id,
+      input2.item_id,
+      `followup:${input2.item_id}`
+    );
+  }
+  if (input2.decision_id !== void 0) {
+    const d = db2.prepare("SELECT id, ticket_id, ladder_id, item_id, summary FROM decisions WHERE id = ?").get(input2.decision_id);
+    if (!d) throw new StoreError(`Decision '${input2.decision_id}' does not exist`);
+    const itemId2 = input2.item_id ?? d.item_id;
+    const ladderId2 = input2.ladder_id ?? d.ladder_id;
+    if (!itemId2 || !ladderId2) throw new StoreError("This decision has no ladder item. Pass item_id with the ladder item it is about");
+    id2 = randomUUID6();
+    db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, decision_id, ticket) VALUES (?, 'explain_back', ?, ?, ?, ?)").run(
+      id2,
+      ladderId2,
+      itemId2,
+      d.id,
+      d.ticket_id
+    );
+  }
+  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(id2);
+  if (!row) throw new StoreError(`Question '${id2}' does not exist`);
+  if (row.answered_at !== null) throw new StoreError("This question was already answered");
+  db2.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE open_session = ? AND answered_at IS NULL AND id != ?").run(input2.session_id, row.id);
+  db2.prepare("UPDATE pending_questions SET question = ?, opened_at = ?, open_session = ?, closed_reason = NULL WHERE id = ?").run(
+    input2.text,
+    now.toISOString(),
+    input2.session_id,
+    row.id
   );
-  const sameChange = db2.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
-  const markSeen = db2.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
-  const insert = db2.prepare(`
-    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at)
-    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const fix = db2.prepare(`
-    UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ?
-    WHERE repo_root = ? AND polarity = 'negative' AND fixed_at IS NULL AND signal_id = ? AND file_path = ? AND symbol IS ? AND at < ?`);
-  let evidenceAdded = 0;
-  let faultsFixed = 0;
-  for (const c of batch) {
-    let diff;
-    try {
-      diff = await commitDiff(top, c.sha, exec);
-    } catch {
-      markSeen.run(key, c.sha, `skipped:${c.sha}`);
-      continue;
-    }
-    const id2 = changeId(diff);
-    if (sameChange.get(key, id2)) {
-      markSeen.run(key, c.sha, id2);
-      continue;
-    }
-    const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
-    let found;
-    try {
-      found = await readCommit(db2, top, key, c.sha, diff, targets, exposureTargets, exec);
-    } catch {
-      markSeen.run(key, c.sha, id2);
-      continue;
-    }
-    const { rows: rows2, fixes, exposure } = found;
-    transaction(db2, () => {
-      for (const r of rows2) {
-        insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
-        evidenceAdded++;
-      }
-      for (const x of exposure) insertExposure.run(randomUUID5(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
-      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(key, c.sha, id2);
-    });
+  return view(db2, { ...row, question: input2.text, open_session: input2.session_id });
+}
+function releaseAnswer(db2, input2) {
+  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
+  if (!row) throw new StoreError(`Question '${input2.question_id}' does not exist`);
+  if (row.answered_at === null) throw new StoreError("This question has no answer to release");
+  if (row.rating !== null) throw new StoreError("This answer was already rated, so it cannot be released");
+  if (db2.prepare("SELECT 1 FROM drill_attempts WHERE question_id = ?").get(row.id)) throw new StoreError("This drill was already scored, so it cannot be released");
+  db2.prepare("UPDATE pending_questions SET answer = NULL, answered_at = NULL, closed_reason = 'later', open_session = NULL WHERE id = ?").run(row.id);
+  return { released: true };
+}
+function rateAnswer(db2, input2) {
+  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
+  if (!row) throw new StoreError(`Question '${input2.question_id}' does not exist`);
+  if (row.kind === "drill") throw new StoreError("This is a drill. Use score_drill for it");
+  if (row.answered_at === null || row.answer === null) throw new StoreError("This question has no answer yet. Ask it and wait for the developer's reply");
+  if (row.rating !== null) throw new StoreError("This answer was already rated");
+  let namesTradeoff = false;
+  let note;
+  if (input2.tradeoff_quote !== void 0) {
+    namesTradeoff = quoteIn(row.answer, input2.tradeoff_quote);
+    if (!namesTradeoff) note = "The quote is not in the answer, so the trade-off flag was dropped.";
   }
-  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
+  db2.prepare("UPDATE pending_questions SET rating = ?, names_tradeoff = ?, tradeoff_quote = ?, rated_at = ? WHERE id = ?").run(
+    input2.rating,
+    namesTradeoff ? 1 : 0,
+    namesTradeoff ? input2.tradeoff_quote : null,
+    (/* @__PURE__ */ new Date()).toISOString(),
+    row.id
+  );
+  if (row.kind === "explain_back" && row.decision_id !== null) {
+    db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating, question_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      randomUUID6(),
+      row.decision_id,
+      row.question ?? "",
+      row.answer,
+      input2.rating,
+      row.id,
+      row.item_id
+    );
+  }
+  return { rating: input2.rating, names_tradeoff: namesTradeoff, ...note ? { note } : {} };
 }
 
 // src/coach/status.ts
@@ -45624,7 +45777,7 @@ function recordStateChanges(db2, ladderId2, statuses, reason = reasonFor) {
   for (const s of statuses) {
     const from = last.get(ladderId2, s.item_id)?.to_state ?? "not_seen";
     if (from === s.state) continue;
-    insert.run(randomUUID6(), ladderId2, s.item_id, from, s.state, reason(s));
+    insert.run(randomUUID7(), ladderId2, s.item_id, from, s.state, reason(s));
     written++;
   }
   return written;
@@ -45702,6 +45855,14 @@ function renderProgress(s) {
     if (next) lines.push(`  Next for ${capital(nextLevel)}: ${next.item_id} ${next.title}    ${next.state.toUpperCase().replace("_", " ")}`);
     lines.push("");
   }
+  if (s.repeats.length > 0) {
+    lines.push("Repeats (whole history)");
+    for (const r of s.repeats.slice(0, 5)) {
+      const when = r.coming_back ? `last: ${r.last_at.slice(0, 10)}` : "nothing new in 60 days: fixed habit?";
+      lines.push(`  ${r.item_id} ${r.signal_id}   ${r.times} times \xB7 ${r.tickets} tickets${r.shipped > 0 ? ` \xB7 ${r.shipped} reached main as bugs` : ""} \xB7 ${when}`);
+    }
+    lines.push("");
+  }
   const stacks = s.stacks.filter((h) => s.tracks.includes(h.track));
   lines.push(`Your stack: ${stacks.length > 0 ? stacks.map((h) => h.folder ? `${h.stack_id} (${h.folder})` : h.stack_id).join(", ") : "not found in this repo"}`);
   const study = [...new Set(s.focus.flatMap((f) => f.study))].slice(0, 3);
@@ -45710,7 +45871,7 @@ function renderProgress(s) {
   return lines.join("\n");
 }
 function focusFrames(db2, results, stacks) {
-  const recentFaultItems = /* @__PURE__ */ new Set();
+  const recentFaultItems = new Set(repeats(db2).filter((r) => r.coming_back).map((r) => r.item_id));
   const workedAreas = /* @__PURE__ */ new Set();
   for (const { loaded, statuses } of results) {
     for (const s of statuses.values()) if (s.open_faults > 0) recentFaultItems.add(s.item_id);
@@ -45730,6 +45891,8 @@ async function coachStatus(db2, opts) {
     ladders: [],
     stacks: [],
     catch_up: { started: false, note: "Pick your tracks first.", commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false },
+    history_scan: { started: false, commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false },
+    repeats: [],
     areas: [],
     not_written: [],
     focus: [],
@@ -45741,6 +45904,12 @@ async function coachStatus(db2, opts) {
   const ladders = loadActiveLadders(tracks, { repoRoot: top, ...opts.home ? { home: opts.home } : {} });
   const stacks = detectStacks(top);
   const catch_up = await catchUp(db2, { root: opts.root, ladders, extraEmails: getExtraEmails(db2), now, ...opts.exec ? { exec: opts.exec } : {} });
+  const history_scan = await catchUp(db2, { root: opts.root, ladders, extraEmails: getExtraEmails(db2), now, history: true, ...opts.exec ? { exec: opts.exec } : {} });
+  try {
+    await scanShippedBugs(db2, { root: opts.root, ladders, now, ...opts.exec ? { exec: opts.exec } : {} });
+  } catch {
+  }
+  const repeatList = repeats(db2, now);
   const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db2, loaded, now) }));
   for (const r of results) recordStateChanges(db2, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
@@ -45751,6 +45920,8 @@ async function coachStatus(db2, opts) {
     ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...l.warning ? { warning: l.warning } : {} })),
     stacks,
     catch_up,
+    history_scan,
+    repeats: repeatList,
     areas,
     not_written: notWritten,
     focus,
@@ -45810,7 +45981,7 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const source = await exec("git", ["show", `${sha}:${file2.path}`], top);
   const symbol2 = source.code === 0 && isSupported(file2.path) ? (await symbolAtLine(file2.path, source.stdout, devLine.line))?.name ?? null : null;
   const ticket = ticketForCommit({ sha, authorEmail: email3, authorDate, subject }, { onDefault: (await defaultBranchCommits(top, exec)).has(sha), branch: await currentBranch(top, exec) });
-  const id2 = randomUUID6();
+  const id2 = randomUUID7();
   db2.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)"
   ).run(id2, loaded.ladder_id, input2.item_id, key, sha, file2.path, symbol2, ticket, input2.why, authorDate);
@@ -45827,6 +45998,70 @@ function disagree(db2, input2) {
     return { target: "drill", effect: "This drill score is void. You can take the drill again with a different question." };
   }
   throw new StoreError("You can disagree with evidence or a drill score. To change an answer, ask for a new question.");
+}
+
+// src/coach/review.ts
+async function mergeBase(top, exec) {
+  for (const ref of ["origin/HEAD", "origin/main", "main", "origin/master", "master"]) {
+    const out2 = await exec("git", ["merge-base", "HEAD", ref], top);
+    const sha = out2.stdout.trim();
+    if (out2.code === 0 && sha !== "") return sha;
+  }
+  return null;
+}
+async function proposeFault(db2, root, input2, exec = run2, home) {
+  const identity = await repoIdentity(root, exec);
+  if (identity === null) throw new StoreError("This folder is not a git repo");
+  const { top, key } = identity;
+  const { loaded } = ladderForItem(top, input2.item_id, { ...home ? { home } : {}, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+  if (input2.line_end < input2.line_start) throw new StoreError("line_end must not be before line_start");
+  const base = input2.base ?? await mergeBase(top, exec);
+  if (base === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
+  const path = input2.file.replaceAll("\\", "/");
+  const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${base}...HEAD`, "--", path], top);
+  if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
+  const file2 = parseUnifiedDiff(diff.stdout).find((f) => f.path === path);
+  const lines = (file2?.added ?? []).filter((l) => l.line >= input2.line_start && l.line <= input2.line_end);
+  if (lines.length === 0) throw new StoreError(`Lines ${input2.line_start}-${input2.line_end} of ${input2.file} were not added in this change (${base.slice(0, 7)}...HEAD)`);
+  const ai = aiHashesFor(db2, key, path);
+  const aiWritten = lines.some((l) => {
+    const n = normalizeLine(l.text);
+    return n !== null && ai.has(lineHash(n));
+  });
+  const source = await exec("git", ["show", `HEAD:${path}`], top);
+  const symbol2 = source.code === 0 && isSupported(path) ? (await symbolAtLine(path, source.stdout, lines[0].line))?.name ?? null : null;
+  const head = (await exec("git", ["show", "-s", "--format=%H%x1f%ae%x1f%aI%x1f%s", "HEAD"], top)).stdout.trim().split("");
+  const branch = await currentBranch(top, exec);
+  const ticket = ticketForCommit(
+    { sha: head[0] ?? "", authorEmail: head[1] ?? "", authorDate: head[2] ?? (/* @__PURE__ */ new Date()).toISOString(), subject: head[3] ?? "" },
+    { onDefault: false, branch }
+  );
+  const id2 = randomUUID8();
+  db2.prepare(
+    `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, commit_sha, file_path, symbol, ticket, note, at)
+     VALUES (?, ?, ?, 'review', 'negative', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id2, loaded.ladder_id, input2.item_id, aiWritten ? "ai" : "dev", aiWritten ? 1 : 0, key, head[0] ?? null, path, symbol2, ticket, input2.why, (/* @__PURE__ */ new Date()).toISOString());
+  return { evidence_id: id2, owned: aiWritten };
+}
+
+// src/coach/messages.ts
+import { randomUUID as randomUUID9 } from "node:crypto";
+function quoteInSession(db2, sessionId, quote) {
+  const rows2 = db2.prepare("SELECT message FROM developer_messages WHERE session_id = ?").all(sessionId);
+  return rows2.some((r) => quoteIn(r.message, quote));
+}
+function resolveOrigin(db2, sessionId, origin, quote) {
+  if (origin === "ai") return { origin, quote: null };
+  if (quote === void 0) return { origin: "ai", quote: null, note: "Stored as an AI choice: a developer choice needs origin_quote, the developer's own words." };
+  if (!quoteInSession(db2, sessionId, quote)) {
+    return { origin: "ai", quote: null, note: "Stored as an AI choice: those words are not in a message the developer sent in this session." };
+  }
+  return { origin, quote };
+}
+function decisionEvidence(db2, d) {
+  db2.prepare(
+    "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, decided_by, ticket, file_path, symbol, at) VALUES (?, ?, ?, 'decision', 'positive', 'unknown', ?, ?, ?, ?, ?)"
+  ).run(randomUUID9(), d.ladder_id, d.item_id, d.decided_by, d.ticket, d.file, d.symbol, (/* @__PURE__ */ new Date()).toISOString());
 }
 
 // src/privacy/denylist.ts
@@ -46200,7 +46435,8 @@ var logDecisionInput = external_exports.strictObject({
   origin: external_exports.enum(DECISION_ORIGINS).describe("ai = Claude chose, dev = developer chose, dev_changed_ai = developer overrode Claude"),
   pointer: pointerInput.optional().describe("Where the decision lives in the code. A reference only, never the code."),
   related_files: external_exports.array(external_exports.string().trim().min(1).max(500)).max(20).default([]).describe("Other files this same decision covers, for example its test file. Paths only."),
-  item_id: itemId.optional().describe("The ladder item this decision is about, if one fits. For example BE.ERR.M2")
+  item_id: itemId.optional().describe("The ladder item this decision is about, if one fits. For example BE.ERR.M2"),
+  origin_quote: external_exports.string().trim().min(12).max(500).optional().describe("Required for origin dev or dev_changed_ai: the developer's own words, copied exactly from their message, that made the choice. The server checks them.")
 });
 var startTrailInput = external_exports.strictObject({
   ticket_id: id,
@@ -46276,6 +46512,15 @@ var proposeEvidenceInput = external_exports.strictObject({
   line_start: external_exports.number().int().positive(),
   line_end: external_exports.number().int().positive(),
   why: shortText.describe("Why these lines show the item, in plain words. No code.")
+});
+var proposeFaultInput = external_exports.strictObject({
+  item_id: itemId,
+  ladder_id: external_exports.string().trim().min(1).max(200).optional(),
+  base: external_exports.string().regex(/^[0-9a-f]{7,40}$/i, "base must be a git SHA").optional().describe("The pull request's base commit. Leave out to use the merge base with the default branch."),
+  file: external_exports.string().trim().min(1).max(500).describe("Repo-relative path"),
+  line_start: external_exports.number().int().positive(),
+  line_end: external_exports.number().int().positive(),
+  why: shortText.describe("The fault, in plain words: what is wrong and what it risks. No code.")
 });
 var disagreeInput = external_exports.strictObject({
   target_id: id.describe("The id of a piece of evidence or a drill attempt"),
@@ -46394,7 +46639,12 @@ function createServer2(db2, tickets2, options = {}) {
       guard.check(decision);
       await ticket(decision.ticket_id);
       const ladderId2 = decision.item_id === void 0 ? null : ladderForItem(coachRoot, decision.item_id, home).loaded.ladder_id;
-      return logDecision(db2, decision, root, ladderId2);
+      const checked = resolveOrigin(db2, decision.session_id, decision.origin, decision.origin_quote);
+      const saved = logDecision(db2, { ...decision, origin: checked.origin }, root, ladderId2, checked.quote);
+      if (decision.item_id !== void 0 && ladderId2 !== null) {
+        decisionEvidence(db2, { ladder_id: ladderId2, item_id: decision.item_id, ticket: decision.ticket_id, decided_by: checked.origin === "ai" ? "ai" : "dev", file: decision.pointer?.file_path ?? null, symbol: decision.pointer?.symbol ?? null });
+      }
+      return checked.note ? { ...saved, note: checked.note } : saved;
     })
   );
   server2.registerTool(
@@ -46553,6 +46803,15 @@ function createServer2(db2, tickets2, options = {}) {
       inputSchema: proposeEvidenceInput
     },
     (input2) => write2(input2, (i2) => proposeEvidence(db2, root, i2))
+  );
+  server2.registerTool(
+    "propose_fault",
+    {
+      title: "Propose fault",
+      description: "PR-time review: name a bad practice or bug in the pull request's final change, citing exact lines. Accepted only if those lines were added in this change and the ladder item exists. A fault in lines Claude wrote is owned by the developer: they shipped it. It never sets a state by itself; plain code counts it.",
+      inputSchema: proposeFaultInput
+    },
+    (input2) => write2(input2, (i2) => proposeFault(db2, root, i2, void 0, options.coachHome))
   );
   server2.registerTool(
     "disagree",

@@ -339,3 +339,15 @@ describe("stage 2: history scan", () => {
     expect((await history()).commits_read).toBe(0);
   });
 });
+
+describe("stage 2: a later change closes a review fault", () => {
+  it("closes an open review fault when a commit changes lines of the same function", async () => {
+    startCapture();
+    commit({ "src/pay.ts": PAY("  const res = await fetch(url);") }, "PAY-1 charge", "2026-11-10T10:00:00Z");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    db.prepare("INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, ticket, file_path, symbol, at) VALUES ('rf', 'builtin/backend', 'BE.ERR.M2', 'review', 'negative', 'ai', 1, ?, 'PAY-1', 'src/pay.ts', 'charge', '2026-11-10T11:00:00Z')").run(top);
+    commit({ "src/pay.ts": PAY(TIMEOUT_LINE) }, "PAY-2 add a time limit", "2026-11-12T10:00:00Z");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(db.prepare("SELECT fixed_ticket FROM skill_evidence WHERE id = 'rf'").get()).toEqual({ fixed_ticket: "PAY-2" });
+  });
+});

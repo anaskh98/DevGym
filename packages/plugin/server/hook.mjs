@@ -373,6 +373,41 @@ var migrations = [
       );
       CREATE INDEX idx_skill_exposure_item ON skill_exposure(ladder_id, item_id);
     `
+  },
+  {
+    id: 9,
+    name: "coach_ownership_history",
+    sql: `
+      -- What the developer typed, so a claim "the developer chose this" can be checked against their own words.
+      -- Local only. Deleted after 120 days. Slash commands are never saved.
+      CREATE TABLE developer_messages (
+        id         TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        message    TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_developer_messages_session ON developer_messages(session_id);
+
+      -- A bug that reached the main branch: the commit that fixed it and the developer's commit that brought it in.
+      CREATE TABLE shipped_bugs (
+        id            TEXT PRIMARY KEY,
+        repo_root     TEXT NOT NULL,
+        fix_commit    TEXT NOT NULL,
+        origin_commit TEXT NOT NULL,
+        ladder_id     TEXT NOT NULL,
+        item_id       TEXT NOT NULL,
+        signal_id     TEXT NOT NULL,
+        file_path     TEXT NOT NULL,
+        symbol        TEXT,
+        ticket        TEXT NOT NULL,
+        at            TEXT NOT NULL,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (repo_root, fix_commit, origin_commit, file_path, signal_id)
+      );
+
+      -- The words of the developer that made a decision theirs. Checked against developer_messages.
+      ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
+    `
   }
 ];
 function migrate(db, list = migrations) {

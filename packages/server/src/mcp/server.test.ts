@@ -99,6 +99,7 @@ describe("tool list", () => {
       "log_decision",
       "open_report",
       "propose_evidence",
+      "propose_fault",
       "rate_answer",
       "record_explain_back",
       "release_answer",
@@ -667,5 +668,49 @@ describe("stage 2: decision origin must be quoted", () => {
       { item_id: "BE.ERR.M2", kind: "decision", decided_by: "dev" },
       { item_id: "BE.ERR.M3", kind: "decision", decided_by: "ai" },
     ]);
+  });
+});
+
+describe("stage 2: propose_fault (PR-time fault review)", () => {
+  function setup() {
+    const git = (args: string[], env: Record<string, string> = {}) => execFileSync("git", args, { cwd: repo, encoding: "utf8", env: { ...process.env, ...env } }).trim();
+    git(["init", "-q", "-b", "main"]);
+    git(["config", "user.email", "dev@example.com"]);
+    git(["config", "user.name", "Dev"]);
+    git(["config", "commit.gpgsign", "false"]);
+    git(["add", "-A"]);
+    git(["commit", "-q", "-m", "base"]);
+    git(["checkout", "-q", "-b", "PAY-5-feature"]);
+    writeFileSync(join(repo, "pay.ts"), "export async function charge(url: string) {\n  const res = await fetch(url);\n  return res.json();\n}\n");
+    git(["add", "pay.ts"]);
+    git(["commit", "-q", "-m", "PAY-5 charge"]);
+    return repoIdentitySync(repo)!.key;
+  }
+  const fault = (extra: Record<string, unknown> = {}) => ({
+    item_id: "BE.ERR.M2",
+    file: "pay.ts",
+    line_start: 2,
+    line_end: 2,
+    why: "The outside call has no time limit, so a slow provider holds the request",
+    ...extra,
+  });
+
+  it("refuses lines that are not in the PR's final change (Review Focus 5)", async () => {
+    setup();
+    expect(await rejected("propose_fault", fault({ line_start: 40, line_end: 41 }))).toMatch(/not added in this change/);
+  });
+
+  it("stores a negative review fault; owned and AI-authored when Claude wrote the line", async () => {
+    const key = setup();
+    saveAiLines(db, key, "pay.ts", "s1", ["  const res = await fetch(url);"]);
+    const out = await ok("propose_fault", fault());
+    const row = db.prepare("SELECT kind, polarity, author, owned, symbol, ticket FROM skill_evidence WHERE id = ?").get(out.evidence_id);
+    expect(row).toMatchObject({ kind: "review", polarity: "negative", author: "ai", owned: 1, symbol: "charge", ticket: "PAY-5" });
+  });
+
+  it("marks a developer-written fault as the developer's, not owned", async () => {
+    setup();
+    const out = await ok("propose_fault", fault());
+    expect(db.prepare("SELECT author, owned FROM skill_evidence WHERE id = ?").get(out.evidence_id)).toMatchObject({ author: "dev", owned: 0 });
   });
 });

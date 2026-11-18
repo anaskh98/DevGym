@@ -40,7 +40,7 @@ export async function developerEmails(root: string, extra: string[], exec: Run =
 /** The developer's commits on local branches, oldest first. Merge commits are left out. */
 export async function listCommits(
   root: string,
-  opts: { authorEmails: string[]; sinceIso?: string; exec?: Run },
+  opts: { authorEmails: string[]; sinceIso?: string; exec?: Run; anyAuthor?: boolean },
 ): Promise<CommitInfo[]> {
   const exec = opts.exec ?? run;
   // --source names the branch each commit was reached from, so its ticket does not depend on what is checked out now.
@@ -57,7 +57,7 @@ export async function listCommits(
       const branch = source.replace(/^refs\/heads\//, "");
       return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...(branch ? { source: branch } : {}) };
     })
-    .filter((c) => emails.has(c.authorEmail))
+    .filter((c) => opts.anyAuthor === true || emails.has(c.authorEmail))
     .reverse();
 }
 

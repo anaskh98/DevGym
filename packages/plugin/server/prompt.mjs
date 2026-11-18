@@ -20341,6 +20341,41 @@ var migrations = [
       );
       CREATE INDEX idx_skill_exposure_item ON skill_exposure(ladder_id, item_id);
     `
+  },
+  {
+    id: 9,
+    name: "coach_ownership_history",
+    sql: `
+      -- What the developer typed, so a claim "the developer chose this" can be checked against their own words.
+      -- Local only. Deleted after 120 days. Slash commands are never saved.
+      CREATE TABLE developer_messages (
+        id         TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        message    TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_developer_messages_session ON developer_messages(session_id);
+
+      -- A bug that reached the main branch: the commit that fixed it and the developer's commit that brought it in.
+      CREATE TABLE shipped_bugs (
+        id            TEXT PRIMARY KEY,
+        repo_root     TEXT NOT NULL,
+        fix_commit    TEXT NOT NULL,
+        origin_commit TEXT NOT NULL,
+        ladder_id     TEXT NOT NULL,
+        item_id       TEXT NOT NULL,
+        signal_id     TEXT NOT NULL,
+        file_path     TEXT NOT NULL,
+        symbol        TEXT,
+        ticket        TEXT NOT NULL,
+        at            TEXT NOT NULL,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (repo_root, fix_commit, origin_commit, file_path, signal_id)
+      );
+
+      -- The words of the developer that made a decision theirs. Checked against developer_messages.
+      ALTER TABLE decisions ADD COLUMN origin_quote TEXT;
+    `
   }
 ];
 function migrate(db, list = migrations) {
@@ -20364,6 +20399,25 @@ function migrate(db, list = migrations) {
     applied.push(m.name);
   }
   return applied;
+}
+
+// src/coach/messages.ts
+import { randomUUID } from "node:crypto";
+
+// src/coach/attribution.ts
+function sqliteTime(date5) {
+  return date5.toISOString().replace("T", " ").slice(0, 19);
+}
+
+// src/coach/messages.ts
+function saveMessage(db, sessionId, message) {
+  const text2 = message.trim();
+  if (text2 === "" || text2.startsWith("/")) return;
+  db.prepare("INSERT INTO developer_messages (id, session_id, message) VALUES (?, ?, ?)").run(randomUUID(), sessionId, text2);
+}
+function pruneMessages(db, keepDays, now = /* @__PURE__ */ new Date()) {
+  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
+  return Number(db.prepare("DELETE FROM developer_messages WHERE created_at < ?").run(cutoff).changes);
 }
 
 // src/privacy/denylist.ts
@@ -20513,6 +20567,8 @@ async function main() {
   const db = openDb();
   try {
     migrate(db);
+    if (answerAllowed(input2.prompt)) saveMessage(db, input2.session_id, input2.prompt);
+    pruneMessages(db, 120);
     const result = captureAnswer(db, input2.session_id, input2.prompt, /* @__PURE__ */ new Date(), answerAllowed);
     if (!result.captured) {
       if (result.held_back) {

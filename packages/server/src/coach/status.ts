@@ -8,6 +8,7 @@ import { run, type Run } from "../pointers/git.js";
 import { isSupported, symbolAtLine } from "../pointers/symbols.js";
 import { aiHashesFor, lineHash, normalizeLine } from "./attribution.js";
 import { catchUp, ticketForCommit, type CatchUpResult } from "./capture.js";
+import { repeats, scanShippedBugs, type Repeat } from "./bugs.js";
 import { repoIdentity } from "../git/identity.js";
 import { drillsReady } from "./drills.js";
 import { exposureFor, type ExposureLevel } from "./exposure.js";
@@ -38,6 +39,8 @@ export interface CoachStatus {
   catch_up: CatchUpResult;
   /** Progress of the one-time read of older commits. */
   history_scan: CatchUpResult;
+  /** Mistakes on 3 or more tickets, newest first. Some reached main as bugs. */
+  repeats: Repeat[];
   areas: AreaView[];
   /** Areas the ladder has not written yet, by name. */
   not_written: string[];
@@ -197,6 +200,14 @@ export function renderProgress(s: Omit<CoachStatus, "text">): string {
     if (next) lines.push(`  Next for ${capital(nextLevel!)}: ${next.item_id} ${next.title}    ${next.state.toUpperCase().replace("_", " ")}`);
     lines.push("");
   }
+  if (s.repeats.length > 0) {
+    lines.push("Repeats (whole history)");
+    for (const r of s.repeats.slice(0, 5)) {
+      const when = r.coming_back ? `last: ${r.last_at.slice(0, 10)}` : "nothing new in 60 days: fixed habit?";
+      lines.push(`  ${r.item_id} ${r.signal_id}   ${r.times} times · ${r.tickets} tickets${r.shipped > 0 ? ` · ${r.shipped} reached main as bugs` : ""} · ${when}`);
+    }
+    lines.push("");
+  }
   const stacks = s.stacks.filter((h) => s.tracks.includes(h.track));
   lines.push(`Your stack: ${stacks.length > 0 ? stacks.map((h) => (h.folder ? `${h.stack_id} (${h.folder})` : h.stack_id)).join(", ") : "not found in this repo"}`);
   const study = [...new Set(s.focus.flatMap((f) => f.study))].slice(0, 3);
@@ -207,7 +218,7 @@ export function renderProgress(s: Omit<CoachStatus, "text">): string {
 
 /** Up to 3 focus items, each with its fixed frame. */
 function focusFrames(db: Db, results: LadderStatuses[], stacks: StackHit[]): FocusFrame[] {
-  const recentFaultItems = new Set<string>();
+  const recentFaultItems = new Set<string>(repeats(db).filter((r) => r.coming_back).map((r) => r.item_id));
   const workedAreas = new Set<string>();
   for (const { loaded, statuses } of results) {
     for (const s of statuses.values()) if (s.open_faults > 0) recentFaultItems.add(s.item_id);
@@ -230,6 +241,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     stacks: [] as StackHit[],
     catch_up: { started: false, note: "Pick your tracks first.", commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false } as CatchUpResult,
     history_scan: { started: false, commits_read: 0, evidence_added: 0, faults_fixed: 0, more_left: false } as CatchUpResult,
+    repeats: [] as Repeat[],
     areas: [] as AreaView[],
     not_written: [] as string[],
     focus: [] as FocusFrame[],
@@ -244,6 +256,12 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
   const catch_up = await catchUp(db, { root: opts.root, ladders, extraEmails: getExtraEmails(db), now, ...(opts.exec ? { exec: opts.exec } : {}) });
   // The developer's older commits, one batch per run: faults count fully, credit is capped (spec 6.4.1).
   const history_scan = await catchUp(db, { root: opts.root, ladders, extraEmails: getExtraEmails(db), now, history: true, ...(opts.exec ? { exec: opts.exec } : {}) });
+  try {
+    await scanShippedBugs(db, { root: opts.root, ladders, now, ...(opts.exec ? { exec: opts.exec } : {}) });
+  } catch {
+    // Bug scanning is best effort: the rest of the view must still work.
+  }
+  const repeatList = repeats(db, now);
   const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db, loaded, now) }));
   for (const r of results) recordStateChanges(db, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
@@ -255,6 +273,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     stacks,
     catch_up,
     history_scan,
+    repeats: repeatList,
     areas,
     not_written: notWritten,
     focus,

@@ -194,6 +194,16 @@ export const proposeEvidenceInput = z.strictObject({
   why: shortText.describe("Why these lines show the item, in plain words. No code."),
 });
 
+export const proposeFaultInput = z.strictObject({
+  item_id: itemId,
+  ladder_id: z.string().trim().min(1).max(200).optional(),
+  base: z.string().regex(/^[0-9a-f]{7,40}$/i, "base must be a git SHA").optional().describe("The pull request's base commit. Leave out to use the merge base with the default branch."),
+  file: z.string().trim().min(1).max(500).describe("Repo-relative path"),
+  line_start: z.number().int().positive(),
+  line_end: z.number().int().positive(),
+  why: shortText.describe("The fault, in plain words: what is wrong and what it risks. No code."),
+});
+
 export const disagreeInput = z.strictObject({
   target_id: id.describe("The id of a piece of evidence or a drill attempt"),
   reason: z.string().trim().min(8).max(500).describe("The developer's reason, in their own words"),

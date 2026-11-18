@@ -6,6 +6,7 @@ import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { repoIdentitySync } from "../git/identity.js";
+import { proposeFault } from "../coach/review.js";
 import { decisionEvidence, resolveOrigin } from "../coach/messages.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer, releaseAnswer } from "../coach/questions.js";
@@ -28,6 +29,7 @@ import {
   coachStatusInput,
   disagreeInput,
   proposeEvidenceInput,
+  proposeFaultInput,
   setCoachTracksInput,
   getTicketInput,
   getTrailInput,
@@ -349,6 +351,17 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: proposeEvidenceInput,
     },
     (input) => write(input, (i) => proposeEvidence(db, root, i)),
+  );
+
+  server.registerTool(
+    "propose_fault",
+    {
+      title: "Propose fault",
+      description:
+        "PR-time review: name a bad practice or bug in the pull request's final change, citing exact lines. Accepted only if those lines were added in this change and the ladder item exists. A fault in lines Claude wrote is owned by the developer: they shipped it. It never sets a state by itself; plain code counts it.",
+      inputSchema: proposeFaultInput,
+    },
+    (input) => write(input, (i) => proposeFault(db, root, i, undefined, options.coachHome)),
   );
 
   server.registerTool(

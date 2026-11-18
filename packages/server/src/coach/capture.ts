@@ -85,7 +85,7 @@ interface Target {
 }
 
 /** For each signal id: the ladder items that use it. */
-function targetsBySignal(ladders: LoadedLadder[]): Map<string, Target[]> {
+export function targetsBySignal(ladders: LoadedLadder[]): Map<string, Target[]> {
   const map = new Map<string, Target[]>();
   for (const l of ladders) {
     for (const area of l.ladder.areas) {
@@ -246,6 +246,20 @@ function captureStart(db: Db, repoKey: string): string | null {
   return first;
 }
 
+/** A review fault has no signal to match, so it is closed when a later commit removes lines from the same function. */
+async function closeReviewFaults(db: Db, top: string, key: string, sha: string, diff: FileDiff[], ticket: string, at: string, exec: Run): Promise<void> {
+  const open = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind = 'review' AND signal_id IS NULL AND polarity = 'negative' AND fixed_at IS NULL AND at < ?");
+  const close = db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
+  const faults = open.all(key, at) as { id: string; file_path: string; symbol: string | null }[];
+  for (const file of diff) {
+    const mine = faults.filter((f) => f.file_path === file.path || f.file_path === file.oldPath);
+    if (mine.length === 0 || file.removed.length === 0) continue;
+    const source = await showFile(top, `${sha}^`, file.oldPath ?? file.path, exec);
+    const symbols = new Set((await symbolsFor(file.oldPath ?? file.path, source, file.removed.map((l) => l.line))).values());
+    for (const f of mine) if (f.symbol === null || symbols.has(f.symbol)) close.run(at, ticket, f.id);
+  }
+}
+
 export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResult> {
   const exec = opts.exec ?? run;
   const now = opts.now ?? new Date();
@@ -322,6 +336,11 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
       continue;
     }
     const { rows, fixes, exposure } = found;
+    try {
+      await closeReviewFaults(db, top, key, c.sha, diff, ticket, c.authorDate, exec);
+    } catch {
+      // Closing faults is best effort: the commit's own evidence is still saved.
+    }
     transaction(db, () => {
       for (const r of rows) {
         insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);

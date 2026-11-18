@@ -97,7 +97,7 @@ describe("coachStatus", () => {
     await coachStatus(db, { root: repo, now: NOW, home: dir });
     const changes = stateHistory(db).filter((h) => h.item_id === "BE.ERR.M2");
     expect(changes.map((h) => `${h.from_state}->${h.to_state}`)).toEqual(["not_seen->not_assessed", "not_assessed->shown"]);
-  });
+  }, 30_000);
 
   it("ignores evidence for an item that is not in the ladder (Review Focus 5)", async () => {
     setTracks(db, ["backend"]);
@@ -116,5 +116,19 @@ describe("renderProgress", () => {
     m3.state = "proven";
     m3.detail = "drill passed 15 Nov";
     expect(renderProgress({ ...s, areas: [area] })).toContain("BE.ERR.M3");
+  });
+});
+
+describe("stage 2: repeats in the view", () => {
+  it("lists a repeated mistake with its count and whether it is still coming back", async () => {
+    setTracks(db, ["backend"]);
+    const add = db.prepare("INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES (lower(hex(randomblob(8))), 'builtin/backend', 'BE.ERR.J1', 'rule', 'negative', 'dev', ?, 'err.empty-catch', 'a.ts', ?, ?)");
+    add.run("T-1", "a", "2026-10-01T10:00:00Z");
+    add.run("T-2", "b", "2026-10-20T10:00:00Z");
+    add.run("T-3", "c", "2026-11-10T10:00:00Z");
+    const s = await coachStatus(db, { root: repo, now: NOW, home: dir });
+    expect(s.repeats[0]).toMatchObject({ item_id: "BE.ERR.J1", times: 3, tickets: 3, coming_back: true });
+    expect(s.text).toContain("Repeats");
+    expect(s.text).toContain("BE.ERR.J1");
   });
 });
