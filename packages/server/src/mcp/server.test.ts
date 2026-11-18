@@ -99,6 +99,7 @@ describe("tool list", () => {
       "propose_evidence",
       "rate_answer",
       "record_explain_back",
+      "release_answer",
       "resolve_pointers",
       "save_assumptions",
       "save_growth_plan",

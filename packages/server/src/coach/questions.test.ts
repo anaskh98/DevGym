@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { loadLadder } from "./ladder/load.js";
-import { captureAnswer, HELD_BACK, isClarification, isLaterReply, openQuestion, proposeQuestions, rateAnswer } from "./questions.js";
+import { captureAnswer, isClarification, isLaterReply, openQuestion, proposeQuestions, rateAnswer, releaseAnswer } from "./questions.js";
 import { quoteIn } from "./quote.js";
 import { computeStatuses } from "./status.js";
 
@@ -104,10 +104,10 @@ describe("open, capture and rate", () => {
     expect(row(q.question_id)).toMatchObject({ closed_reason: "timeout", answer: null });
   });
 
-  it("holds back an answer the privacy check refuses", () => {
+  it("does not save an answer the privacy check refuses", () => {
     const q = opened();
     captureAnswer(db, "s1", "const t = AbortSignal.timeout(5000);", later(1), () => false);
-    expect(row(q.question_id).answer).toBe(HELD_BACK);
+    expect(row(q.question_id).answer).toBeNull();
   });
 
   it("keeps the trade-off flag only when the quote is really in the answer", () => {
@@ -190,5 +190,36 @@ describe("a second why-question on the same item", () => {
     expect(second).toBeDefined();
     expect(second!.item_id).toBe("BE.ERR.M2");
     expect(second!.ticket).toBe("PAY-1");
+  });
+});
+
+describe("review fixes: held-back answers and releasing a non-answer", () => {
+  function openOne() {
+    devProof("BE.ERR.M2");
+    const [q] = propose();
+    return openQuestion(db, { session_id: "s1", question_id: q!.question_id, text: "Why 5 seconds?" }, NOW);
+  }
+  const soon = new Date(NOW.getTime() + 60_000);
+  const row = (id: string) => db.prepare("SELECT answer, answered_at, open_session, closed_reason FROM pending_questions WHERE id = ?").get(id) as Record<string, unknown>;
+
+  it("does not save an answer the privacy check refuses, and keeps the question open", () => {
+    const q = openOne();
+    expect(captureAnswer(db, "s1", "fetch(u, { signal });", soon, () => false)).toEqual({ captured: false, held_back: true });
+    expect(row(q.question_id)).toMatchObject({ answer: null, answered_at: null, open_session: "s1" });
+  });
+
+  it("releases a captured message that was not an answer, back to the pending list", () => {
+    const q = openOne();
+    captureAnswer(db, "s1", "let us fix the failing test first", soon);
+    expect(releaseAnswer(db, { question_id: q.question_id })).toEqual({ released: true });
+    expect(row(q.question_id)).toMatchObject({ answer: null, answered_at: null, closed_reason: "later" });
+    expect(propose().map((p) => p.question_id)).toContain(q.question_id);
+  });
+
+  it("does not release an answer that was already rated", () => {
+    const q = openOne();
+    captureAnswer(db, "s1", "Because the provider can hang for a long time", soon);
+    rateAnswer(db, { question_id: q.question_id, rating: "not_yet" });
+    expect(() => releaseAnswer(db, { question_id: q.question_id })).toThrow(/already rated/);
   });
 });

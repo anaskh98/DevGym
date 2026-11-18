@@ -74,6 +74,9 @@ One question at a time:
 2. Call `ask_question` with the session id, the `question_id`, and the exact text, **right before** you ask it.
 3. Ask it, and wait. The developer's next message is saved as the answer by a hook, word for word.
    You do not record it. If they reply "later" or "skip", the question is kept for next time: move on.
+   If the reply was not really an answer (they changed the subject, or asked something without a question mark),
+   call `release_answer` with the question id: the question goes back to the list. Never rate a non-answer.
+   If the hook says the message was not saved because it looked like code, ask them to answer in plain words.
 4. Call `rate_answer`:
    - `clear`: the real reason, and they know what the other way would cost.
    - `partial`: right but thin, or the trade-off is missing, or part is wrong.

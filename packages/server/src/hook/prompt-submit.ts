@@ -34,10 +34,17 @@ async function main(): Promise<void> {
   try {
     migrate(db);
     const result = captureAnswer(db, input.session_id, input.prompt, new Date(), answerAllowed);
-    if (!result.captured) return;
+    if (!result.captured) {
+      if (result.held_back) {
+        const note =
+          "Coach: this message was not saved as the answer, because it looked like code, a secret or a client name. The question is still open. Ask the developer to answer in plain words.";
+        process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
+      }
+      return;
+    }
     const note =
       result.closed === "answered"
-        ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (or score_drill for a drill).`
+        ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (for a drill: drill_key, then score_drill). If it was not really an answer, call release_answer.`
         : `Coach: kept question ${result.question_id} for later. Do not rate it.`;
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
   } finally {

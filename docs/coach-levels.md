@@ -60,7 +60,10 @@ short questions about your own work. You can say "later".
   never an answer.
 - The AI rates the answer (clear, partial, not yet). To say it names the trade-off, it must copy your exact words;
   the server checks they are really in your answer. An answer is rated once.
-- If your answer contains code or a client name, it is not stored; answer in words.
+- If your answer contains code, a secret or a client name, it is not saved and the question stays open; answer in
+  plain words.
+- If a message you sent was saved but was not an answer (you changed the subject), the AI puts it back with
+  `release_answer` before rating it.
 
 ## Drills
 
@@ -75,8 +78,10 @@ short questions about your own work. You can say "later".
 ## You can lower, never raise
 
 `/fork-trail-coach:coach why <item-id>` lists every piece of evidence, answer and drill, each with an id.
-You can disagree with evidence (it stops counting, your reason is kept) or a drill score (it becomes void and you
-can try another prompt). Disagreeing never raises a state. Answers cannot be disagreed away; ask for a new question.
+You can disagree with a code proof (it stops counting, your reason is kept) or a drill score (it becomes void and
+you can try another prompt). You can also disagree with a fault: your reason is kept and shown, but **the fault still
+counts** until the code is fixed, because removing a fault would raise a state. Disagreeing never raises a state.
+Answers cannot be disagreed away; ask for a new question.
 
 ## The plan
 
@@ -149,3 +154,17 @@ So each hook adds roughly 80 to 100 ms of its own work.
 
 **Wording:** in one plan, Claude wrote that `charge` "retries" when it does not; the retry is in `withRetry`. The
 server checks that an exercise names a real file, but it cannot check every sentence.
+
+**What the whole-branch review found and fixed** (each with a test that failed first):
+
+- One huge commit (for example a big binary file) could break capture for good. Binary files are no longer printed,
+  generated paths are left out by git, and a commit git cannot read is marked read and skipped.
+- No area level could ever rise, because junior items with only "against" signals could never be Shown.
+- AI lines counted as yours when Claude ran in a parent folder or a worktree. Lines are now matched by the repo's
+  identity (its shared `.git` folder), the same in every worktree.
+- A company ladder got two different ids depending on how the folder path was written.
+- A commit's ticket came from the branch checked out at the time Coach ran, and `UTF-8` looked like a ticket key.
+- Disagreeing with a fault could raise a state. Now a fault keeps counting.
+- The same function proposed by the AI three times counted as three proofs.
+- An answer refused by the privacy check still counted as an answer.
+- A captured message that was not an answer could not be put back.

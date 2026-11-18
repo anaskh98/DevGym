@@ -7,7 +7,7 @@ import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { repoIdentitySync } from "../git/identity.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
-import { openQuestion, rateAnswer } from "../coach/questions.js";
+import { openQuestion, rateAnswer, releaseAnswer } from "../coach/questions.js";
 import { drillKey, scoreDrill, startDrill } from "../coach/drills.js";
 import { checkItemArea, saveStackNote } from "../coach/plan.js";
 import { catchUpHere, coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
@@ -21,6 +21,7 @@ import {
   drillKeyInput,
   startDrillInput,
   rateAnswerInput,
+  releaseAnswerInput,
   coachHistoryInput,
   coachItemInput,
   coachStatusInput,
@@ -372,6 +373,17 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         }
         return openQuestion(db, { ...i, ...(ladderId ? { ladder_id: ladderId } : {}) });
       }),
+  );
+
+  server.registerTool(
+    "release_answer",
+    {
+      title: "Release answer",
+      description:
+        "Put back a message that the hook saved as an answer but was not one (for example the developer changed the subject or asked something). The question goes back to the pending list. Works only before the answer is rated or scored.",
+      inputSchema: releaseAnswerInput,
+    },
+    (input) => reply(() => releaseAnswer(db, input)),
   );
 
   server.registerTool(

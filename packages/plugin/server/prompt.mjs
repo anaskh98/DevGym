@@ -19944,7 +19944,6 @@ var SIGNALS = [
 var BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
 
 // src/coach/questions.ts
-var HELD_BACK = "(held back: the answer contained code, a secret or a name on the denylist)";
 function isLaterReply(text2) {
   return /^\s*(later|skip|not now|later please)\s*[.!]*\s*$/i.test(text2);
 }
@@ -19966,8 +19965,8 @@ function captureAnswer(db, sessionId, message, now = /* @__PURE__ */ new Date(),
     db.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE id = ?").run(row.id);
     return { captured: true, question_id: row.id, closed: "later" };
   }
-  const answer = allowed(text2) ? text2 : HELD_BACK;
-  db.prepare("UPDATE pending_questions SET answer = ?, answered_at = ?, closed_reason = 'answered', open_session = NULL WHERE id = ?").run(answer, now.toISOString(), row.id);
+  if (!allowed(text2)) return { captured: false, held_back: true };
+  db.prepare("UPDATE pending_questions SET answer = ?, answered_at = ?, closed_reason = 'answered', open_session = NULL WHERE id = ?").run(text2, now.toISOString(), row.id);
   return { captured: true, question_id: row.id, closed: "answered" };
 }
 
@@ -20424,8 +20423,14 @@ async function main() {
   try {
     migrate(db);
     const result = captureAnswer(db, input2.session_id, input2.prompt, /* @__PURE__ */ new Date(), answerAllowed);
-    if (!result.captured) return;
-    const note = result.closed === "answered" ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (or score_drill for a drill).` : `Coach: kept question ${result.question_id} for later. Do not rate it.`;
+    if (!result.captured) {
+      if (result.held_back) {
+        const note2 = "Coach: this message was not saved as the answer, because it looked like code, a secret or a client name. The question is still open. Ask the developer to answer in plain words.";
+        process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note2 } }));
+      }
+      return;
+    }
+    const note = result.closed === "answered" ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (for a drill: drill_key, then score_drill). If it was not really an answer, call release_answer.` : `Coach: kept question ${result.question_id} for later. Do not rate it.`;
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
   } finally {
     db.close();

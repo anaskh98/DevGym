@@ -21,8 +21,6 @@ export interface QuestionView {
   opened: boolean;
 }
 
-/** Stored instead of an answer that the privacy check refused (it held code, a secret or a blocked name). */
-export const HELD_BACK = "(held back: the answer contained code, a secret or a name on the denylist)";
 
 interface QuestionRow {
   id: string;
@@ -216,7 +214,7 @@ export function captureAnswer(
   message: string,
   now: Date = new Date(),
   allowed: (text: string) => boolean = () => true,
-): { captured: false } | { captured: true; question_id: string; closed: "answered" | "later" } {
+): { captured: false; held_back?: true } | { captured: true; question_id: string; closed: "answered" | "later" } {
   const row = db.prepare("SELECT * FROM pending_questions WHERE open_session = ? AND answered_at IS NULL AND closed_reason IS NULL").get(sessionId) as unknown as
     | QuestionRow
     | undefined;
@@ -232,9 +230,24 @@ export function captureAnswer(
     db.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE id = ?").run(row.id);
     return { captured: true, question_id: row.id, closed: "later" };
   }
-  const answer = allowed(text) ? text : HELD_BACK;
-  db.prepare("UPDATE pending_questions SET answer = ?, answered_at = ?, closed_reason = 'answered', open_session = NULL WHERE id = ?").run(answer, now.toISOString(), row.id);
+  // An answer the privacy check refuses is not saved at all; the question stays open for an answer in plain words.
+  if (!allowed(text)) return { captured: false, held_back: true };
+  db.prepare("UPDATE pending_questions SET answer = ?, answered_at = ?, closed_reason = 'answered', open_session = NULL WHERE id = ?").run(text, now.toISOString(), row.id);
   return { captured: true, question_id: row.id, closed: "answered" };
+}
+
+/**
+ * Puts back a message that was captured but was not an answer (for example "let's fix the test first").
+ * Only before it is rated or scored, so this can never undo a rating.
+ */
+export function releaseAnswer(db: Db, input: { question_id: string }): { released: true } {
+  const row = db.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input.question_id) as unknown as QuestionRow | undefined;
+  if (!row) throw new StoreError(`Question '${input.question_id}' does not exist`);
+  if (row.answered_at === null) throw new StoreError("This question has no answer to release");
+  if (row.rating !== null) throw new StoreError("This answer was already rated, so it cannot be released");
+  if (db.prepare("SELECT 1 FROM drill_attempts WHERE question_id = ?").get(row.id)) throw new StoreError("This drill was already scored, so it cannot be released");
+  db.prepare("UPDATE pending_questions SET answer = NULL, answered_at = NULL, closed_reason = 'later', open_session = NULL WHERE id = ?").run(row.id);
+  return { released: true };
 }
 
 /** Rates a captured answer, once. The trade-off flag needs a quote that is really in the answer. */

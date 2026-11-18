@@ -42325,6 +42325,36 @@ async function updatePrDecisions(db2, options, deps = {}) {
   return { ...result, updated: true };
 }
 
+// src/git/identity.ts
+import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { resolve as resolve4 } from "node:path";
+function normalizeRepoPath(path) {
+  let p = resolve4(path);
+  try {
+    p = realpathSync.native(p);
+  } catch {
+  }
+  p = p.replaceAll("\\", "/");
+  return process.platform === "win32" ? p.toLowerCase() : p;
+}
+var ARGS = ["rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir"];
+function parse4(stdout) {
+  const [top, common] = stdout.trim().split(/\r?\n/);
+  return top && common ? { top, key: normalizeRepoPath(common) } : null;
+}
+async function repoIdentity(cwd, exec = run2) {
+  const result = await exec("git", ARGS, cwd);
+  return result.code === 0 ? parse4(result.stdout) : null;
+}
+function repoIdentitySync(cwd) {
+  try {
+    return parse4(execFileSync("git", ARGS, { cwd, encoding: "utf8", timeout: 3e3, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }));
+  } catch {
+    return null;
+  }
+}
+
 // src/coach/ladder/schema.ts
 var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
@@ -42683,6 +42713,15 @@ function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
     row.id
   );
   return view(db2, { ...row, question: input2.text, open_session: input2.session_id });
+}
+function releaseAnswer(db2, input2) {
+  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
+  if (!row) throw new StoreError(`Question '${input2.question_id}' does not exist`);
+  if (row.answered_at === null) throw new StoreError("This question has no answer to release");
+  if (row.rating !== null) throw new StoreError("This answer was already rated, so it cannot be released");
+  if (db2.prepare("SELECT 1 FROM drill_attempts WHERE question_id = ?").get(row.id)) throw new StoreError("This drill was already scored, so it cannot be released");
+  db2.prepare("UPDATE pending_questions SET answer = NULL, answered_at = NULL, closed_reason = 'later', open_session = NULL WHERE id = ?").run(row.id);
+  return { released: true };
 }
 function rateAnswer(db2, input2) {
   const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
@@ -43674,7 +43713,8 @@ function loadLadder(track, opts) {
   const home = opts.home ?? homedir2();
   const builtin = BUILTIN_LADDERS[track];
   const tries = [
-    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(opts.repoRoot).digest("hex").slice(0, 8)}/${track}` },
+    // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
+    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
     { source: "home", path: join7(home, FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
@@ -44053,28 +44093,6 @@ function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
 
 // src/coach/capture.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
-
-// src/git/identity.ts
-import { realpathSync } from "node:fs";
-import { resolve as resolve4 } from "node:path";
-function normalizeRepoPath(path) {
-  let p = resolve4(path);
-  try {
-    p = realpathSync.native(p);
-  } catch {
-  }
-  p = p.replaceAll("\\", "/");
-  return process.platform === "win32" ? p.toLowerCase() : p;
-}
-var ARGS = ["rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir"];
-function parse4(stdout) {
-  const [top, common] = stdout.trim().split(/\r?\n/);
-  return top && common ? { top, key: normalizeRepoPath(common) } : null;
-}
-async function repoIdentity(cwd, exec = run2) {
-  const result = await exec("git", ARGS, cwd);
-  return result.code === 0 ? parse4(result.stdout) : null;
-}
 
 // src/rules/engine.ts
 var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
@@ -44505,11 +44523,12 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const lines = (file2?.added ?? []).filter((l) => l.line >= input2.line_start && l.line <= input2.line_end);
   if (lines.length === 0) throw new StoreError(`Lines ${input2.line_start}-${input2.line_end} of ${input2.file} were not added in that commit`);
   const ai = aiHashesFor(db2, key, file2.path);
-  const devLine = lines.find((l) => {
-    const n = normalizeLine(l.text);
-    return n !== null && !ai.has(lineHash(n));
-  });
-  if (!devLine) throw new StoreError("Claude wrote those lines, so they cannot count as the developer's evidence");
+  const hashed = lines.map((l) => ({ line: l, normalized: normalizeLine(l.text) })).filter((l) => l.normalized !== null);
+  if (hashed.some((l) => ai.has(lineHash(l.normalized)))) {
+    throw new StoreError("Claude wrote some of those lines, so they cannot count as the developer's evidence. Cite only lines the developer wrote");
+  }
+  const devLine = hashed[0]?.line;
+  if (!devLine) throw new StoreError("Those lines are too short to tell who wrote them");
   const source = await exec("git", ["show", `${sha}:${file2.path}`], top);
   const symbol2 = source.code === 0 && isSupported(file2.path) ? (await symbolAtLine(file2.path, source.stdout, devLine.line))?.name ?? null : null;
   const ticket = ticketForCommit({ sha, authorEmail: email3, authorDate, subject }, { onDefault: (await defaultBranchCommits(top, exec)).has(sha), branch: await currentBranch(top, exec) });
@@ -44990,6 +45009,9 @@ var askQuestionInput = external_exports.strictObject({
   item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none"),
   text: shortText.describe("The question exactly as you will ask it. It must not give the answer away")
 }).refine((i2) => i2.question_id === void 0 !== (i2.decision_id === void 0), { message: "Give exactly one of question_id or decision_id" });
+var releaseAnswerInput = external_exports.strictObject({
+  question_id: id
+});
 var rateAnswerInput = external_exports.strictObject({
   question_id: id,
   rating: external_exports.enum(RATINGS),
@@ -45043,6 +45065,7 @@ function createServer2(db2, tickets2, options = {}) {
   });
   const ticket = (ticketId) => ensureTicket(db2, tickets2, ticketId, guard);
   const home = options.coachHome === void 0 ? {} : { home: options.coachHome };
+  const coachRoot = repoIdentitySync(root)?.top ?? root;
   server2.registerTool(
     "get_ticket",
     {
@@ -45089,7 +45112,7 @@ function createServer2(db2, tickets2, options = {}) {
       const decision = input2.pointer ? { ...input2, pointer: await enrichPointer(input2.pointer, root) } : input2;
       guard.check(decision);
       await ticket(decision.ticket_id);
-      const ladderId2 = decision.item_id === void 0 ? null : ladderForItem(root, decision.item_id, home).loaded.ladder_id;
+      const ladderId2 = decision.item_id === void 0 ? null : ladderForItem(coachRoot, decision.item_id, home).loaded.ladder_id;
       return logDecision(db2, decision, root, ladderId2);
     })
   );
@@ -45190,7 +45213,7 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => write2(
       input2,
       (i2) => saveGrowthPlan(db2, i2, (area) => {
-        const { loaded } = ladderForItem(root, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
+        const { loaded } = ladderForItem(coachRoot, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
         checkItemArea(db2, { ...area, ladder_id: loaded.ladder_id });
         return loaded.ladder_id;
       })
@@ -45227,7 +45250,7 @@ function createServer2(db2, tickets2, options = {}) {
       annotations: { readOnlyHint: true }
     },
     (input2) => reply(() => {
-      const { loaded, item } = ladderForItem(root, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+      const { loaded, item } = ladderForItem(coachRoot, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
       return itemDetail(db2, loaded, item);
     })
   );
@@ -45271,10 +45294,19 @@ function createServer2(db2, tickets2, options = {}) {
       if (i2.decision_id !== void 0) {
         const decision = db2.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i2.decision_id);
         const item = i2.item_id ?? decision?.item_id ?? void 0;
-        if (item) ladderId2 = ladderForItem(root, item, home).loaded.ladder_id;
+        if (item) ladderId2 = ladderForItem(coachRoot, item, home).loaded.ladder_id;
       }
       return openQuestion(db2, { ...i2, ...ladderId2 ? { ladder_id: ladderId2 } : {} });
     })
+  );
+  server2.registerTool(
+    "release_answer",
+    {
+      title: "Release answer",
+      description: "Put back a message that the hook saved as an answer but was not one (for example the developer changed the subject or asked something). The question goes back to the pending list. Works only before the answer is rated or scored.",
+      inputSchema: releaseAnswerInput
+    },
+    (input2) => reply(() => releaseAnswer(db2, input2))
   );
   server2.registerTool(
     "rate_answer",
@@ -45294,7 +45326,7 @@ function createServer2(db2, tickets2, options = {}) {
     },
     (input2) => reply(async () => {
       await catchUpHere(db2, { root, ...home });
-      const ctx = ladderForItem(root, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+      const ctx = ladderForItem(coachRoot, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
       return startDrill(db2, ctx, { session_id: input2.session_id });
     })
   );
@@ -45309,7 +45341,7 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => reply(() => {
       const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
       if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
-      return drillKey(db2, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input2.question_id);
+      return drillKey(db2, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input2.question_id);
     })
   );
   server2.registerTool(
@@ -45322,7 +45354,7 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => reply(() => {
       const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
       if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
-      return scoreDrill(db2, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input2);
+      return scoreDrill(db2, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input2);
     })
   );
   server2.registerTool(
@@ -45333,7 +45365,7 @@ function createServer2(db2, tickets2, options = {}) {
       inputSchema: saveStackNoteInput
     },
     (input2) => write2(input2, (i2) => {
-      const { loaded } = ladderForItem(root, i2.item_id, home);
+      const { loaded } = ladderForItem(coachRoot, i2.item_id, home);
       return saveStackNote(db2, loaded, i2);
     })
   );

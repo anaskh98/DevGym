@@ -198,6 +198,10 @@ export const askQuestionInput = z
   })
   .refine((i) => (i.question_id === undefined) !== (i.decision_id === undefined), { message: "Give exactly one of question_id or decision_id" });
 
+export const releaseAnswerInput = z.strictObject({
+  question_id: id,
+});
+
 export const rateAnswerInput = z.strictObject({
   question_id: id,
   rating: z.enum(RATINGS),
