@@ -127,6 +127,13 @@ describe.skipIf(!built)("edit hook: who wrote the line", () => {
     ]);
   });
 
+  it("saves hashes when Claude was started in a folder above the repo", () => {
+    gitInit();
+    const event = JSON.stringify({ session_id: "above", cwd: dir, hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: { file_path: join(project, "src", "pay.ts"), new_string: "const timeout = 5000;" } });
+    expect(runHook(event)).toEqual({ status: 0, stdout: "" });
+    expect(hashes()).toEqual([{ file_path: "src/pay.ts", session_id: "above" }]);
+  });
+
   it("stays silent and exits 0 when the database cannot be opened", () => {
     gitInit();
     const blocker = join(dir, "blocker");

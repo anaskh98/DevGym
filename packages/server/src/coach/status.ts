@@ -8,6 +8,7 @@ import { run, type Run } from "../pointers/git.js";
 import { isSupported, symbolAtLine } from "../pointers/symbols.js";
 import { aiHashesFor, lineHash, normalizeLine } from "./attribution.js";
 import { catchUp, ticketForCommit, type CatchUpResult } from "./capture.js";
+import { repoIdentity } from "../git/identity.js";
 import { drillsReady } from "./drills.js";
 import { toIso, factsForItem } from "./facts.js";
 import { findItem, loadActiveLadders, loadLadder, type LoadedLadder } from "./ladder/load.js";
@@ -295,8 +296,9 @@ export interface ProposeEvidenceInput {
  * commit, the commit must be the developer's, and at least one of the lines must be developer-written.
  */
 export async function proposeEvidence(db: Db, root: string, input: ProposeEvidenceInput, exec: Run = run): Promise<{ evidence_id: string }> {
-  const top = await repoTopLevel(root, exec);
-  if (top === null) throw new StoreError("This folder is not a git repo");
+  const identity = await repoIdentity(root, exec);
+  if (identity === null) throw new StoreError("This folder is not a git repo");
+  const { top, key } = identity;
   const { loaded } = ladderForItem(top, input.item_id, input.ladder_id === undefined ? {} : { ladderId: input.ladder_id });
   if (input.line_end < input.line_start) throw new StoreError("line_end must not be before line_start");
 
@@ -309,7 +311,7 @@ export async function proposeEvidence(db: Db, root: string, input: ProposeEviden
   const file = (await commitDiff(top, sha, exec)).find((f) => f.path === input.file.replaceAll("\\", "/"));
   const lines = (file?.added ?? []).filter((l) => l.line >= input.line_start && l.line <= input.line_end);
   if (lines.length === 0) throw new StoreError(`Lines ${input.line_start}-${input.line_end} of ${input.file} were not added in that commit`);
-  const ai = aiHashesFor(db, top, file!.path);
+  const ai = aiHashesFor(db, key, file!.path);
   const devLine = lines.find((l) => {
     const n = normalizeLine(l.text);
     return n !== null && !ai.has(lineHash(n));
@@ -322,7 +324,7 @@ export async function proposeEvidence(db: Db, root: string, input: ProposeEviden
   const id = randomUUID();
   db.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)",
-  ).run(id, loaded.ladder_id, input.item_id, top, sha, file!.path, symbol, ticket, input.why, authorDate);
+  ).run(id, loaded.ladder_id, input.item_id, key, sha, file!.path, symbol, ticket, input.why, authorDate);
   return { evidence_id: id };
 }
 

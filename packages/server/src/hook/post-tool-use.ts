@@ -1,8 +1,9 @@
 // PostToolUse hook: after Claude edits a file, record its path for the tracked session, and save a hash of each
 // line Claude wrote (for any session in a git repo), so Coach can tell AI-written lines from the developer's.
 // A hook must never break the developer's session, so every failure ends quietly with exit code 0.
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { dirname, isAbsolute, resolve } from "node:path";
+import { repoIdentitySync } from "../git/identity.js";
 import { linesFromToolInput, saveAiLines } from "../coach/attribution.js";
 import { defaultDbPath, openDb } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
@@ -23,16 +24,6 @@ async function readStdin(): Promise<string> {
   return data;
 }
 
-/** The git repo the file is in, as git prints it, or null. Never throws. */
-function repoTopLevel(cwd: string): string | null {
-  try {
-    const out = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8", timeout: 3000, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-    return out.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 async function main(): Promise<void> {
   const input = JSON.parse(await readStdin()) as HookInput;
   const sessionId = input.session_id;
@@ -42,8 +33,12 @@ async function main(): Promise<void> {
 
   // Who wrote the line needs a record for every session in a git repo, so the database is made if missing.
   // Outside a git repo nothing is read from commits, so no database is made just for this edit.
-  const repoRoot = repoTopLevel(cwd);
-  if (repoRoot === null && !existsSync(defaultDbPath())) return;
+  // The repo is found from the edited file's own folder, so it works when Claude runs above the repo or in a worktree.
+  const absolute = isAbsolute(file) ? file : resolve(cwd, file);
+  let folder = dirname(absolute);
+  while (!existsSync(folder) && dirname(folder) !== folder) folder = dirname(folder); // the nearest folder that exists
+  const repo = repoIdentitySync(folder);
+  if (repo === null && !existsSync(defaultDbPath())) return;
 
   const repoPath = toRepoPath(file, cwd);
   if (repoPath === null) return; // Outside the project: not ours to record.
@@ -54,10 +49,12 @@ async function main(): Promise<void> {
   const db = openDb();
   try {
     migrate(db);
-    if (repoRoot !== null) {
-      const pathInRepo = toRepoPath(file, repoRoot);
+    if (repo !== null) {
+      const pathInRepo = toRepoPath(absolute, repo.top);
       const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
-      if (pathInRepo !== null) saveAiLines(db, repoRoot, pathInRepo, sessionId, linesFromToolInput(toolName, input.tool_input));
+      if (pathInRepo !== null && !containsBlockedName(pathInRepo, denylist)) {
+        saveAiLines(db, repo.key, pathInRepo, sessionId, linesFromToolInput(toolName, input.tool_input));
+      }
     }
     const { tracked, first } = recordFileEdit(db, sessionId, repoPath);
     if (tracked && first) {

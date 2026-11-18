@@ -13,6 +13,7 @@ import { PrivacyGuard } from "../privacy/guard.js";
 import { recordFileEdit } from "../store.js";
 import { MarkdownTicketAdapter } from "../tickets/markdown.js";
 import { latestGrowthPlan } from "../api/data.js";
+import { repoIdentitySync } from "../git/identity.js";
 import { createServer } from "./server.js";
 
 let db: Db;
@@ -591,7 +592,7 @@ describe("start_drill reads new commits first", () => {
     git(["config", "user.email", "dev@example.com"]);
     git(["config", "user.name", "Dev"]);
     git(["config", "commit.gpgsign", "false"]);
-    const top = git(["rev-parse", "--show-toplevel"]);
+    const top = repoIdentitySync(repo)!.key;
     db.prepare("INSERT INTO ai_line_hashes (repo_root, file_path, hash, session_id, created_at) VALUES (?, 'x', 'seed', 's0', datetime('now', '-1 day'))").run(top);
     await ok("set_coach_tracks", { tracks: ["backend"] });
     // Shown: 3 proofs on 2 tickets and 2 clear answers, then a failed drill just now.

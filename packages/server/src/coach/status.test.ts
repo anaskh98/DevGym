@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { setTracks } from "./settings.js";
+import { repoIdentitySync } from "../git/identity.js";
 import { coachStatus, renderProgress, stateHistory } from "./status.js";
 
 let db: Db;
@@ -47,7 +48,7 @@ beforeEach(() => {
   git(["config", "user.email", "dev@example.com"]);
   git(["config", "user.name", "Dev"]);
   git(["config", "commit.gpgsign", "false"]);
-  top = git(["rev-parse", "--show-toplevel"]);
+  top = repoIdentitySync(repo)!.key;
   db.prepare("INSERT INTO ai_line_hashes (repo_root, file_path, hash, session_id, created_at) VALUES (?, 'x', 'seed', 's0', '2026-11-01 00:00:00')").run(top);
   writeFileSync(join(repo, "package.json"), JSON.stringify({ dependencies: { express: "^4" } }));
   commit(

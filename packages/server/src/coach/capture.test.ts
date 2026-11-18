@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { saveAiLines } from "./attribution.js";
+import { repoIdentitySync } from "../git/identity.js";
 import { catchUp, isGeneratedPath, ticketForCommit } from "./capture.js";
 import { loadActiveLadders, type LoadedLadder } from "./ladder/load.js";
 import type { Run } from "../pointers/git.js";
@@ -53,7 +54,7 @@ beforeEach(() => {
   git(["config", "user.email", "dev@example.com"]);
   git(["config", "user.name", "Dev"]);
   git(["config", "commit.gpgsign", "false"]);
-  top = git(["rev-parse", "--show-toplevel"]);
+  top = repoIdentitySync(repo)!.key;
   ladders = loadActiveLadders(["backend", "frontend"], { repoRoot: repo, home: dir });
 });
 afterEach(() => {
@@ -258,5 +259,25 @@ describe("review fixes: big commits and the commit's own branch", () => {
     const c = (subject: string) => ({ sha: "a", authorEmail: "d", authorDate: "2026-11-12T10:00:00Z", subject });
     expect(ticketForCommit(c("Use UTF-8 names"), { onDefault: true, branch: null })).toBe("week:2026-W46");
     expect(ticketForCommit(c("Hash with SHA-256 for PAY-7"), { onDefault: true, branch: null })).toBe("PAY-7");
+  });
+});
+
+describe("review fixes: one repo identity for every worktree", () => {
+  it("knows a line Claude wrote in a worktree when Coach runs in the main checkout", async () => {
+    const wt = join(dir, "wt");
+    git(["commit", "-q", "--allow-empty", "-m", "base"]);
+    git(["worktree", "add", "-q", "-b", "feat", wt]);
+    const main = repoIdentitySync(repo)!;
+    const other = repoIdentitySync(wt)!;
+    expect(other.key).toBe(main.key);
+    expect(other.top).not.toBe(main.top);
+    db.prepare("INSERT INTO ai_line_hashes (repo_root, file_path, hash, session_id, created_at) VALUES (?, 'x', 'seed', 's0', '2026-11-01 00:00:00')").run(main.key);
+    saveAiLines(db, other.key, "src/pay.ts", "s1", [TIMEOUT_LINE]);
+    mkdirSync(join(wt, "src"), { recursive: true });
+    writeFileSync(join(wt, "src", "pay.ts"), PAY(TIMEOUT_LINE));
+    execFileSync("git", ["add", "-A"], { cwd: wt });
+    execFileSync("git", ["commit", "-q", "-m", "PAY-1 time limit"], { cwd: wt, env: { ...process.env, GIT_AUTHOR_DATE: "2026-11-10T10:00:00Z", GIT_COMMITTER_DATE: "2026-11-10T10:00:00Z" } });
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(evidence().find((e) => e.signal_id === "err.timeout-set")?.author).toBe("ai");
   });
 });

@@ -2,8 +2,34 @@ import { createRequire as __ftcCreateRequire } from 'node:module';
 const require = __ftcCreateRequire(import.meta.url);
 
 // src/hook/post-tool-use.ts
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { dirname as dirname3, isAbsolute as isAbsolute2, resolve as resolve3 } from "node:path";
+
+// src/git/identity.ts
+import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+function normalizeRepoPath(path) {
+  let p = resolve(path);
+  try {
+    p = realpathSync.native(p);
+  } catch {
+  }
+  p = p.replaceAll("\\", "/");
+  return process.platform === "win32" ? p.toLowerCase() : p;
+}
+var ARGS = ["rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir"];
+function parse(stdout) {
+  const [top, common] = stdout.trim().split(/\r?\n/);
+  return top && common ? { top, key: normalizeRepoPath(common) } : null;
+}
+function repoIdentitySync(cwd) {
+  try {
+    return parse(execFileSync("git", ARGS, { cwd, encoding: "utf8", timeout: 3e3, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }));
+  } catch {
+    return null;
+  }
+}
 
 // src/coach/attribution.ts
 import { createHash } from "node:crypto";
@@ -351,10 +377,10 @@ function migrate(db, list = migrations) {
 }
 
 // src/paths.ts
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve as resolve2, sep } from "node:path";
 function toRepoPath(rawPath, root) {
   const path = sep === "/" ? rawPath.replaceAll("\\", "/") : rawPath;
-  const absolute = isAbsolute(path) ? path : resolve(root, path);
+  const absolute = isAbsolute(path) ? path : resolve2(root, path);
   const rel = relative(root, absolute);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
   return rel.split(sep).join("/");
@@ -455,22 +481,17 @@ async function readStdin() {
   for await (const chunk of process.stdin) data += chunk;
   return data;
 }
-function repoTopLevel(cwd) {
-  try {
-    const out = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8", timeout: 3e3, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-    return out.trim() || null;
-  } catch {
-    return null;
-  }
-}
 async function main() {
   const input = JSON.parse(await readStdin());
   const sessionId = input.session_id;
   const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
   if (typeof sessionId !== "string" || typeof file !== "string") return;
-  const repoRoot = repoTopLevel(cwd);
-  if (repoRoot === null && !existsSync(defaultDbPath())) return;
+  const absolute = isAbsolute2(file) ? file : resolve3(cwd, file);
+  let folder = dirname3(absolute);
+  while (!existsSync(folder) && dirname3(folder) !== folder) folder = dirname3(folder);
+  const repo = repoIdentitySync(folder);
+  if (repo === null && !existsSync(defaultDbPath())) return;
   const repoPath = toRepoPath(file, cwd);
   if (repoPath === null) return;
   const denylist = loadDenylist();
@@ -478,10 +499,12 @@ async function main() {
   const db = openDb();
   try {
     migrate(db);
-    if (repoRoot !== null) {
-      const pathInRepo = toRepoPath(file, repoRoot);
+    if (repo !== null) {
+      const pathInRepo = toRepoPath(absolute, repo.top);
       const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
-      if (pathInRepo !== null) saveAiLines(db, repoRoot, pathInRepo, sessionId, linesFromToolInput(toolName, input.tool_input));
+      if (pathInRepo !== null && !containsBlockedName(pathInRepo, denylist)) {
+        saveAiLines(db, repo.key, pathInRepo, sessionId, linesFromToolInput(toolName, input.tool_input));
+      }
     }
     const { tracked, first } = recordFileEdit(db, sessionId, repoPath);
     if (tracked && first) {

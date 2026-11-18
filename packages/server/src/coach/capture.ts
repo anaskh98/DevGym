@@ -4,7 +4,8 @@
 import { randomUUID } from "node:crypto";
 import { transaction, type Db } from "../db/connection.js";
 import { changeId, commitDiff, type FileDiff } from "../git/diff.js";
-import { currentBranch, defaultBranchCommits, developerEmails, listCommits, repoTopLevel, type CommitInfo } from "../git/log.js";
+import { repoIdentity } from "../git/identity.js";
+import { currentBranch, defaultBranchCommits, developerEmails, listCommits, type CommitInfo } from "../git/log.js";
 import { run, type Run } from "../pointers/git.js";
 import { isSupported, symbolAtLine } from "../pointers/symbols.js";
 import { matchLine } from "../rules/engine.js";
@@ -126,6 +127,7 @@ interface Fix {
 async function readCommit(
   db: Db,
   top: string,
+  repoKey: string,
   sha: string,
   diff: FileDiff[],
   targets: Map<string, Target[]>,
@@ -142,7 +144,7 @@ async function readCommit(
       for (const rule of matchLine(SIGNALS, file.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
     }
     if (hits.length > 0) {
-      const ai = aiHashesFor(db, top, file.path);
+      const ai = aiHashesFor(db, repoKey, file.path);
       const source = await showFile(top, sha, file.path, exec);
       const symbols = await symbolsFor(file.path, source, [...new Set(hits.map((h) => h.line))]);
       for (const hit of hits) {
@@ -188,11 +190,11 @@ async function readCommit(
 }
 
 /** The moment capture starts in a repo: Claude's first edit there, saved once. Null before any edit. */
-function captureStart(db: Db, top: string): string | null {
-  const key = `capture_start:${top}`;
+function captureStart(db: Db, repoKey: string): string | null {
+  const key = `capture_start:${repoKey}`;
   const saved = db.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key) as { value: string } | undefined;
   if (saved) return JSON.parse(saved.value) as string;
-  const first = firstHashAt(db, top);
+  const first = firstHashAt(db, repoKey);
   if (first !== null) db.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?)").run(key, JSON.stringify(first));
   return first;
 }
@@ -210,16 +212,18 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
     more_left: false,
   });
 
-  const top = await repoTopLevel(opts.root, exec);
-  if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  const identity = await repoIdentity(opts.root, exec);
+  if (identity === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  // Git commands run in this work tree; the database keys everything by the repo, the same for every worktree.
+  const { top, key } = identity;
   const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
   if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
   // Where capture starts in this repo is remembered, so cleaning up old hashes never stops it.
-  const since = captureStart(db, top);
+  const since = captureStart(db, key);
   pruneAiLines(db, t.hash_keep_days, now);
   if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
 
-  const seen = new Set((db.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top) as { sha: string }[]).map((r) => r.sha));
+  const seen = new Set((db.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key) as { sha: string }[]).map((r) => r.sha));
   const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
   const batch = unseen.slice(0, t.catchup_max);
   if (batch.length === 0) return nothing();
@@ -244,30 +248,30 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
       diff = await commitDiff(top, c.sha, exec);
     } catch {
       // A commit git cannot show (too big, broken) is marked read and skipped, so it never blocks later commits.
-      markSeen.run(top, c.sha, `skipped:${c.sha}`);
+      markSeen.run(key, c.sha, `skipped:${c.sha}`);
       continue;
     }
     const id = changeId(diff);
-    if (sameChange.get(top, id)) {
-      markSeen.run(top, c.sha, id); // The same change was read already, under another commit id.
+    if (sameChange.get(key, id)) {
+      markSeen.run(key, c.sha, id); // The same change was read already, under another commit id.
       continue;
     }
     const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
     let found: { rows: NewRow[]; fixes: Fix[] };
     try {
-      found = await readCommit(db, top, c.sha, diff, targets, exec);
+      found = await readCommit(db, top, key, c.sha, diff, targets, exec);
     } catch {
-      markSeen.run(top, c.sha, id);
+      markSeen.run(key, c.sha, id);
       continue;
     }
     const { rows, fixes } = found;
     transaction(db, () => {
       for (const r of rows) {
-        insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
         evidenceAdded++;
       }
-      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(top, c.sha, id);
+      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
+      markSeen.run(key, c.sha, id);
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };

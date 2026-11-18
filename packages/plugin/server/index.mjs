@@ -2985,7 +2985,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve4.call(this, root, ref);
+      let _sch = resolve5.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
@@ -3012,7 +3012,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve4(root, ref) {
+    function resolve5(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3872,11 +3872,11 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse4(serialize(uri, options), options);
+        parse5(serialize(uri, options), options);
       }
       return uri;
     }
-    function resolve4(baseURI, relativeURI, options) {
+    function resolve5(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -3915,8 +3915,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative2, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse4(serialize(base, options), options);
-        relative2 = parse4(serialize(relative2, options), options);
+        base = parse5(serialize(base, options), options);
+        relative2 = parse5(serialize(relative2, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative2.scheme) {
@@ -4234,7 +4234,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse4(uri, opts) {
+    function parse5(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -4267,11 +4267,11 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize: normalize2,
-      resolve: resolve4,
+      resolve: resolve5,
       resolveComponent,
       equal,
       serialize,
-      parse: parse4
+      parse: parse5
     };
     module2.exports = fastUri;
     module2.exports.default = fastUri;
@@ -9117,18 +9117,18 @@ var validateAsync = async (schema, value, _ctx) => {
   return result.issues.length === 0;
 };
 var _encode = (_Err) => {
-  const parse4 = _parse(_Err);
+  const parse5 = _parse(_Err);
   const fn = (schema, value, _ctx, _params) => {
     const ctx = _ctx ? { ..._ctx, direction: "backward" } : { direction: "backward" };
-    return parse4(schema, value, ctx, finalizeParams(fn, _params));
+    return parse5(schema, value, ctx, finalizeParams(fn, _params));
   };
   return fn;
 };
 var encode = /* @__PURE__ */ _encode($ZodRealError);
 var _decode = (_Err) => {
-  const parse4 = _parse(_Err);
+  const parse5 = _parse(_Err);
   const fn = (schema, value, _ctx, _params) => {
-    return parse4(schema, value, _ctx, finalizeParams(fn, _params));
+    return parse5(schema, value, _ctx, finalizeParams(fn, _params));
   };
   return fn;
 };
@@ -10623,7 +10623,7 @@ function capSize(inst, size) {
   if (!caps.length)
     return;
   const cap = Math.min(...caps.map((c) => c[0]));
-  const parse4 = inst._zod.parse;
+  const parse5 = inst._zod.parse;
   inst._zod.parse = (payload, ctx) => {
     const n = size(payload.value);
     if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
@@ -10637,7 +10637,7 @@ function capSize(inst, size) {
         }
       }
     }
-    return parse4(payload, ctx);
+    return parse5(payload, ctx);
   };
 }
 var arraySize = (input2) => Array.isArray(input2) ? input2.length : -1;
@@ -12326,7 +12326,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve4) {
+function isRecursive(inst, stack, resolve5) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -12336,7 +12336,7 @@ function isRecursive(inst, stack, resolve4) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve4);
+      const answer = isRecursive(child, stack, resolve5);
       if (answer > result)
         result = answer;
     }
@@ -12347,7 +12347,7 @@ function isRecursive(inst, stack, resolve4) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve4) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve5) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -12411,7 +12411,7 @@ function isRecursive(inst, stack, resolve4) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve4 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve5 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -28600,12 +28600,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve4) => {
+    return new Promise((resolve5) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve4();
+        resolve5();
       } else {
-        this._stdout.once("drain", resolve4);
+        this._stdout.once("drain", resolve5);
       }
     });
   }
@@ -34934,7 +34934,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
+        await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error62) {
@@ -34951,7 +34951,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       const earlyReject = (error62) => {
         reject(error62);
       };
@@ -35029,7 +35029,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve4(parseResult.data);
+            resolve5(parseResult.data);
           }
         } catch (error62) {
           reject(error62);
@@ -35291,12 +35291,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve4, interval);
+      const timeoutId = setTimeout(resolve5, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -36436,7 +36436,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
+      await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -37842,9 +37842,9 @@ function createApiServer(options) {
   return server2;
 }
 function listen(server2, port2 = DEFAULT_API_PORT) {
-  return new Promise((resolve4, reject) => {
+  return new Promise((resolve5, reject) => {
     server2.once("error", reject);
-    server2.listen(port2, API_HOST, () => resolve4(server2.address().port));
+    server2.listen(port2, API_HOST, () => resolve5(server2.address().port));
   });
 }
 
@@ -37919,11 +37919,11 @@ import { resolve as resolve3 } from "node:path";
 
 // src/pointers/git.ts
 import { execFile } from "node:child_process";
-var run2 = (command, args2, cwd) => new Promise((resolve4) => {
+var run2 = (command, args2, cwd) => new Promise((resolve5) => {
   execFile(command, args2, { cwd, timeout: 3e4, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error62, stdout, stderr) => {
     const missing = error62?.code === "ENOENT";
     const code = missing ? null : error62 ? typeof error62.code === "number" ? error62.code : 1 : 0;
-    resolve4({ code, stdout: String(stdout), stderr: String(stderr) });
+    resolve5({ code, stdout: String(stdout), stderr: String(stderr) });
   });
 });
 function parseRepoSlug(remoteUrl) {
@@ -39587,13 +39587,13 @@ async function Module2(moduleArg = {}) {
       }
       readAsync = /* @__PURE__ */ __name(async (url2) => {
         if (isFileURI(url2)) {
-          return new Promise((resolve4, reject) => {
+          return new Promise((resolve5, reject) => {
             var xhr = new XMLHttpRequest();
             xhr.open("GET", url2, true);
             xhr.responseType = "arraybuffer";
             xhr.onload = () => {
               if (xhr.status == 200 || xhr.status == 0 && xhr.response) {
-                resolve4(xhr.response);
+                resolve5(xhr.response);
                 return;
               }
               reject(xhr.status);
@@ -39789,9 +39789,9 @@ async function Module2(moduleArg = {}) {
     __name(receiveInstantiationResult, "receiveInstantiationResult");
     var info2 = getWasmImports();
     if (Module["instantiateWasm"]) {
-      return new Promise((resolve4, reject) => {
+      return new Promise((resolve5, reject) => {
         Module["instantiateWasm"](info2, (mod, inst) => {
-          resolve4(receiveInstance(mod, inst));
+          resolve5(receiveInstance(mod, inst));
         });
       });
     }
@@ -41124,8 +41124,8 @@ async function Module2(moduleArg = {}) {
   if (runtimeInitialized) {
     moduleRtn = Module;
   } else {
-    moduleRtn = new Promise((resolve4, reject) => {
-      readyPromiseResolve = resolve4;
+    moduleRtn = new Promise((resolve5, reject) => {
+      readyPromiseResolve = resolve5;
       readyPromiseReject = reject;
     });
   }
@@ -42766,11 +42766,11 @@ function snapshot(input2, credits, faults, regressedAt, at, t) {
   const groups = /* @__PURE__ */ new Map();
   for (const e of credits) {
     if (!counts(e.at) || ms(e.at) < windowStart) continue;
-    const key = [e.signal_id ?? e.id, e.file ?? "", e.symbol ?? ""].join("\0");
+    const key = [e.signal_id ?? e.kind, e.file ?? "", e.symbol ?? ""].join("\0");
     const prev = groups.get(key);
     if (!prev || ms(e.at) < ms(prev.at)) groups.set(key, e);
   }
-  const hasSignals = input2.item.signals.length > 0;
+  const hasSignals = input2.item.signals.some((s) => s.polarity === "positive");
   let judged = 0;
   let fromHistory = 0;
   const kept = [];
@@ -42802,9 +42802,8 @@ function snapshot(input2, credits, faults, regressedAt, at, t) {
   };
 }
 function itemStatus(input2, now, t) {
-  const valid = input2.evidence.filter((e) => !e.disagreed);
-  const credits = valid.filter(isCredit);
-  const faults = valid.filter(isFault);
+  const credits = input2.evidence.filter((e) => !e.disagreed).filter(isCredit);
+  const faults = input2.evidence.filter(isFault);
   const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input2.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];
   const regressedIso = drops.length > 0 ? drops.reduce((a, b) => ms(a) >= ms(b) ? a : b) : null;
   const regressedAt = regressedIso === null ? null : ms(regressedIso);
@@ -43961,8 +43960,22 @@ function parseUnifiedDiff(text2) {
   for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
   return files;
 }
+var EXCLUDES = [
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/npm-shrinkwrap.json",
+  "**/*.lock",
+  "**/dist/**",
+  "**/build/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/*.min.*",
+  "**/*.generated.*",
+  "**/__generated__/**"
+].map((glob) => `:(exclude,glob)${glob}`);
 async function commitDiff(root, sha, exec = run2) {
-  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "-M", sha, "--", ".", ...EXCLUDES], root);
   if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
   return parseUnifiedDiff(result.stdout);
 }
@@ -43991,14 +44004,15 @@ async function developerEmails(root, extra, exec = run2) {
 }
 async function listCommits(root, opts) {
   const exec = opts.exec ?? run2;
-  const args2 = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
+  const args2 = ["log", "--branches", "--source", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%S${SEP}%s`];
   if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
   const result = await exec("git", args2, root);
   if (result.code !== 0) return [];
   const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
   return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
-    const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
-    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
+    const [sha = "", authorEmail = "", authorDate = "", source = "", ...subject] = line.split(SEP);
+    const branch = source.replace(/^refs\/heads\//, "");
+    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...branch ? { source: branch } : {} };
   }).filter((c) => emails.has(c.authorEmail)).reverse();
 }
 async function defaultBranchCommits(root, exec = run2) {
@@ -44039,6 +44053,28 @@ function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
 
 // src/coach/capture.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
+
+// src/git/identity.ts
+import { realpathSync } from "node:fs";
+import { resolve as resolve4 } from "node:path";
+function normalizeRepoPath(path) {
+  let p = resolve4(path);
+  try {
+    p = realpathSync.native(p);
+  } catch {
+  }
+  p = p.replaceAll("\\", "/");
+  return process.platform === "win32" ? p.toLowerCase() : p;
+}
+var ARGS = ["rev-parse", "--show-toplevel", "--path-format=absolute", "--git-common-dir"];
+function parse4(stdout) {
+  const [top, common] = stdout.trim().split(/\r?\n/);
+  return top && common ? { top, key: normalizeRepoPath(common) } : null;
+}
+async function repoIdentity(cwd, exec = run2) {
+  const result = await exec("git", ARGS, cwd);
+  return result.code === 0 ? parse4(result.stdout) : null;
+}
 
 // src/rules/engine.ts
 var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
@@ -44097,10 +44133,13 @@ function isoWeek(isoDate) {
   const week = 1 + Math.round((date5.getTime() - firstThursday.getTime()) / (7 * 864e5));
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
+var NOT_TICKETS = /* @__PURE__ */ new Set(["UTF", "SHA", "HTTP", "ISO", "RFC", "TLS", "SSL", "MD", "AES", "RSA", "CVE", "ES", "IPV", "H", "X", "TS", "PEP", "JSR"]);
 function ticketForCommit(c, ctx) {
-  const key = /\b[A-Z][A-Z0-9]+-\d+\b/.exec(c.subject);
-  if (key) return key[0];
-  if (!ctx.onDefault && ctx.branch) return ctx.branch;
+  for (const match of c.subject.matchAll(/\b([A-Z][A-Z0-9]+)-\d+\b/g)) {
+    if (!NOT_TICKETS.has(match[1])) return match[0];
+  }
+  const branch = c.source ?? ctx.branch;
+  if (!ctx.onDefault && branch) return branch;
   return `week:${isoWeek(c.authorDate)}`;
 }
 async function showFile(root, rev, path, exec) {
@@ -44131,7 +44170,7 @@ async function symbolsFor(path, source, lines) {
   }
   return out2;
 }
-async function readCommit(db2, top, sha, diff, targets, exec) {
+async function readCommit(db2, top, repoKey, sha, diff, targets, exec) {
   const rows2 = /* @__PURE__ */ new Map();
   const fixes = /* @__PURE__ */ new Map();
   for (const file2 of diff) {
@@ -44141,7 +44180,7 @@ async function readCommit(db2, top, sha, diff, targets, exec) {
       for (const rule of matchLine(SIGNALS, file2.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
     }
     if (hits.length > 0) {
-      const ai = aiHashesFor(db2, top, file2.path);
+      const ai = aiHashesFor(db2, repoKey, file2.path);
       const source = await showFile(top, sha, file2.path, exec);
       const symbols = await symbolsFor(file2.path, source, [...new Set(hits.map((h) => h.line))]);
       for (const hit of hits) {
@@ -44183,11 +44222,11 @@ async function readCommit(db2, top, sha, diff, targets, exec) {
   }
   return { rows: [...rows2.values()], fixes: [...fixes.values()] };
 }
-function captureStart(db2, top) {
-  const key = `capture_start:${top}`;
+function captureStart(db2, repoKey) {
+  const key = `capture_start:${repoKey}`;
   const saved = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
   if (saved) return JSON.parse(saved.value);
-  const first = firstHashAt(db2, top);
+  const first = firstHashAt(db2, repoKey);
   if (first !== null) db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?)").run(key, JSON.stringify(first));
   return first;
 }
@@ -44203,14 +44242,15 @@ async function catchUp(db2, opts) {
     faults_fixed: 0,
     more_left: false
   });
-  const top = await repoTopLevel(opts.root, exec);
-  if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  const identity = await repoIdentity(opts.root, exec);
+  if (identity === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  const { top, key } = identity;
   const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
   if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
-  const since = captureStart(db2, top);
+  const since = captureStart(db2, key);
   pruneAiLines(db2, t.hash_keep_days, now);
   if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
-  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top).map((r) => r.sha));
+  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key).map((r) => r.sha));
   const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
   const batch = unseen.slice(0, t.catchup_max);
   if (batch.length === 0) return nothing();
@@ -44228,21 +44268,34 @@ async function catchUp(db2, opts) {
   let evidenceAdded = 0;
   let faultsFixed = 0;
   for (const c of batch) {
-    const diff = await commitDiff(top, c.sha, exec);
+    let diff;
+    try {
+      diff = await commitDiff(top, c.sha, exec);
+    } catch {
+      markSeen.run(key, c.sha, `skipped:${c.sha}`);
+      continue;
+    }
     const id2 = changeId(diff);
-    if (sameChange.get(top, id2)) {
-      markSeen.run(top, c.sha, id2);
+    if (sameChange.get(key, id2)) {
+      markSeen.run(key, c.sha, id2);
       continue;
     }
     const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
-    const { rows: rows2, fixes } = await readCommit(db2, top, c.sha, diff, targets, exec);
+    let found;
+    try {
+      found = await readCommit(db2, top, key, c.sha, diff, targets, exec);
+    } catch {
+      markSeen.run(key, c.sha, id2);
+      continue;
+    }
+    const { rows: rows2, fixes } = found;
     transaction(db2, () => {
       for (const r of rows2) {
-        insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
         evidenceAdded++;
       }
-      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(top, c.sha, id2);
+      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
+      markSeen.run(key, c.sha, id2);
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
@@ -44438,8 +44491,9 @@ function itemDetail(db2, loaded, item, now = /* @__PURE__ */ new Date()) {
   return { ladder_id: loaded.ladder_id, item: { id: item.id, title: item.title, good_looks_like: item.good_looks_like, study: item.study }, status, evidence, answers, drills };
 }
 async function proposeEvidence(db2, root, input2, exec = run2) {
-  const top = await repoTopLevel(root, exec);
-  if (top === null) throw new StoreError("This folder is not a git repo");
+  const identity = await repoIdentity(root, exec);
+  if (identity === null) throw new StoreError("This folder is not a git repo");
+  const { top, key } = identity;
   const { loaded } = ladderForItem(top, input2.item_id, input2.ladder_id === void 0 ? {} : { ladderId: input2.ladder_id });
   if (input2.line_end < input2.line_start) throw new StoreError("line_end must not be before line_start");
   const info2 = await exec("git", ["show", "-s", "--format=%H%x1f%ae%x1f%aI%x1f%s", input2.commit], top);
@@ -44450,7 +44504,7 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const file2 = (await commitDiff(top, sha, exec)).find((f) => f.path === input2.file.replaceAll("\\", "/"));
   const lines = (file2?.added ?? []).filter((l) => l.line >= input2.line_start && l.line <= input2.line_end);
   if (lines.length === 0) throw new StoreError(`Lines ${input2.line_start}-${input2.line_end} of ${input2.file} were not added in that commit`);
-  const ai = aiHashesFor(db2, top, file2.path);
+  const ai = aiHashesFor(db2, key, file2.path);
   const devLine = lines.find((l) => {
     const n = normalizeLine(l.text);
     return n !== null && !ai.has(lineHash(n));
@@ -44462,13 +44516,15 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const id2 = randomUUID6();
   db2.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)"
-  ).run(id2, loaded.ladder_id, input2.item_id, top, sha, file2.path, symbol2, ticket, input2.why, authorDate);
+  ).run(id2, loaded.ladder_id, input2.item_id, key, sha, file2.path, symbol2, ticket, input2.why, authorDate);
   return { evidence_id: id2 };
 }
 function disagree(db2, input2) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  if (db2.prepare("UPDATE skill_evidence SET disagreed_at = ?, disagree_reason = ? WHERE id = ?").run(now, input2.reason, input2.target_id).changes > 0) {
-    return { target: "evidence", effect: "This evidence no longer counts. Your reason is kept and shown with the item." };
+  const row = db2.prepare("SELECT polarity FROM skill_evidence WHERE id = ?").get(input2.target_id);
+  if (row) {
+    db2.prepare("UPDATE skill_evidence SET disagreed_at = ?, disagree_reason = ? WHERE id = ?").run(now, input2.reason, input2.target_id);
+    return row.polarity === "positive" ? { target: "evidence", effect: "This proof no longer counts. Your reason is kept and shown with the item." } : { target: "evidence", effect: "Your reason is kept and shown with this fault. The fault still counts: disagreeing can only lower a state, never raise it. Fix the code to clear it." };
   }
   if (db2.prepare("UPDATE drill_attempts SET void = 1 WHERE id = ?").run(input2.target_id).changes > 0) {
     return { target: "drill", effect: "This drill score is void. You can take the drill again with a different question." };
