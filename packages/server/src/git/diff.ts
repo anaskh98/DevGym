@@ -82,9 +82,28 @@ export function parseUnifiedDiff(text: string): FileDiff[] {
   return files;
 }
 
+/**
+ * Built, vendored and generated files are left out by git itself, so a huge lockfile or bundle never has to be read.
+ * Binary files show as one "Binary files ... differ" line (no --text), so a big asset costs nothing.
+ */
+const EXCLUDES = [
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/npm-shrinkwrap.json",
+  "**/*.lock",
+  "**/dist/**",
+  "**/build/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/*.min.*",
+  "**/*.generated.*",
+  "**/__generated__/**",
+].map((glob) => `:(exclude,glob)${glob}`);
+
 /** The lines one commit added and removed, with no context lines. */
 export async function commitDiff(root: string, sha: string, exec: Run = run): Promise<FileDiff[]> {
-  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "-M", sha, "--", ".", ...EXCLUDES], root);
   if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
   return parseUnifiedDiff(result.stdout);
 }

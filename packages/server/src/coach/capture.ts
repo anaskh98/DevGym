@@ -54,11 +54,16 @@ function isoWeek(isoDate: string): string {
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
-/** The ticket a commit belongs to: a key in its subject, else its branch, else its calendar week. */
+/** Words that look like ticket keys but are not: UTF-8, SHA-256, HTTP-2, ISO-8601, RFC-9110... */
+const NOT_TICKETS = new Set(["UTF", "SHA", "HTTP", "ISO", "RFC", "TLS", "SSL", "MD", "AES", "RSA", "CVE", "ES", "IPV", "H", "X", "TS", "PEP", "JSR"]);
+
+/** The ticket a commit belongs to: a key in its subject, else the branch it was made on, else its calendar week. */
 export function ticketForCommit(c: CommitInfo, ctx: { onDefault: boolean; branch: string | null }): string {
-  const key = /\b[A-Z][A-Z0-9]+-\d+\b/.exec(c.subject);
-  if (key) return key[0];
-  if (!ctx.onDefault && ctx.branch) return ctx.branch;
+  for (const match of c.subject.matchAll(/\b([A-Z][A-Z0-9]+)-\d+\b/g)) {
+    if (!NOT_TICKETS.has(match[1]!)) return match[0];
+  }
+  const branch = c.source ?? ctx.branch;
+  if (!ctx.onDefault && branch) return branch;
   return `week:${isoWeek(c.authorDate)}`;
 }
 
@@ -234,14 +239,28 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
   let evidenceAdded = 0;
   let faultsFixed = 0;
   for (const c of batch) {
-    const diff = await commitDiff(top, c.sha, exec);
+    let diff: FileDiff[];
+    try {
+      diff = await commitDiff(top, c.sha, exec);
+    } catch {
+      // A commit git cannot show (too big, broken) is marked read and skipped, so it never blocks later commits.
+      markSeen.run(top, c.sha, `skipped:${c.sha}`);
+      continue;
+    }
     const id = changeId(diff);
     if (sameChange.get(top, id)) {
       markSeen.run(top, c.sha, id); // The same change was read already, under another commit id.
       continue;
     }
     const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
-    const { rows, fixes } = await readCommit(db, top, c.sha, diff, targets, exec);
+    let found: { rows: NewRow[]; fixes: Fix[] };
+    try {
+      found = await readCommit(db, top, c.sha, diff, targets, exec);
+    } catch {
+      markSeen.run(top, c.sha, id);
+      continue;
+    }
+    const { rows, fixes } = found;
     transaction(db, () => {
       for (const r of rows) {
         insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);

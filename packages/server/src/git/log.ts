@@ -7,6 +7,8 @@ export interface CommitInfo {
   /** ISO 8601 with the author's offset, for example 2026-11-10T10:00:00+02:00. */
   authorDate: string;
   subject: string;
+  /** The local branch git reached this commit from, for example "feature/retry". */
+  source?: string;
 }
 
 const SEP = "\x1f";
@@ -41,7 +43,8 @@ export async function listCommits(
   opts: { authorEmails: string[]; sinceIso?: string; exec?: Run },
 ): Promise<CommitInfo[]> {
   const exec = opts.exec ?? run;
-  const args = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
+  // --source names the branch each commit was reached from, so its ticket does not depend on what is checked out now.
+  const args = ["log", "--branches", "--source", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%S${SEP}%s`];
   if (opts.sinceIso) args.push(`--since=${opts.sinceIso}`);
   const result = await exec("git", args, root);
   if (result.code !== 0) return []; // An empty repo has no commits to log.
@@ -50,8 +53,9 @@ export async function listCommits(
     .split("\n")
     .filter((line) => line.includes(SEP))
     .map((line) => {
-      const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
-      return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
+      const [sha = "", authorEmail = "", authorDate = "", source = "", ...subject] = line.split(SEP);
+      const branch = source.replace(/^refs\/heads\//, "");
+      return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP), ...(branch ? { source: branch } : {}) };
     })
     .filter((c) => emails.has(c.authorEmail))
     .reverse();

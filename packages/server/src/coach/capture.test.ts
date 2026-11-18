@@ -212,3 +212,51 @@ describe("capture after old hashes are cleaned up", () => {
     expect(evidence().some((e) => e.file_path === "src/refund.ts")).toBe(true);
   });
 });
+
+describe("review fixes: big commits and the commit's own branch", () => {
+  it("reads a commit that also adds a 17 MB binary file", async () => {
+    startCapture();
+    mkdirSync(join(repo, "assets"), { recursive: true });
+    const big = Buffer.alloc(17 * 1024 * 1024);
+    for (let i = 0; i < big.length; i += 4096) big[i] = (i * 31) % 256; // not all zeros, so git keeps it binary
+    writeFileSync(join(repo, "assets", "big.bin"), big);
+    commit({ "src/pay.ts": PAY(TIMEOUT_LINE) }, "PAY-1 time limit and a big asset");
+    const result = await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(result.commits_read).toBe(1);
+    expect(evidence().some((e) => e.signal_id === "err.timeout-set" && e.file_path === "src/pay.ts")).toBe(true);
+  });
+
+  it("skips a commit git cannot show, marks it read, and goes on", async () => {
+    startCapture();
+    const bad = commit({ "src/a.ts": PAY(TIMEOUT_LINE) }, "PAY-1 first", "2026-11-10T10:00:00Z");
+    commit({ "src/b.ts": PAY(TIMEOUT_LINE) }, "PAY-2 second", "2026-11-11T10:00:00Z");
+    const failing: Run = (command, args, cwd) =>
+      args[0] === "show" && args.includes(bad) && args.includes("--format=")
+        ? Promise.resolve({ code: 1, stdout: "", stderr: "maxBuffer exceeded" })
+        : new Promise((resolve) =>
+            execFile(command, args, { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) =>
+              resolve({ code: error ? 1 : 0, stdout: String(stdout), stderr: String(stderr) }),
+            ),
+          );
+    const result = await catchUp(db, { root: repo, ladders, now: NOW, exec: failing });
+    expect(result.commits_read).toBe(2);
+    expect(evidence().map((e) => e.file_path)).toContain("src/b.ts");
+    expect((await catchUp(db, { root: repo, ladders, now: NOW, exec: failing })).commits_read).toBe(0);
+  });
+
+  it("takes the ticket from the branch the commit was made on, not the one checked out now", async () => {
+    startCapture();
+    commit({ "base.txt": "b\n" }, "base");
+    git(["checkout", "-q", "-b", "feature/retry"]);
+    commit({ "src/pay.ts": PAY(TIMEOUT_LINE) }, "add a time limit");
+    git(["checkout", "-q", "main"]);
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(evidence().find((e) => e.signal_id === "err.timeout-set")?.ticket).toBe("feature/retry");
+  });
+
+  it("does not take UTF-8 or SHA-256 as a ticket key", () => {
+    const c = (subject: string) => ({ sha: "a", authorEmail: "d", authorDate: "2026-11-12T10:00:00Z", subject });
+    expect(ticketForCommit(c("Use UTF-8 names"), { onDefault: true, branch: null })).toBe("week:2026-W46");
+    expect(ticketForCommit(c("Hash with SHA-256 for PAY-7"), { onDefault: true, branch: null })).toBe("PAY-7");
+  });
+});
