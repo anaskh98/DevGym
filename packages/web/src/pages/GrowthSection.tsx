@@ -1,13 +1,13 @@
-import type { CoachArea, CoachDashboard, CoachItem } from "@ftc/shared";
+import type { GrowArea, GrowDashboard, GrowItem } from "@devgym/shared";
 import { api } from "../api/client";
 import { useApi } from "../api/useApi";
 import { formatDay, isoDate } from "../lib/dates";
-import { EXPOSURE_LABEL, STATE_HINT, STATE_LABEL, evidenceLine, levelText, visibleItems } from "../lib/coach";
+import { EXPOSURE_LABEL, STATE_HINT, STATE_LABEL, evidenceLine, levelText, visibleItems } from "../lib/grow";
 import { ErrorState, Loading } from "../components/States";
 
 const day = (iso: string) => formatDay(isoDate(iso));
 
-function StateTag({ item }: { item: Pick<CoachItem, "state" | "shown_by"> }) {
+function StateTag({ item }: { item: Pick<GrowItem, "state" | "shown_by"> }) {
   return (
     <span className={`tag tag--state-${item.state}`} title={STATE_HINT[item.state]}>
       {STATE_LABEL[item.state]}
@@ -16,7 +16,7 @@ function StateTag({ item }: { item: Pick<CoachItem, "state" | "shown_by"> }) {
   );
 }
 
-function Item({ item }: { item: CoachItem }) {
+function Item({ item }: { item: GrowItem }) {
   return (
     <li className="growth-item">
       <details>
@@ -68,7 +68,7 @@ function Item({ item }: { item: CoachItem }) {
   );
 }
 
-function Area({ area }: { area: CoachArea }) {
+function Area({ area }: { area: GrowArea }) {
   return (
     <section className="growth-area" aria-label={area.name}>
       <h3>
@@ -86,11 +86,11 @@ function Area({ area }: { area: CoachArea }) {
   );
 }
 
-function Growth({ data }: { data: CoachDashboard }) {
+function Growth({ data }: { data: GrowDashboard }) {
   if (data.areas.length === 0) {
     return (
       <p className="summary__line">
-        Coach has no levels for you yet. Run <code>/fork-trail-coach:coach</code> once in Claude Code and choose backend, frontend or both. After
+        Grow has no levels for you yet. Run <code>/devgym:grow</code> once in Claude Code and choose backend, frontend or both. After
         that it keeps up on its own.
       </p>
     );
@@ -146,7 +146,7 @@ function Growth({ data }: { data: CoachDashboard }) {
         <section aria-label="Ready for assessment">
           <h3>Ready for a drill</h3>
           <p>
-            {data.ready_for_assessment.join(", ")}. Start one with <code>/fork-trail-coach:coach drill &lt;item&gt;</code>.
+            {data.ready_for_assessment.join(", ")}. Start one with <code>/devgym:grow drill &lt;item&gt;</code>.
           </p>
         </section>
       )}
@@ -180,7 +180,7 @@ function Growth({ data }: { data: CoachDashboard }) {
 
 /** The growth dashboard: levels per area, exposure apart from proficiency, and the evidence behind every state. */
 export function GrowthSection() {
-  const growth = useApi("coach-growth", (signal: AbortSignal) => api.getCoach(signal));
+  const growth = useApi("grow-growth", (signal: AbortSignal) => api.getGrow(signal));
   return (
     <section className="growth" aria-label="Your growth">
       <h2>Your growth</h2>

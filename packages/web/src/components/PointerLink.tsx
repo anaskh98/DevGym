@@ -1,4 +1,4 @@
-import type { Pointer } from "@ftc/shared";
+import type { Pointer } from "@devgym/shared";
 import { pointerLabel, pointerState } from "../lib/pointer";
 
 /**

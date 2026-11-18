@@ -1,5 +1,5 @@
 // Local service entry point. The MCP server (BE-3) and REST API (BE-12) start here.
-export const SERVICE_NAME = "fork-trail-coach";
+export const SERVICE_NAME = "devgym";
 export const SERVICE_VERSION = "0.1.0";
 
 export { defaultDbPath, openDb, transaction, type Db } from "./db/connection.js";

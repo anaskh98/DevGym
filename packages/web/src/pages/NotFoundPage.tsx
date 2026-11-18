@@ -10,7 +10,7 @@ export function NotFoundPage() {
       <h1 className="page-title">Page not found</h1>
       <EmptyState title="There is nothing at this address">
         <p>
-          <Link to="/fork">Go to Fork</Link>, or pick a section from the menu.
+          <Link to="/clarify">Go to Clarify</Link>, or pick a section from the menu.
         </p>
       </EmptyState>
     </>

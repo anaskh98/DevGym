@@ -6,14 +6,14 @@ import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { repoIdentitySync } from "../git/identity.js";
-import { proposeFault } from "../coach/review.js";
-import { creditSpottedNeeds, decideFinding, finishTicketCheck, proposeFinding } from "../coach/ticketcheck.js";
-import { decisionEvidence, resolveOrigin } from "../coach/messages.js";
-import { setExtraEmails, setTracks } from "../coach/settings.js";
-import { openQuestion, rateAnswer, releaseAnswer } from "../coach/questions.js";
-import { drillKey, scoreDrill, startDrill } from "../coach/drills.js";
-import { checkItemArea, saveStackNote } from "../coach/plan.js";
-import { catchUpHere, coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
+import { proposeFault } from "../grow/review.js";
+import { creditSpottedNeeds, decideFinding, finishTicketCheck, proposeFinding } from "../grow/ticketcheck.js";
+import { decisionEvidence, resolveOrigin } from "../grow/messages.js";
+import { setExtraEmails, setTracks } from "../grow/settings.js";
+import { openQuestion, rateAnswer, releaseAnswer } from "../grow/questions.js";
+import { drillKey, scoreDrill, startDrill } from "../grow/drills.js";
+import { checkItemArea, saveStackNote } from "../grow/plan.js";
+import { catchUpHere, growStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../grow/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
@@ -25,16 +25,16 @@ import {
   startDrillInput,
   rateAnswerInput,
   releaseAnswerInput,
-  coachHistoryInput,
-  coachItemInput,
-  coachStatusInput,
+  growHistoryInput,
+  growItemInput,
+  growStatusInput,
   disagreeInput,
   proposeEvidenceInput,
   proposeFaultInput,
   proposeTicketFindingInput,
   decideTicketFindingInput,
   finishTicketCheckInput,
-  setCoachTracksInput,
+  setGrowTracksInput,
   getTicketInput,
   getTrailInput,
   importTicketInput,
@@ -51,7 +51,7 @@ import {
   updatePrDecisionsInput,
 } from "./schemas.js";
 
-export const SERVER_NAME = "fork-trail-coach";
+export const SERVER_NAME = "devgym";
 export const SERVER_VERSION = "0.1.0";
 
 /** Runs a store call and turns the outcome into a tool result. */
@@ -74,7 +74,7 @@ export interface ServerOptions {
   /** Settings for the local report server that open_report starts. */
   report?: Pick<ReportOptions, "port" | "webDir" | "openUrl" | "allowedOrigins">;
   /** Folder that holds the developer's home-level ladder file. Defaults to the real home folder (tests change it). */
-  coachHome?: string;
+  growHome?: string;
 }
 
 export function createServer(db: Db, tickets: TicketAdapter, options: ServerOptions = {}): McpServer {
@@ -82,7 +82,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   const guard = options.guard ?? new PrivacyGuard({ root });
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   // Started on the first open_report call. It lives as long as this MCP server, so as long as the session.
-  const report = new ReportServer({ db, guard, coachRoot: repoIdentitySync(root)?.top ?? root, ...options.report });
+  const report = new ReportServer({ db, guard, growRoot: repoIdentitySync(root)?.top ?? root, ...options.report });
   server.server.onclose = () => report.close();
 
   /** Every tool that writes goes through here: the privacy guard runs before anything is saved. */
@@ -92,9 +92,9 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       return save(input);
     });
   const ticket = (ticketId: string) => store.ensureTicket(db, tickets, ticketId, guard);
-  const home = options.coachHome === undefined ? {} : { home: options.coachHome };
+  const home = options.growHome === undefined ? {} : { home: options.growHome };
   // Ladders are found from the repo's top folder, so a session started in a subfolder uses the same ladder.
-  const coachRoot = repoIdentitySync(root)?.top ?? root;
+  const growRoot = repoIdentitySync(root)?.top ?? root;
 
   server.registerTool(
     "get_ticket",
@@ -129,7 +129,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "Save assumptions",
       description:
-        "Save the assumption list for a ticket after Fork. Each item is 'answered_by_po' (with the answer) or 'assumed_by_dev'. Replaces the ticket's previous list. Words only: text that looks like code, a secret, or a client name is rejected.",
+        "Save the assumption list for a ticket after Clarify. Each item is 'answered_by_po' (with the answer) or 'assumed_by_dev'. Replaces the ticket's previous list. Words only: text that looks like code, a secret, or a client name is rejected.",
       inputSchema: saveAssumptionsInput,
     },
     (input) =>
@@ -138,7 +138,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         const saved = store.saveAssumptions(db, i);
         // Asking the product owner before coding is spotting unclear needs: a sign for the requirements-and-scope skill.
         try {
-          creditSpottedNeeds(db, coachRoot, i.ticket_id, i.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+          creditSpottedNeeds(db, growRoot, i.ticket_id, i.assumptions.some((a) => a.status === "answered_by_po"), options.growHome);
         } catch {
           // A credit side effect must never fail a save that already worked.
         }
@@ -162,7 +162,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         guard.check(decision);
         await ticket(decision.ticket_id);
         // An item id must be in the active ladder; the server finds which ladder that is.
-        const ladderId = decision.item_id === undefined ? null : ladderForItem(coachRoot, decision.item_id, home).loaded.ladder_id;
+        const ladderId = decision.item_id === undefined ? null : ladderForItem(growRoot, decision.item_id, home).loaded.ladder_id;
         // Who decided is checked, not claimed: dev origins need the developer's own words from this session.
         const checked = resolveOrigin(db, decision.session_id, decision.origin, decision.origin_quote);
         const saved = store.logDecision(db, { ...decision, origin: checked.origin }, root, ladderId, checked.quote);
@@ -190,7 +190,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "Update PR Decisions section",
       description:
-        "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explain-backs, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
+        "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explanations, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
       inputSchema: updatePrDecisionsInput,
     },
     (input) =>
@@ -200,18 +200,18 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   server.registerTool(
     "open_report",
     {
-      title: "Open Coach report",
+      title: "Open Grow report",
       description:
-        "Start the local web server if it is not running, and open the Coach report in the developer's browser. The server listens on 127.0.0.1 only and stops when this Claude Code session ends. Returns the address.",
+        "Start the local web server if it is not running, and open the Grow report in the developer's browser. The server listens on 127.0.0.1 only and stops when this Claude Code session ends. Returns the address.",
       inputSchema: openReportInput,
     },
     (input) => reply(() => report.open(input.open_browser)),
   );
 
   server.registerTool(
-    "start_trail",
+    "start_track",
     {
-      title: "Start Paper Trail",
+      title: "Start Track",
       description:
         "Start tracking a coding session for a ticket. From then on the plugin records which files the session edits (paths only). Returns the ticket and its saved assumptions.",
       inputSchema: startTrailInput,
@@ -224,9 +224,9 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   );
 
   server.registerTool(
-    "get_trail",
+    "get_track",
     {
-      title: "Get Paper Trail",
+      title: "Get Track",
       description:
         "List a session's logged decisions and edited files. 'unexplained_files' are edited files that no decision points at.",
       inputSchema: getTrailInput,
@@ -240,7 +240,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "List decisions",
       description:
-        "List every decision logged for a ticket, across sessions, with how many explain-backs each one already has.",
+        "List every decision logged for a ticket, across sessions, with how many explanations each one already has.",
       inputSchema: listDecisionsInput,
       annotations: { readOnlyHint: true },
     },
@@ -248,9 +248,9 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   );
 
   server.registerTool(
-    "record_explain_back",
+    "record_explanation",
     {
-      title: "Record explain-back",
+      title: "Record explanation",
       description:
         "Save the developer's own explanation of a logged decision, with a rating of how clear it was. Words only: code, secrets and client names are rejected.",
       inputSchema: recordExplainBackInput,
@@ -263,7 +263,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "Save observation",
       description:
-        "Save one observation about a developer skill. It must cite the decisions or explain-backs it is based on. Words only: code, secrets and client names are rejected.",
+        "Save one observation about a developer skill. It must cite the decisions or explanations it is based on. Words only: code, secrets and client names are rejected.",
       inputSchema: saveObservationInput,
     },
     (input) => write(input, (i) => store.saveObservation(db, i)),
@@ -274,7 +274,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "List observations",
       description:
-        "List the developer's saved observations, each with its evidence: the decisions (with origin) and explain-backs (with rating) it is based on.",
+        "List the developer's saved observations, each with its evidence: the decisions (with origin) and explanations (with rating) it is based on.",
       inputSchema: listObservationsInput,
       annotations: { readOnlyHint: true },
     },
@@ -286,14 +286,14 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "Save growth plan",
       description:
-        "Save a growth plan with 1 to 3 focus areas. With item_id (from a coach_status focus frame), a claim cites that item's evidence ids and the exercise names the frame's spot file, or the next ticket when there is no spot; the server refuses anything general. Old plans cite observation ids. The server marks a claim 'tentative' when it rests on one piece of evidence. Words only: code, secrets and client names are rejected.",
+        "Save a growth plan with 1 to 3 focus areas. With item_id (from a grow_status focus frame), a claim cites that item's evidence ids and the exercise names the frame's spot file, or the next ticket when there is no spot; the server refuses anything general. Old plans cite observation ids. The server marks a claim 'tentative' when it rests on one piece of evidence. Words only: code, secrets and client names are rejected.",
       inputSchema: saveGrowthPlanInput,
     },
     (input) =>
       write(input, (i) =>
         store.saveGrowthPlan(db, i, (area) => {
           // The item must be in the active ladder, and the area must rest on that item's own evidence.
-          const { loaded, item } = ladderForItem(coachRoot, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
+          const { loaded, item } = ladderForItem(growRoot, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
           checkItemArea(db, { ...area, ladder_id: loaded.ladder_id }, item.exercise_kinds);
           return loaded.ladder_id;
         }),
@@ -301,22 +301,22 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   );
 
   server.registerTool(
-    "coach_status",
+    "grow_status",
     {
-      title: "Coach status",
+      title: "Grow status",
       description:
         "Read the developer's new commits, then return each ladder item's state (not seen, learning, shown, proven), each area's level, the stack, focus items, pending questions, and drills that are ready. Plain code decides every state and level; you never set one. 'text' is the progress view: show it as it is.",
-      inputSchema: coachStatusInput,
+      inputSchema: growStatusInput,
     },
-    () => reply(() => coachStatus(db, { root, ...home })),
+    () => reply(() => growStatus(db, { root, ...home })),
   );
 
   server.registerTool(
-    "set_coach_tracks",
+    "set_grow_tracks",
     {
-      title: "Set coach tracks",
+      title: "Set grow tracks",
       description: "Save what the developer works on: backend, frontend, or both. Optionally, other emails they commit with.",
-      inputSchema: setCoachTracksInput,
+      inputSchema: setGrowTracksInput,
     },
     (input) =>
       reply(() => {
@@ -327,27 +327,27 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   );
 
   server.registerTool(
-    "coach_item",
+    "grow_item",
     {
-      title: "Coach item",
+      title: "Grow item",
       description:
         "Everything stored about one ladder item: its state, what it still needs, and every piece of evidence, answer and drill, each with an id the developer can disagree with.",
-      inputSchema: coachItemInput,
+      inputSchema: growItemInput,
       annotations: { readOnlyHint: true },
     },
     (input) =>
       reply(() => {
-        const { loaded, item } = ladderForItem(coachRoot, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
+        const { loaded, item } = ladderForItem(growRoot, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
         return itemDetail(db, loaded, item);
       }),
   );
 
   server.registerTool(
-    "coach_history",
+    "grow_history",
     {
-      title: "Coach history",
+      title: "Grow history",
       description: "Every change of an item's state over time, with the reason, oldest first.",
-      inputSchema: coachHistoryInput,
+      inputSchema: growHistoryInput,
       annotations: { readOnlyHint: true },
     },
     (input) => reply(() => stateHistory(db, input.ladder_id)),
@@ -372,7 +372,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         "PR-time review: name a bad practice or bug in the pull request's final change, citing exact lines. Accepted only if those lines were added in this change and the ladder item exists. A fault in lines Claude wrote is owned by the developer: they shipped it. It never sets a state by itself; plain code counts it.",
       inputSchema: proposeFaultInput,
     },
-    (input) => write(input, (i) => proposeFault(db, root, i, undefined, options.coachHome)),
+    (input) => write(input, (i) => proposeFault(db, root, i, undefined, options.growHome)),
   );
 
   server.registerTool(
@@ -386,7 +386,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     (input) =>
       write(input, async (i) => {
         const t = await ticket(i.ticket_id);
-        return proposeFinding(db, root, t, i, undefined, options.coachHome);
+        return proposeFinding(db, root, t, i, undefined, options.growHome);
       }),
   );
 
@@ -409,7 +409,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         "Close the ticket check. A check with no findings on a ticket with 3 or more needs is a positive sign for building what the ticket asks. Credit is given once per ticket.",
       inputSchema: finishTicketCheckInput,
     },
-    (input) => reply(() => finishTicketCheck(db, coachRoot, input, options.coachHome)),
+    (input) => reply(() => finishTicketCheck(db, growRoot, input, options.growHome)),
   );
 
   server.registerTool(
@@ -426,20 +426,20 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
   server.registerTool(
     "ask_question",
     {
-      title: "Ask coach question",
+      title: "Ask grow question",
       description:
-        "Call this right before you ask the developer a Coach question, with the question exactly as you will ask it. Their next message is then saved as the answer by a hook, word for word; you never write it. Ask one question at a time.",
+        "Call this right before you ask the developer a Grow question, with the question exactly as you will ask it. Their next message is then saved as the answer by a hook, word for word; you never write it. Ask one question at a time.",
       inputSchema: askQuestionInput,
     },
     (input) =>
       write(input, (i) => {
         let ladderId: string | undefined;
         if (i.question_id === undefined && i.decision_id === undefined && i.item_id !== undefined) {
-          ladderId = ladderForItem(coachRoot, i.item_id, home).loaded.ladder_id;
+          ladderId = ladderForItem(growRoot, i.item_id, home).loaded.ladder_id;
         } else if (i.decision_id !== undefined) {
           const decision = db.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i.decision_id) as { item_id: string | null } | undefined;
           const item = i.item_id ?? decision?.item_id ?? undefined;
-          if (item) ladderId = ladderForItem(coachRoot, item, home).loaded.ladder_id;
+          if (item) ladderId = ladderForItem(growRoot, item, home).loaded.ladder_id;
         }
         return openQuestion(db, { ...i, ...(ladderId ? { ladder_id: ladderId } : {}) });
       }),
@@ -461,7 +461,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "Rate answer",
       description:
-        "Rate the developer's saved answer to a Coach question: clear, partial or not_yet. Rate what they said, not what they meant. To mark that it names the trade-off, copy the exact words from the answer into tradeoff_quote; the server checks them. An answer is rated once.",
+        "Rate the developer's saved answer to a Grow question: clear, partial or not_yet. Rate what they said, not what they meant. To mark that it names the trade-off, copy the exact words from the answer into tradeoff_quote; the server checks them. An answer is rated once.",
       inputSchema: rateAnswerInput,
     },
     (input) => reply(() => rateAnswer(db, input)),
@@ -479,7 +479,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       reply(async () => {
         // A proof committed since the last failed drill may be what unlocks it, so read new commits first.
         await catchUpHere(db, { root, ...home });
-        const ctx = ladderForItem(coachRoot, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
+        const ctx = ladderForItem(growRoot, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
         return startDrill(db, ctx, { session_id: input.session_id });
       }),
   );
@@ -499,7 +499,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
           | { item_id: string; ladder_id: string }
           | undefined;
         if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
-        return drillKey(db, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input.question_id);
+        return drillKey(db, ladderForItem(growRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input.question_id);
       }),
   );
 
@@ -517,7 +517,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
           | { item_id: string; ladder_id: string }
           | undefined;
         if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
-        return scoreDrill(db, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input);
+        return scoreDrill(db, ladderForItem(growRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input);
       }),
   );
 
@@ -531,7 +531,7 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     },
     (input) =>
       write(input, (i) => {
-        const { loaded } = ladderForItem(coachRoot, i.item_id, home);
+        const { loaded } = ladderForItem(growRoot, i.item_id, home);
         return saveStackNote(db, loaded, i);
       }),
   );

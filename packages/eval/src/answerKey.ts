@@ -1,8 +1,8 @@
 /**
  * The answer key for a synthetic ticket: the ambiguities planted in it, the
- * questions Fork should NOT ask (decoys), and extras that are neither.
+ * questions Clarify should NOT ask (decoys), and extras that are neither.
  *
- * The harness (EV-3) scores a Fork run against this.
+ * The harness (EV-3) scores a Clarify run against this.
  */
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";

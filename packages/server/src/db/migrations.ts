@@ -151,7 +151,7 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
 
-      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      -- Commits Grow has already read. change_id spots the same change after a rebase or cherry-pick.
       CREATE TABLE commits_seen (
         repo_root    TEXT NOT NULL,
         sha          TEXT NOT NULL,
@@ -190,7 +190,7 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
 
-      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      -- A grow question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
       CREATE TABLE pending_questions (
         id             TEXT PRIMARY KEY,
         kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
@@ -240,7 +240,7 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
 
-      -- Coach choices of the developer, for example which tracks to follow.
+      -- Grow choices of the developer, for example which tracks to follow.
       CREATE TABLE coach_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL CHECK (json_valid(value))
@@ -257,7 +257,7 @@ export const migrations: Migration[] = [
         PRIMARY KEY (ladder_id, item_id, stack_id)
       );
 
-      -- The ladder item a decision or an explain-back is about.
+      -- The ladder item a decision or an explanation is about.
       ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;

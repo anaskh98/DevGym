@@ -1,4 +1,4 @@
-// The built-in Coach report page. The local server shows it until the full web app
+// The built-in Grow report page. The local server shows it until the full web app
 // (packages/web) is shipped inside the plugin. It is plain HTML and one small script,
 // served from this server, so it needs no build step and no files on disk.
 
@@ -7,7 +7,7 @@ export const REPORT_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coach report</title>
+<title>Grow report</title>
 <style>
   :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
   @media (prefers-color-scheme: dark) {
@@ -37,7 +37,7 @@ export const REPORT_HTML = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Coach report</h1>
+  <h1>Grow report</h1>
   <p class="muted">Private to you. Stored on this machine only and never shared.</p>
   <div id="report" aria-live="polite"><p class="muted">Loading…</p></div>
 </main>
@@ -67,7 +67,7 @@ export const REPORT_JS = `"use strict";
     var item = el("li", "", observation.summary);
     var parts = [];
     (observation.evidence || []).forEach(function (e) {
-      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
+      if (e.kind === "explain_back") parts.push("explanation on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
       if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
     });
     if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
@@ -147,7 +147,7 @@ export const REPORT_JS = `"use strict";
 
   function render(plan) {
     if (!plan) {
-      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
+      message("No growth plan yet. Run the grow command in Claude Code, then reload this page.");
       return;
     }
     var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC · " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];

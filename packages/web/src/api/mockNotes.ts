@@ -1,12 +1,12 @@
 /**
  * Where notes go in mock mode.
  *
- * The sample data is a set of read-only files, so a note added on the Coach
+ * The sample data is a set of read-only files, so a note added on the Grow
  * page has nowhere to be saved. In mock mode it is kept in this browser's
  * local storage instead, so it is still there after a reload. In live mode
  * this file is not used: notes go to the local service.
  */
-import { Annotation } from "@ftc/shared";
+import { Annotation } from "@devgym/shared";
 import { z } from "zod";
 
 export interface NoteStore {

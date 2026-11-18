@@ -1,5 +1,5 @@
-import type { Decision as DecisionView, DecisionOrigin, ExplainBackRating } from "@ftc/shared";
-import { plural } from "./fork";
+import type { Decision as DecisionView, DecisionOrigin, ExplainBackRating } from "@devgym/shared";
+import { plural } from "./clarify";
 
 export const ORIGINS: readonly DecisionOrigin[] = ["ai", "dev", "dev_changed_ai"];
 export const RATINGS: readonly ExplainBackRating[] = ["clear", "partial", "not_yet"];

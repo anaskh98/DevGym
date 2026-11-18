@@ -19,7 +19,7 @@ let dbPath: string;
 let project: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "ftc-hook-"));
+  dir = mkdtempSync(join(tmpdir(), "devgym-hook-"));
   dbPath = join(dir, "test.sqlite");
   project = join(dir, "project");
   mkdirSync(project);
@@ -30,7 +30,7 @@ function runHook(stdin: string) {
   const result = spawnSync(process.execPath, [start, "hook"], {
     input: stdin,
     encoding: "utf8",
-    env: { ...process.env, FTC_DB_PATH: dbPath },
+    env: { ...process.env, DEVGYM_DB_PATH: dbPath },
   });
   return { status: result.status, stdout: result.stdout.trim() };
 }
@@ -141,7 +141,7 @@ describe.skipIf(!built)("edit hook: who wrote the line", () => {
     const result = spawnSync(process.execPath, [start, "hook"], {
       input: edit("s1", join(project, "a.ts"), "const timeout = 5000;"),
       encoding: "utf8",
-      env: { ...process.env, FTC_DB_PATH: join(blocker, "sub", "db.sqlite") },
+      env: { ...process.env, DEVGYM_DB_PATH: join(blocker, "sub", "db.sqlite") },
     });
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe("");

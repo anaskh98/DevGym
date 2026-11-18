@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openDb, type Db } from "./connection.js";
+import { carryOverLegacyFolder, openDb, resetCarryOver, type Db } from "./connection.js";
 import { randomUUID } from "node:crypto";
 import { migrate, migrations } from "./migrations.js";
 import { parseTicketMarkdown } from "../tickets/markdown.js";
@@ -55,7 +55,7 @@ describe("migrate", () => {
     expect(names).toEqual(TABLES);
   });
 
-  it("creates the coach level tables (migration 7)", () => {
+  it("creates the grow level tables (migration 7)", () => {
     expect(db.prepare("SELECT name FROM schema_migrations WHERE id = 7").get()).toEqual({ name: "coach_levels" });
   });
 
@@ -109,7 +109,7 @@ describe("schema rules", () => {
     expect(() => insert.run("d3", '["other way"]', "dev_changed_ai")).not.toThrow();
   });
 
-  it("rejects an unknown explain-back rating", () => {
+  it("rejects an unknown explanation rating", () => {
     addTicket();
     db.prepare("INSERT INTO decisions (id, ticket_id, session_id, summary, origin) VALUES ('d1', 'T-1', 's', 'x', 'ai')").run();
     const insert = db.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating) VALUES (?, 'd1', 'q', 'a', ?)");
@@ -141,7 +141,7 @@ describe("seed", () => {
   });
 
   it("updates instead of duplicating on a second run", () => {
-    const dir = mkdtempSync(join(tmpdir(), "ftc-seed-"));
+    const dir = mkdtempSync(join(tmpdir(), "devgym-seed-"));
     try {
       writeFileSync(join(dir, "X-1.md"), "---\nid: X-1\ntitle: First\n---\nBody");
       seed(db, dir);
@@ -156,5 +156,46 @@ describe("seed", () => {
   it("rejects a ticket file with no id", () => {
     expect(() => parseTicketMarkdown("---\ntitle: No id\n---\nBody")).toThrow(/id/);
     expect(() => parseTicketMarkdown("Just text")).toThrow(/front matter/);
+  });
+});
+
+describe("the data folder from before the rename", () => {
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "devgym-home-"));
+    resetCarryOver();
+  });
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+    resetCarryOver();
+  });
+
+  it("copies ~/.fork-trail-coach to ~/.devgym once, and leaves the old folder", () => {
+    const legacy = join(home, ".fork-trail-coach");
+    mkdirSync(legacy);
+    writeFileSync(join(legacy, "profile.sqlite"), "db");
+    writeFileSync(join(legacy, "denylist.txt"), "Globex");
+    const dir = join(home, ".devgym");
+    carryOverLegacyFolder(dir, legacy);
+    expect(readFileSync(join(dir, "profile.sqlite"), "utf8")).toBe("db");
+    expect(readFileSync(join(dir, "denylist.txt"), "utf8")).toBe("Globex");
+    expect(existsSync(join(legacy, "profile.sqlite"))).toBe(true);
+  });
+
+  it("never overwrites a ~/.devgym folder that already exists", () => {
+    const legacy = join(home, ".fork-trail-coach");
+    const dir = join(home, ".devgym");
+    mkdirSync(legacy);
+    mkdirSync(dir);
+    writeFileSync(join(legacy, "profile.sqlite"), "old");
+    writeFileSync(join(dir, "profile.sqlite"), "new");
+    carryOverLegacyFolder(dir, legacy);
+    expect(readFileSync(join(dir, "profile.sqlite"), "utf8")).toBe("new");
+  });
+
+  it("does nothing on a new install", () => {
+    const dir = join(home, ".devgym");
+    carryOverLegacyFolder(dir, join(home, ".fork-trail-coach"));
+    expect(existsSync(dir)).toBe(false);
   });
 });

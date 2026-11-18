@@ -11,12 +11,25 @@ import { dirname as dirname4, join as join7 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/db/connection.ts
-import { mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function defaultDbPath() {
-  return process.env.FTC_DB_PATH ?? join(homedir(), ".fork-trail-coach", "profile.sqlite");
+  if (process.env.DEVGYM_DB_PATH) return process.env.DEVGYM_DB_PATH;
+  const dir = join(homedir(), ".devgym");
+  carryOverLegacyFolder(dir, join(homedir(), ".fork-trail-coach"));
+  return join(dir, "profile.sqlite");
+}
+var carriedOver = false;
+function carryOverLegacyFolder(dir, legacy) {
+  if (carriedOver) return;
+  carriedOver = true;
+  if (existsSync(dir) || !existsSync(legacy)) return;
+  try {
+    cpSync(legacy, dir, { recursive: true });
+  } catch {
+  }
 }
 function openDb(path = defaultDbPath()) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -178,7 +191,7 @@ var migrations = [
       );
       CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
 
-      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      -- Commits Grow has already read. change_id spots the same change after a rebase or cherry-pick.
       CREATE TABLE commits_seen (
         repo_root    TEXT NOT NULL,
         sha          TEXT NOT NULL,
@@ -217,7 +230,7 @@ var migrations = [
       );
       CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
 
-      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      -- A grow question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
       CREATE TABLE pending_questions (
         id             TEXT PRIMARY KEY,
         kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
@@ -267,7 +280,7 @@ var migrations = [
       );
       CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
 
-      -- Coach choices of the developer, for example which tracks to follow.
+      -- Grow choices of the developer, for example which tracks to follow.
       CREATE TABLE coach_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL CHECK (json_valid(value))
@@ -284,7 +297,7 @@ var migrations = [
         PRIMARY KEY (ladder_id, item_id, stack_id)
       );
 
-      -- The ladder item a decision or an explain-back is about.
+      -- The ladder item a decision or an explanation is about.
       ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
@@ -413,7 +426,7 @@ var PrivacyError = class extends StoreError {
 import { readFileSync } from "node:fs";
 import { dirname as dirname2, join as join2 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join2(dirname2(defaultDbPath()), "denylist.txt");
+  return process.env.DEVGYM_DENYLIST_PATH ?? join2(dirname2(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -424,7 +437,7 @@ function loadDenylist(path = defaultDenylistPath()) {
     }
   } catch {
   }
-  for (const name2 of (process.env.FTC_DENYLIST ?? "").split(",")) {
+  for (const name2 of (process.env.DEVGYM_DENYLIST ?? "").split(",")) {
     if (name2.trim()) names.push(name2.trim());
   }
   return names;
@@ -20484,7 +20497,7 @@ function normalizeRepoPath(path) {
   return process.platform === "win32" ? p.toLowerCase() : p;
 }
 
-// src/coach/facts.ts
+// src/grow/facts.ts
 function toIso(value) {
   return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
 }
@@ -24531,7 +24544,7 @@ var Query = class {
   }
 };
 
-// src/coach/ladder/schema.ts
+// src/grow/ladder/schema.ts
 var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
 var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
@@ -24619,7 +24632,7 @@ var ladderSchema = external_exports.strictObject({
   }
 });
 
-// src/coach/signals.ts
+// src/grow/signals.ts
 var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
 var WEB = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"];
 var ts = (line) => ({ file: "src/pay.ts", line });
@@ -24820,7 +24833,7 @@ function signalById(id) {
   return BY_ID.get(id);
 }
 
-// src/coach/settings.ts
+// src/grow/settings.ts
 function read(db2, key, fallback) {
   const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
   return row ? JSON.parse(row.value) : fallback;
@@ -24829,7 +24842,7 @@ function getTracks(db2) {
   return read(db2, "tracks", []).filter((t) => TRACKS.includes(t));
 }
 
-// src/coach/bugs.ts
+// src/grow/bugs.ts
 function repeats(db2, now = /* @__PURE__ */ new Date()) {
   const rows2 = db2.prepare("SELECT ladder_id, item_id, signal_id, ticket, kind, at FROM skill_evidence WHERE polarity = 'negative' AND signal_id IS NOT NULL ORDER BY at").all();
   const groups = /* @__PURE__ */ new Map();
@@ -24854,7 +24867,7 @@ function repeats(db2, now = /* @__PURE__ */ new Date()) {
   })).sort((a, b) => Number(b.coming_back) - Number(a.coming_back) || Date.parse(b.last_at) - Date.parse(a.last_at));
 }
 
-// src/coach/exposure.ts
+// src/grow/exposure.ts
 function exposureFor(db2, ladderId, itemId, now, t) {
   const since = now.getTime() - t.exposure_window_days * 864e5;
   const rows2 = [
@@ -24871,7 +24884,7 @@ function exposureFor(db2, ladderId, itemId, now, t) {
   return { level, functions };
 }
 
-// src/coach/state.ts
+// src/grow/state.ts
 var DAY = 864e5;
 var ms = (iso) => Date.parse(iso);
 var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -25016,7 +25029,7 @@ function areaLevel(area, statuses) {
   return { level, working_toward: null };
 }
 
-// src/coach/drills.ts
+// src/grow/drills.ts
 var DAY2 = 864e5;
 function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
   const lowExposure = status.exposure === "none" || status.exposure === "low";
@@ -25063,13 +25076,13 @@ function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
   return ready;
 }
 
-// src/coach/ladder/load.ts
+// src/grow/ladder/load.ts
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync as existsSync2, readFileSync as readFileSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join4 } from "node:path";
 
-// src/coach/ladder/builtin/backend.json
+// src/grow/ladder/builtin/backend.json
 var backend_default = {
   track: "backend",
   areas: [
@@ -26089,7 +26102,7 @@ var backend_default = {
   ]
 };
 
-// src/coach/ladder/builtin/frontend.json
+// src/grow/ladder/builtin/frontend.json
 var frontend_default = {
   track: "frontend",
   areas: [
@@ -27090,14 +27103,15 @@ var frontend_default = {
   ]
 };
 
-// src/coach/ladder/builtin.ts
+// src/grow/ladder/builtin.ts
 var BUILTIN_LADDERS = {
   backend: backend_default,
   frontend: frontend_default
 };
 
-// src/coach/ladder/load.ts
-var FILE = join4(".fork-trail-coach", "ladder.json");
+// src/grow/ladder/load.ts
+var FILE = join4(".devgym", "ladder.json");
+var LEGACY_FILE = join4(".fork-trail-coach", "ladder.json");
 function withThresholds(ladder) {
   return { ...DEFAULT_THRESHOLDS, ...ladder.thresholds };
 }
@@ -27114,7 +27128,7 @@ function unknownSignals(ladder) {
   return [...missing];
 }
 function readCompanyFile(path, track) {
-  if (!existsSync(path)) return null;
+  if (!existsSync2(path)) return null;
   let raw;
   try {
     raw = JSON.parse(readFileSync3(path, "utf8"));
@@ -27133,10 +27147,12 @@ function readCompanyFile(path, track) {
 function loadLadder(track, opts) {
   const home = opts.home ?? homedir2();
   const builtin = BUILTIN_LADDERS[track];
+  const repoId = `repo:${createHash("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}`;
   const tries = [
-    // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
-    { source: "repo", path: join4(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
-    { source: "home", path: join4(home, FILE), id: `home/${track}` }
+    { source: "repo", path: join4(opts.repoRoot, FILE), id: repoId },
+    { source: "repo", path: join4(opts.repoRoot, LEGACY_FILE), id: repoId },
+    { source: "home", path: join4(home, FILE), id: `home/${track}` },
+    { source: "home", path: join4(home, LEGACY_FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
     const found = readCompanyFile(t.path, track);
@@ -27168,7 +27184,7 @@ function findItem(ladder, itemId) {
   return null;
 }
 
-// src/coach/status.ts
+// src/grow/status.ts
 var shortDate = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 function computeStatuses(db2, loaded, now) {
   const statuses = /* @__PURE__ */ new Map();
@@ -27191,9 +27207,9 @@ function detail(s, proofsNeeded) {
     case "proven":
       return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
     case "shown":
-      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /coach drill ${s.item_id}`;
+      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /grow drill ${s.item_id}`;
     case "not_assessed":
-      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /coach drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
+      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /grow drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
     case "learning": {
       const parts2 = [`${s.proofs} of ${proofsNeeded} code proofs`];
       if (s.open_faults > 0) parts2.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
@@ -27237,9 +27253,9 @@ function areaViews(results) {
   return { areas, notWritten };
 }
 
-// src/coach/dashboard.ts
+// src/grow/dashboard.ts
 var EVIDENCE_PER_ITEM = 12;
-function coachDashboard(db2, opts) {
+function growDashboard(db2, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const tracks = getTracks(db2);
   const ladders = loadActiveLadders(tracks, { repoRoot: opts.root, ...opts.home ? { home: opts.home } : {} });
@@ -27311,7 +27327,7 @@ function coachDashboard(db2, opts) {
   const ready_for_assessment = allItems.filter((i2) => ready.has(i2.item_id) || i2.state === "not_assessed" && (i2.exposure === "none" || i2.exposure === "low")).map((i2) => i2.item_id);
   const next_actions = [];
   for (const f of open_faults.slice(0, 2)) next_actions.push(`Fix the open fault in ${f.file ?? "your code"}${f.symbol ? ` (${f.symbol})` : ""}: ${f.title}`);
-  for (const id of [...ready].slice(0, 2)) next_actions.push(`Take a drill for ${id}: /fork-trail-coach:coach drill ${id}`);
+  for (const id of [...ready].slice(0, 2)) next_actions.push(`Take a drill for ${id}: /devgym:grow drill ${id}`);
   for (const i2 of allItems.filter((x) => x.state === "learning").slice(0, 2)) if (i2.needs[0]) next_actions.push(`${i2.item_id}: ${i2.needs[0]}`);
   const drill_results = allItems.flatMap((i2) => i2.drills.map((d) => ({ item_id: i2.item_id, title: i2.title, drill_id: d.drill_id, passed: d.passed, void: d.void, at: d.at }))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 20);
   const titles = new Map(allItems.map((i2) => [i2.item_id, i2.title]));
@@ -27342,7 +27358,7 @@ function pathKey(path) {
 
 // src/store.ts
 function localDeveloperId() {
-  return process.env.FTC_DEVELOPER_ID ?? "local";
+  return process.env.DEVGYM_DEVELOPER_ID ?? "local";
 }
 function getTrail(db2, sessionId) {
   const session = db2.prepare("SELECT ticket_id FROM trail_sessions WHERE session_id = ?").get(sessionId);
@@ -27583,7 +27599,7 @@ function deleteAll(db2) {
 }
 
 // src/api/static.ts
-import { existsSync as existsSync2 } from "node:fs";
+import { existsSync as existsSync3 } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { extname as extname2, join as join5, normalize, resolve as resolve2, sep } from "node:path";
 
@@ -27593,7 +27609,7 @@ var REPORT_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coach report</title>
+<title>Grow report</title>
 <style>
   :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
   @media (prefers-color-scheme: dark) {
@@ -27623,7 +27639,7 @@ var REPORT_HTML = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Coach report</h1>
+  <h1>Grow report</h1>
   <p class="muted">Private to you. Stored on this machine only and never shared.</p>
   <div id="report" aria-live="polite"><p class="muted">Loading\u2026</p></div>
 </main>
@@ -27651,7 +27667,7 @@ var REPORT_JS = `"use strict";
     var item = el("li", "", observation.summary);
     var parts = [];
     (observation.evidence || []).forEach(function (e) {
-      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
+      if (e.kind === "explain_back") parts.push("explanation on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
       if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
     });
     if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
@@ -27731,7 +27747,7 @@ var REPORT_JS = `"use strict";
 
   function render(plan) {
     if (!plan) {
-      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
+      message("No growth plan yet. Run the grow command in Claude Code, then reload this page.");
       return;
     }
     var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC \xB7 " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];
@@ -27779,10 +27795,10 @@ function send(res, status, type, body2, extra = {}) {
   res.end(body2);
 }
 function hasWebApp(webDir2) {
-  return webDir2 !== void 0 && existsSync2(join5(webDir2, "index.html"));
+  return webDir2 !== void 0 && existsSync3(join5(webDir2, "index.html"));
 }
 function reportPath(webDir2) {
-  return hasWebApp(webDir2) ? "/#/coach" : "/";
+  return hasWebApp(webDir2) ? "/#/grow" : "/";
 }
 async function servePage(res, pathname, webDir2) {
   if (!hasWebApp(webDir2)) {
@@ -27812,7 +27828,7 @@ var API_HOST = "127.0.0.1";
 var DEFAULT_API_PORT = 4317;
 var MAX_BODY_BYTES = 64 * 1024;
 function defaultEvalResultsPath() {
-  return process.env.FTC_EVAL_RESULTS ?? join6(dirname3(defaultDbPath()), "eval-results.json");
+  return process.env.DEVGYM_EVAL_RESULTS ?? join6(dirname3(defaultDbPath()), "eval-results.json");
 }
 var annotationInput = external_exports.strictObject({
   target_id: external_exports.string().trim().min(1).max(200),
@@ -27940,8 +27956,8 @@ function createApiServer(options) {
       }
       case "GET /growth-plan":
         return ok({ growth_plan: latestGrowthPlan(db2) });
-      case "GET /coach":
-        return ok(coachDashboard(db2, { root: options.coachRoot ?? process.cwd(), ...options.coachHome ? { home: options.coachHome } : {} }));
+      case "GET /grow":
+        return ok(growDashboard(db2, { root: options.growRoot ?? process.cwd(), ...options.growHome ? { home: options.growHome } : {} }));
       case "POST /annotations": {
         const input2 = parse3(annotationInput, await readJson(req));
         guard.check(input2);
@@ -27965,7 +27981,7 @@ function createApiServer(options) {
       }
       case "GET /export":
         return ok(exportAll(db2), 200, {
-          "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
+          "Content-Disposition": `attachment; filename="devgym-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
         });
       case "DELETE /data": {
         parse3(deleteAllInput, await readJson(req));
@@ -27987,17 +28003,17 @@ function listen(server2, port2 = DEFAULT_API_PORT) {
 // src/api/main.ts
 var db = openDb();
 migrate(db);
-var port = Number(process.env.FTC_PORT ?? DEFAULT_API_PORT);
-var allowedOrigins = (process.env.FTC_WEB_ORIGIN ?? "http://127.0.0.1:4318,http://localhost:4318").split(",").map((o) => o.trim()).filter(Boolean);
+var port = Number(process.env.DEVGYM_PORT ?? DEFAULT_API_PORT);
+var allowedOrigins = (process.env.DEVGYM_WEB_ORIGIN ?? "http://127.0.0.1:4318,http://localhost:4318").split(",").map((o) => o.trim()).filter(Boolean);
 var webDir = join7(dirname4(fileURLToPath(import.meta.url)), "..", "web");
-var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir, coachRoot: process.cwd() });
+var server = createApiServer({ db, guard: new PrivacyGuard({ root: process.cwd() }), allowedOrigins, webDir, growRoot: process.cwd() });
 try {
   const actual = await listen(server, port);
-  console.log(`fork-trail-coach API listening on http://${API_HOST}:${actual}/api`);
-  console.log(`Coach report: http://${API_HOST}:${actual}${reportPath(webDir)}`);
+  console.log(`devgym API listening on http://${API_HOST}:${actual}/api`);
+  console.log(`Grow report: http://${API_HOST}:${actual}${reportPath(webDir)}`);
 } catch (err2) {
   const code = err2.code;
-  console.error(code === "EADDRINUSE" ? `Port ${port} is already in use. Set FTC_PORT to another port.` : err2);
+  console.error(code === "EADDRINUSE" ? `Port ${port} is already in use. Set DEVGYM_PORT to another port.` : err2);
   db.close();
   process.exit(1);
 }

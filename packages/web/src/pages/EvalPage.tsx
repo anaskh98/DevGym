@@ -1,11 +1,11 @@
 import type { CSSProperties } from "react";
-import type { EvalResults, EvalScore } from "@ftc/shared";
+import type { EvalResults, EvalScore } from "@devgym/shared";
 import { api } from "../api/client";
 import { apiConfig } from "../api/config";
 import { useApi } from "../api/useApi";
 import { formatDayTime } from "../lib/dates";
 import { EmptyState, ErrorState, Loading } from "../components/States";
-import { plural } from "../lib/fork";
+import { plural } from "../lib/clarify";
 import { AREA_LABEL, isMeasured, missed, orderedScores, scoreText, sortedFailures } from "../lib/eval";
 import { useTitle } from "../lib/useTitle";
 
@@ -87,7 +87,7 @@ function Results({ results }: { results: EvalResults }) {
             {overall.total > 0 ? `${overall.passed} of ${overall.total} passed` : "Nothing measured yet"}
           </p>
           <p className="summary__line">
-            Run on {formatDayTime(results.run_at)}, on ticket {results.ticket_id}. Fork was run{" "}
+            Run on {formatDayTime(results.run_at)}, on ticket {results.ticket_id}. Clarify was run{" "}
             {plural(results.fork_runs, "time")}.
           </p>
         </div>
@@ -160,7 +160,7 @@ export function EvalPage() {
         (results.error.kind === "not_found" ? (
           <EmptyState title="No evaluation has been run">
             <p>
-              Run <code>pnpm eval</code> in the plugin repository. It scores the saved Fork runs against the
+              Run <code>pnpm eval</code> in the plugin repository. It scores the saved Clarify runs against the
               answer key, checks the pointers, and red-teams the privacy guard, then writes the results this
               page shows.
             </p>

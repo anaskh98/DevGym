@@ -2,7 +2,7 @@ import { createRequire as __ftcCreateRequire } from 'node:module';
 const require = __ftcCreateRequire(import.meta.url);
 
 // src/hook/post-tool-use.ts
-import { existsSync } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 import { dirname as dirname3, isAbsolute as isAbsolute2, resolve as resolve3 } from "node:path";
 
 // src/git/identity.ts
@@ -31,7 +31,7 @@ function repoIdentitySync(cwd) {
   }
 }
 
-// src/coach/attribution.ts
+// src/grow/attribution.ts
 import { createHash } from "node:crypto";
 function normalizeLine(line) {
   let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
@@ -72,12 +72,25 @@ function saveAiLines(db, repoRoot, filePath, sessionId, lines) {
 }
 
 // src/db/connection.ts
-import { mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function defaultDbPath() {
-  return process.env.FTC_DB_PATH ?? join(homedir(), ".fork-trail-coach", "profile.sqlite");
+  if (process.env.DEVGYM_DB_PATH) return process.env.DEVGYM_DB_PATH;
+  const dir = join(homedir(), ".devgym");
+  carryOverLegacyFolder(dir, join(homedir(), ".fork-trail-coach"));
+  return join(dir, "profile.sqlite");
+}
+var carriedOver = false;
+function carryOverLegacyFolder(dir, legacy) {
+  if (carriedOver) return;
+  carriedOver = true;
+  if (existsSync(dir) || !existsSync(legacy)) return;
+  try {
+    cpSync(legacy, dir, { recursive: true });
+  } catch {
+  }
 }
 function openDb(path = defaultDbPath()) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -239,7 +252,7 @@ var migrations = [
       );
       CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
 
-      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      -- Commits Grow has already read. change_id spots the same change after a rebase or cherry-pick.
       CREATE TABLE commits_seen (
         repo_root    TEXT NOT NULL,
         sha          TEXT NOT NULL,
@@ -278,7 +291,7 @@ var migrations = [
       );
       CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
 
-      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      -- A grow question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
       CREATE TABLE pending_questions (
         id             TEXT PRIMARY KEY,
         kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
@@ -328,7 +341,7 @@ var migrations = [
       );
       CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
 
-      -- Coach choices of the developer, for example which tracks to follow.
+      -- Grow choices of the developer, for example which tracks to follow.
       CREATE TABLE coach_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL CHECK (json_valid(value))
@@ -345,7 +358,7 @@ var migrations = [
         PRIMARY KEY (ladder_id, item_id, stack_id)
       );
 
-      -- The ladder item a decision or an explain-back is about.
+      -- The ladder item a decision or an explanation is about.
       ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
@@ -471,7 +484,7 @@ function toRepoPath(rawPath, root) {
 import { readFileSync } from "node:fs";
 import { dirname as dirname2, join as join2 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join2(dirname2(defaultDbPath()), "denylist.txt");
+  return process.env.DEVGYM_DENYLIST_PATH ?? join2(dirname2(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -482,7 +495,7 @@ function loadDenylist(path = defaultDenylistPath()) {
     }
   } catch {
   }
-  for (const name of (process.env.FTC_DENYLIST ?? "").split(",")) {
+  for (const name of (process.env.DEVGYM_DENYLIST ?? "").split(",")) {
     if (name.trim()) names.push(name.trim());
   }
   return names;
@@ -570,9 +583,9 @@ async function main() {
   if (typeof sessionId !== "string" || typeof file !== "string") return;
   const absolute = isAbsolute2(file) ? file : resolve3(cwd, file);
   let folder = dirname3(absolute);
-  while (!existsSync(folder) && dirname3(folder) !== folder) folder = dirname3(folder);
+  while (!existsSync2(folder) && dirname3(folder) !== folder) folder = dirname3(folder);
   const repo = repoIdentitySync(folder);
-  if (repo === null && !existsSync(defaultDbPath())) return;
+  if (repo === null && !existsSync2(defaultDbPath())) return;
   const repoPath = toRepoPath(file, cwd);
   if (repoPath === null) return;
   const denylist = loadDenylist();
@@ -589,7 +602,7 @@ async function main() {
     }
     const { tracked, first } = recordFileEdit(db, sessionId, repoPath);
     if (tracked && first) {
-      const note = `Paper Trail: first edit to ${repoPath} in this session. If this edit involved a real choice between options, call log_decision with pointer.file_path "${repoPath}". If an earlier decision already covers it, no action is needed now; get_trail lists files with no decision.`;
+      const note = `Track: first edit to ${repoPath} in this session. If this edit involved a real choice between options, call log_decision with pointer.file_path "${repoPath}". If an earlier decision already covers it, no action is needed now; get_track lists files with no decision.`;
       process.stdout.write(
         JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: note } })
       );
@@ -601,6 +614,6 @@ async function main() {
 try {
   await main();
 } catch (err) {
-  console.error(`fork-trail-coach hook: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`devgym hook: ${err instanceof Error ? err.message : String(err)}`);
 }
 process.exitCode = 0;

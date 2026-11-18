@@ -1,11 +1,11 @@
-// UserPromptSubmit hook: when a Coach question is open in this session, save the developer's message as its
+// UserPromptSubmit hook: when a Grow question is open in this session, save the developer's message as its
 // answer, exactly as typed. The AI never writes the answer. A hook must never break the session, so every
 // failure ends quietly with exit code 0, and the prompt is never blocked.
 import { existsSync } from "node:fs";
-import { captureAnswer } from "../coach/questions.js";
+import { captureAnswer } from "../grow/questions.js";
 import { defaultDbPath, openDb } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
-import { pruneMessages, saveMessage } from "../coach/messages.js";
+import { pruneMessages, saveMessage } from "../grow/messages.js";
 import { containsBlockedName, loadDenylist } from "../privacy/denylist.js";
 import { findRuleHit } from "../privacy/rules.js";
 
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   try {
     migrate(db);
     // What the developer says is kept locally so "the developer chose this" can be checked against their words.
-    // Only once the developer has set Coach up (chosen tracks), so nothing is kept for someone who never opted in.
+    // Only once the developer has set Grow up (chosen tracks), so nothing is kept for someone who never opted in.
     const tracks = (db.prepare("SELECT value FROM coach_settings WHERE key = 'tracks'").get() as { value: string } | undefined)?.value;
     if (tracks !== undefined && JSON.parse(tracks).length > 0 && answerAllowed(input.prompt)) saveMessage(db, input.session_id, input.prompt);
     pruneMessages(db, 120);
@@ -43,15 +43,15 @@ async function main(): Promise<void> {
     if (!result.captured) {
       if (result.held_back) {
         const note =
-          "Coach: this message was not saved as the answer, because it looked like code, a secret or a client name. The question is still open. Ask the developer to answer in plain words.";
+          "Grow: this message was not saved as the answer, because it looked like code, a secret or a client name. The question is still open. Ask the developer to answer in plain words.";
         process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
       }
       return;
     }
     const note =
       result.closed === "answered"
-        ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (for a drill: drill_key, then score_drill). If it was not really an answer, call release_answer.`
-        : `Coach: kept question ${result.question_id} for later. Do not rate it.`;
+        ? `Grow: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (for a drill: drill_key, then score_drill). If it was not really an answer, call release_answer.`
+        : `Grow: kept question ${result.question_id} for later. Do not rate it.`;
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
   } finally {
     db.close();
@@ -61,6 +61,6 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (err) {
-  console.error(`fork-trail-coach prompt hook: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`devgym prompt hook: ${err instanceof Error ? err.message : String(err)}`);
 }
 process.exitCode = 0;

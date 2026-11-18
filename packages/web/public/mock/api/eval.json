@@ -5,7 +5,7 @@
   "scores": [
     {
       "id": "fork",
-      "label": "Fork",
+      "label": "Clarify",
       "measures": "planted ambiguities caught, across 3 runs",
       "status": "measured",
       "passed": 13,
@@ -19,7 +19,7 @@
     },
     {
       "id": "paper_trail",
-      "label": "Paper Trail",
+      "label": "Track",
       "measures": "hand-marked decisions that were logged",
       "status": "measured",
       "passed": 9,
@@ -37,7 +37,7 @@
     },
     {
       "id": "coach",
-      "label": "Coach",
+      "label": "Grow",
       "measures": "claims the seniors rated as supported by their evidence",
       "status": "not_run",
       "passed": 0,

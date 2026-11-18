@@ -4,7 +4,7 @@ The web app reads and writes the developer's local profile through this API. The
 `packages/shared/src/api.ts` describe every answer; `packages/server/src/api/contract.test.ts` checks the
 real answers against them, so the web app and the API cannot drift apart without a failing test.
 
-- Base URL: `http://127.0.0.1:4317/api` (set `FTC_PORT` to change the port)
+- Base URL: `http://127.0.0.1:4317/api` (set `DEVGYM_PORT` to change the port)
 - Start it: `corepack pnpm build`, then `corepack pnpm api`
 - JSON in, JSON out. Dates are UTC strings like `2026-11-16 11:05:58`.
 
@@ -13,7 +13,7 @@ real answers against them, so the web app and the API cannot drift apart without
 - The server listens on `127.0.0.1` only.
 - A request with a body must send `Content-Type: application/json`.
 - Browser calls are accepted from the API's own origin and from the web app dev server
-  (`http://127.0.0.1:4318` and `http://localhost:4318`). Set `FTC_WEB_ORIGIN` (comma-separated) for other origins.
+  (`http://127.0.0.1:4318` and `http://localhost:4318`). Set `DEVGYM_WEB_ORIGIN` (comma-separated) for other origins.
 - Any other `Origin` or `Host` gets `403`.
 
 ## Errors
@@ -52,7 +52,7 @@ Every error has the same shape:
 
 ### `GET /tickets/:id`
 
-Everything for the Fork view and the Paper Trail view.
+Everything for the Clarify view and the Track view.
 
 ```json
 {
@@ -102,9 +102,9 @@ Field values:
 
 `{ "decisions": [ ... ] }` with the same decision shape as above.
 
-### `GET /coach`
+### `GET /grow`
 
-The growth dashboard (schema: `CoachDashboard` in `@ftc/shared`). Read only: it reads the database and the ladder, never git or the AI, so it is fast. The background worker keeps the data fresh.
+The growth dashboard (schema: `GrowDashboard` in `@devgym/shared`). Read only: it reads the database and the ladder, never git or the AI, so it is fast. The background worker keeps the data fresh.
 
 - `areas[]`: each ladder area with its `level`, `working_toward` and **`exposure`** (none, low, medium, high). Each item has its **`state`** (`not_seen`, `not_assessed`, `learning`, `shown`, `proven`) and its own `exposure`, kept apart: low exposure is never low skill. `shown_by` says whether Shown came from the work or from drills. `why_it_matters`, `needs`, `evidence[]` (the proofs and faults behind the state, newest first, up to 12, no code) and `drills[]`.
 - `repeats[]`: the same mistake on 3 or more tickets, newest first. `coming_back: false` means nothing new in 60 days.
@@ -147,7 +147,7 @@ The newest plan, or `{ "growth_plan": null }` when there is none yet.
 
 Body: `{ "target_id": "<id>", "note": "1 to 2000 characters", "disagrees": false }` (`disagrees` is optional)
 
-`target_id` can be the id of a growth-plan focus area, a decision, an assumption, an explain-back, an observation, a growth plan, or a ticket.
+`target_id` can be the id of a growth-plan focus area, a decision, an assumption, an explanation, an observation, a growth plan, or a ticket.
 
 Returns `201` with `{ "annotation": { "id", "target_id", "note", "disagrees", "created_at" } }`.
 
@@ -157,7 +157,7 @@ Returns `204`, or `404` when the note does not exist.
 
 ### `GET /eval`
 
-The results file `pnpm eval` writes (`eval-results.json` next to the database; `FTC_EVAL_RESULTS` overrides it),
+The results file `pnpm eval` writes (`eval-results.json` next to the database; `DEVGYM_EVAL_RESULTS` overrides it),
 served as it is. `404` until an evaluation has been run. Shape: `EvalResults` in `packages/shared/src/api.ts`.
 It holds scores, not profile data.
 

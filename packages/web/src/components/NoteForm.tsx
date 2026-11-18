@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import type { Annotation } from "@ftc/shared";
+import type { Annotation } from "@devgym/shared";
 import { api, ApiError } from "../api/client";
 
 /** "Add a note / I disagree" on one claim of the growth plan. */

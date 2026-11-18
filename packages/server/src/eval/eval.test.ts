@@ -2,14 +2,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { classify, hintScore, scoreFork, type AnswerKey } from "./fork.js";
+import { classify, hintScore, scoreClarify, type AnswerKey } from "./clarify.js";
 import { ATTEMPTS, HARMLESS, scorePrivacy } from "./privacy.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..", "..", "..");
 const key = JSON.parse(readFileSync(join(ROOT, "packages", "eval", "answer-key", "DEMO-1.json"), "utf8")) as AnswerKey;
 
-describe("Fork scoring", () => {
+describe("Clarify scoring", () => {
   it("matches hints at the start of a word only", () => {
     expect(hintScore("Can they cancel late?", ["late"])).toBe(1);
     expect(hintScore("How do we translate it?", ["late"])).toBe(0);
@@ -28,7 +28,7 @@ describe("Fork scoring", () => {
   });
 
   it("counts decoys as false alarms and lists every miss", () => {
-    const { score, failures } = scoreFork(
+    const { score, failures } = scoreClarify(
       [{ run: 1, questions: ["Which time zone are the 24 hours measured in?", "Who should be notified?"] }],
       key,
     );
@@ -37,8 +37,8 @@ describe("Fork scoring", () => {
     expect(failures.filter((f) => f.id.includes("missed"))).toHaveLength(4);
   });
 
-  it("is not run when no Fork run was saved", () => {
-    expect(scoreFork([], key).score.status).toBe("not_run");
+  it("is not run when no Clarify run was saved", () => {
+    expect(scoreClarify([], key).score.status).toBe("not_run");
   });
 });
 

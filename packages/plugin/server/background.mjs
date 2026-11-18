@@ -6,7 +6,7 @@ var __export = (target, all) => {
     __defProp(target, name2, { get: all[name2], enumerable: true });
 };
 
-// src/coach/status.ts
+// src/grow/status.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 
 // src/errors.ts
@@ -4266,7 +4266,7 @@ async function symbolAtLine(filePath, source, line) {
   return best;
 }
 
-// src/coach/attribution.ts
+// src/grow/attribution.ts
 import { createHash as createHash2 } from "node:crypto";
 function normalizeLine(line) {
   let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
@@ -4292,16 +4292,29 @@ function pruneAiLines(db, keepDays, now = /* @__PURE__ */ new Date()) {
   return Number(db.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
 }
 
-// src/coach/capture.ts
+// src/grow/capture.ts
 import { randomUUID } from "node:crypto";
 
 // src/db/connection.ts
-import { mkdirSync } from "node:fs";
+import { cpSync, existsSync as existsSync2, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname as dirname2, join as join2 } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function defaultDbPath() {
-  return process.env.FTC_DB_PATH ?? join2(homedir(), ".fork-trail-coach", "profile.sqlite");
+  if (process.env.DEVGYM_DB_PATH) return process.env.DEVGYM_DB_PATH;
+  const dir = join2(homedir(), ".devgym");
+  carryOverLegacyFolder(dir, join2(homedir(), ".fork-trail-coach"));
+  return join2(dir, "profile.sqlite");
+}
+var carriedOver = false;
+function carryOverLegacyFolder(dir, legacy) {
+  if (carriedOver) return;
+  carriedOver = true;
+  if (existsSync2(dir) || !existsSync2(legacy)) return;
+  try {
+    cpSync(legacy, dir, { recursive: true });
+  } catch {
+  }
 }
 function openDb(path = defaultDbPath()) {
   if (path !== ":memory:") mkdirSync(dirname2(path), { recursive: true });
@@ -4321,7 +4334,7 @@ function transaction(db, fn) {
   }
 }
 
-// src/coach/facts.ts
+// src/grow/facts.ts
 function toIso(value) {
   return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
 }
@@ -24126,7 +24139,7 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// src/coach/ladder/schema.ts
+// src/grow/ladder/schema.ts
 var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
 var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
@@ -24214,7 +24227,7 @@ var ladderSchema = external_exports.strictObject({
   }
 });
 
-// src/coach/signals.ts
+// src/grow/signals.ts
 var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
 var WEB = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"];
 var ts = (line) => ({ file: "src/pay.ts", line });
@@ -24415,7 +24428,7 @@ function signalById(id) {
   return BY_ID.get(id);
 }
 
-// src/coach/capture.ts
+// src/grow/capture.ts
 function isGeneratedPath(path) {
   const p = path.replaceAll("\\", "/").toLowerCase();
   const name2 = p.split("/").pop() ?? "";
@@ -24586,14 +24599,14 @@ async function catchUp(db, opts) {
     remaining: 0
   });
   const identity = await repoIdentity(opts.root, exec);
-  if (identity === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  if (identity === null) return nothing("This folder is not a git repo, so Grow has no commits to read.");
   const { top, key } = identity;
   const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
-  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
+  if (emails.length === 0) return nothing("No git user.email is set, so Grow can't tell which commits are yours.");
   const since = captureStart(db, key);
   pruneAiLines(db, t.hash_keep_days, now);
   const history = opts.history === true;
-  if (since === null && !history) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
+  if (since === null && !history) return nothing("Grow starts reading commits after Claude's first edit in this repo.");
   const seen = new Set(db.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key).map((r) => r.sha));
   const listed = await listCommits(top, { authorEmails: emails, ...history || since === null ? {} : { sinceIso: since }, exec });
   const wanted = history && since !== null ? listed.filter((c) => Date.parse(c.authorDate) < Date.parse(since)) : listed;
@@ -24657,10 +24670,10 @@ async function catchUp(db, opts) {
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
 }
 
-// src/coach/bugs.ts
+// src/grow/bugs.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 
-// src/coach/settings.ts
+// src/grow/settings.ts
 function read(db, key, fallback) {
   const row = db.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
   return row ? JSON.parse(row.value) : fallback;
@@ -24672,7 +24685,7 @@ function getExtraEmails(db) {
   return read(db, "extra_emails", []);
 }
 
-// src/coach/bugs.ts
+// src/grow/bugs.ts
 var FIX_WORDS = /\b(fix(es|ed)?|bug(fix)?|hotfix|revert(s|ed)?)\b/i;
 var MAX_FIXES_PER_RUN = 50;
 async function blameLine(top, rev, path, line, exec) {
@@ -24764,7 +24777,7 @@ function repeats(db, now = /* @__PURE__ */ new Date()) {
   })).sort((a, b) => Number(b.coming_back) - Number(a.coming_back) || Date.parse(b.last_at) - Date.parse(a.last_at));
 }
 
-// src/coach/exposure.ts
+// src/grow/exposure.ts
 function exposureFor(db, ladderId, itemId, now, t) {
   const since = now.getTime() - t.exposure_window_days * 864e5;
   const rows = [
@@ -24781,7 +24794,7 @@ function exposureFor(db, ladderId, itemId, now, t) {
   return { level, functions };
 }
 
-// src/coach/state.ts
+// src/grow/state.ts
 var DAY = 864e5;
 var ms = (iso) => Date.parse(iso);
 var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -24926,7 +24939,7 @@ function areaLevel(area, statuses) {
   return { level, working_toward: null };
 }
 
-// src/coach/drills.ts
+// src/grow/drills.ts
 var DAY2 = 864e5;
 function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
   const lowExposure = status.exposure === "none" || status.exposure === "low";
@@ -24973,13 +24986,13 @@ function drillsReady(db, results, now = /* @__PURE__ */ new Date()) {
   return ready2;
 }
 
-// src/coach/ladder/load.ts
+// src/grow/ladder/load.ts
 import { createHash as createHash3 } from "node:crypto";
-import { existsSync as existsSync2, readFileSync } from "node:fs";
+import { existsSync as existsSync3, readFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join3 } from "node:path";
 
-// src/coach/ladder/builtin/backend.json
+// src/grow/ladder/builtin/backend.json
 var backend_default = {
   track: "backend",
   areas: [
@@ -25999,7 +26012,7 @@ var backend_default = {
   ]
 };
 
-// src/coach/ladder/builtin/frontend.json
+// src/grow/ladder/builtin/frontend.json
 var frontend_default = {
   track: "frontend",
   areas: [
@@ -27000,14 +27013,15 @@ var frontend_default = {
   ]
 };
 
-// src/coach/ladder/builtin.ts
+// src/grow/ladder/builtin.ts
 var BUILTIN_LADDERS = {
   backend: backend_default,
   frontend: frontend_default
 };
 
-// src/coach/ladder/load.ts
-var FILE = join3(".fork-trail-coach", "ladder.json");
+// src/grow/ladder/load.ts
+var FILE = join3(".devgym", "ladder.json");
+var LEGACY_FILE = join3(".fork-trail-coach", "ladder.json");
 function withThresholds(ladder) {
   return { ...DEFAULT_THRESHOLDS, ...ladder.thresholds };
 }
@@ -27024,7 +27038,7 @@ function unknownSignals(ladder) {
   return [...missing];
 }
 function readCompanyFile(path, track) {
-  if (!existsSync2(path)) return null;
+  if (!existsSync3(path)) return null;
   let raw;
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
@@ -27043,10 +27057,12 @@ function readCompanyFile(path, track) {
 function loadLadder(track, opts) {
   const home = opts.home ?? homedir2();
   const builtin = BUILTIN_LADDERS[track];
+  const repoId = `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}`;
   const tries = [
-    // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
-    { source: "repo", path: join3(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
-    { source: "home", path: join3(home, FILE), id: `home/${track}` }
+    { source: "repo", path: join3(opts.repoRoot, FILE), id: repoId },
+    { source: "repo", path: join3(opts.repoRoot, LEGACY_FILE), id: repoId },
+    { source: "home", path: join3(home, FILE), id: `home/${track}` },
+    { source: "home", path: join3(home, LEGACY_FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
     const found = readCompanyFile(t.path, track);
@@ -27078,8 +27094,8 @@ function findItem(ladder, itemId) {
   return null;
 }
 
-// src/coach/stack.ts
-import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
+// src/grow/stack.ts
+import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
 import { join as join4 } from "node:path";
 var SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "vendor", ".next", "out", "target", "bin", "obj", ".venv", "venv"]);
 var NPM = [
@@ -27123,7 +27139,7 @@ function stacksInFolder(abs, folder) {
     const text2 = read2(join4(abs, file2));
     if (text2 !== null && /spring/i.test(text2)) add("spring", "backend");
   }
-  if (existsSync3(join4(abs, "go.mod"))) add("go", "backend");
+  if (existsSync4(join4(abs, "go.mod"))) add("go", "backend");
   for (const file2 of ["requirements.txt", "pyproject.toml"]) {
     const text2 = read2(join4(abs, file2));
     if (text2 === null) continue;
@@ -27172,7 +27188,7 @@ function stackForPath(stacks, filePath, track) {
   return best?.stack_id ?? null;
 }
 
-// src/coach/plan.ts
+// src/grow/plan.ts
 function priority(status, faults) {
   if (faults.has(status.item_id)) return 0;
   if (status.state === "shown") return 1;
@@ -27246,7 +27262,7 @@ function latestDrillFailed(db, ladderId, itemId) {
   return row !== void 0 && row.passed === 0;
 }
 
-// src/coach/questions.ts
+// src/grow/questions.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 var EVIDENCE_REF = "evidence:";
 function aboutEvidence(row) {
@@ -27321,7 +27337,7 @@ function proposeQuestions(db, results, max) {
   return out2;
 }
 
-// src/coach/status.ts
+// src/grow/status.ts
 var capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var shortDate = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 function computeStatuses(db, loaded, now) {
@@ -27367,9 +27383,9 @@ function detail(s, proofsNeeded) {
     case "proven":
       return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
     case "shown":
-      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /coach drill ${s.item_id}`;
+      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /grow drill ${s.item_id}`;
     case "not_assessed":
-      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /coach drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
+      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /grow drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
     case "learning": {
       const parts2 = [`${s.proofs} of ${proofsNeeded} code proofs`];
       if (s.open_faults > 0) parts2.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
@@ -27413,7 +27429,7 @@ function areaViews(results) {
   return { areas, notWritten };
 }
 function renderProgress(s) {
-  if (s.tracks.length === 0) return "Coach needs to know what you work on: backend, frontend, or both?";
+  if (s.tracks.length === 0) return "Grow needs to know what you work on: backend, frontend, or both?";
   const lines = [];
   for (const area of s.areas) {
     const track = area.ladder_id.endsWith("/frontend") ? "Frontend" : "Backend";
@@ -27459,7 +27475,7 @@ function focusFrames(db, results, stacks) {
   }
   return pickFocus(results, { recentFaultItems, workedAreas }).map(({ loaded, status }) => buildFrame(db, status, { ladder: loaded, stacks }));
 }
-async function coachStatus(db, opts) {
+async function growStatus(db, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const tracks = getTracks(db);
   const base = {
@@ -27649,7 +27665,7 @@ var migrations = [
       );
       CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
 
-      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      -- Commits Grow has already read. change_id spots the same change after a rebase or cherry-pick.
       CREATE TABLE commits_seen (
         repo_root    TEXT NOT NULL,
         sha          TEXT NOT NULL,
@@ -27688,7 +27704,7 @@ var migrations = [
       );
       CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
 
-      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      -- A grow question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
       CREATE TABLE pending_questions (
         id             TEXT PRIMARY KEY,
         kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
@@ -27738,7 +27754,7 @@ var migrations = [
       );
       CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
 
-      -- Coach choices of the developer, for example which tracks to follow.
+      -- Grow choices of the developer, for example which tracks to follow.
       CREATE TABLE coach_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL CHECK (json_valid(value))
@@ -27755,7 +27771,7 @@ var migrations = [
         PRIMARY KEY (ladder_id, item_id, stack_id)
       );
 
-      -- The ladder item a decision or an explain-back is about.
+      -- The ladder item a decision or an explanation is about.
       ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
@@ -27874,7 +27890,7 @@ async function main() {
   const db = openDb();
   try {
     migrate(db);
-    await coachStatus(db, { root });
+    await growStatus(db, { root });
   } finally {
     db.close();
   }
@@ -27882,6 +27898,6 @@ async function main() {
 try {
   await main();
 } catch (err2) {
-  console.error(`fork-trail-coach background: ${err2 instanceof Error ? err2.message : String(err2)}`);
+  console.error(`devgym background: ${err2 instanceof Error ? err2.message : String(err2)}`);
 }
 process.exitCode = 0;

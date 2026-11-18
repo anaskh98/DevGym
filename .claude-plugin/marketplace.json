@@ -1,12 +1,14 @@
 {
   "name": "md-labs",
-  "description": "Team marketplace for the Fork, Paper Trail and Coach plugin.",
-  "owner": { "name": "Plugin team" },
+  "description": "Team marketplace for the DevGym plugin.",
+  "owner": {
+    "name": "Plugin team"
+  },
   "plugins": [
     {
-      "name": "fork-trail-coach",
+      "name": "devgym",
       "source": "./packages/plugin",
-      "description": "Fork (ticket questions), Paper Trail (decision log) and Coach (growth report). Profiles stay on your machine."
+      "description": "DevGym: Clarify tickets, Track decisions, Explain and Check your work, and Grow your level. Profiles stay on your machine."
     }
   ]
 }

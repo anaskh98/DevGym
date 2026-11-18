@@ -8,7 +8,7 @@ import { z } from "zod";
 import { defaultDbPath, type Db } from "../db/connection.js";
 import { PrivacyError, StoreError } from "../errors.js";
 import type { PrivacyGuard } from "../privacy/guard.js";
-import { coachDashboard } from "../coach/dashboard.js";
+import { growDashboard } from "../grow/dashboard.js";
 import * as data from "./data.js";
 import { servePage } from "./static.js";
 
@@ -21,19 +21,19 @@ export interface ApiOptions {
   guard: PrivacyGuard;
   /** Extra browser origins that may call the API, for example the Vite dev server. */
   allowedOrigins?: string[];
-  /** Folder with the built web app. When it is missing, the built-in Coach report page is served. */
+  /** Folder with the built web app. When it is missing, the built-in Grow report page is served. */
   webDir?: string | undefined;
   /** The results file the eval harness writes. Defaults to defaultEvalResultsPath(). */
   evalFile?: string | undefined;
-  /** The project folder the Coach dashboard reads its ladder from. Defaults to the current folder. */
-  coachRoot?: string | undefined;
+  /** The project folder the Grow dashboard reads its ladder from. Defaults to the current folder. */
+  growRoot?: string | undefined;
   /** Home folder for the developer-level ladder file (tests change it). */
-  coachHome?: string | undefined;
+  growHome?: string | undefined;
 }
 
-/** The eval results live next to the local database, outside any repo. FTC_EVAL_RESULTS overrides the path. */
+/** The eval results live next to the local database, outside any repo. DEVGYM_EVAL_RESULTS overrides the path. */
 export function defaultEvalResultsPath(): string {
-  return process.env.FTC_EVAL_RESULTS ?? join(dirname(defaultDbPath()), "eval-results.json");
+  return process.env.DEVGYM_EVAL_RESULTS ?? join(dirname(defaultDbPath()), "eval-results.json");
 }
 
 const annotationInput = z.strictObject({
@@ -184,8 +184,8 @@ export function createApiServer(options: ApiOptions): Server {
       case "GET /growth-plan":
         return ok({ growth_plan: data.latestGrowthPlan(db) });
 
-      case "GET /coach":
-        return ok(coachDashboard(db, { root: options.coachRoot ?? process.cwd(), ...(options.coachHome ? { home: options.coachHome } : {}) }));
+      case "GET /grow":
+        return ok(growDashboard(db, { root: options.growRoot ?? process.cwd(), ...(options.growHome ? { home: options.growHome } : {}) }));
 
       case "POST /annotations": {
         const input = parse(annotationInput, await readJson(req));
@@ -213,7 +213,7 @@ export function createApiServer(options: ApiOptions): Server {
       }
       case "GET /export":
         return ok(data.exportAll(db), 200, {
-          "Content-Disposition": `attachment; filename="fork-trail-coach-export-${new Date().toISOString().slice(0, 10)}.json"`,
+          "Content-Disposition": `attachment; filename="devgym-export-${new Date().toISOString().slice(0, 10)}.json"`,
         });
 
       case "DELETE /data": {

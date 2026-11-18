@@ -23,7 +23,7 @@ let repo: string;
 let guard: PrivacyGuard;
 
 beforeAll(() => {
-  repo = mkdtempSync(join(tmpdir(), "ftc-guard-"));
+  repo = mkdtempSync(join(tmpdir(), "devgym-guard-"));
   mkdirSync(join(repo, "src"));
   mkdirSync(join(repo, "node_modules", "lib"), { recursive: true });
   writeFileSync(join(repo, "src", "export.ts"), REPO_FILE);

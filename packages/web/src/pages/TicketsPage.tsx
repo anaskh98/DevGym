@@ -1,21 +1,21 @@
 import { Link, Navigate } from "react-router";
-import type { TicketSummary } from "@ftc/shared";
+import type { TicketSummary } from "@devgym/shared";
 import { api } from "../api/client";
 import { useApi } from "../api/useApi";
 import { Icon } from "../components/Icon";
 import { EmptyState, ErrorState, Loading } from "../components/States";
-import { plural } from "../lib/fork";
+import { plural } from "../lib/clarify";
 import { useTitle } from "../lib/useTitle";
 
-type Section = "fork" | "paper-trail";
+type Section = "clarify" | "track";
 
 const SECTION: Record<Section, { empty: string; meta: (ticket: TicketSummary) => string }> = {
-  fork: {
+  clarify: {
     empty: "The ticket and its questions will appear here.",
     meta: (ticket) =>
       ticket.assumption_count === 0 ? "No questions saved yet" : plural(ticket.assumption_count, "question"),
   },
-  "paper-trail": {
+  track: {
     empty: "The decisions made while coding it will appear here.",
     meta: (ticket) =>
       ticket.decision_count === 0 ? "No decisions yet" : plural(ticket.decision_count, "decision"),
@@ -23,13 +23,13 @@ const SECTION: Record<Section, { empty: string; meta: (ticket: TicketSummary) =>
 };
 
 /**
- * The tickets in the local store, for Fork or for Paper Trail.
+ * The tickets in the local store, for Clarify or for Track.
  * Goes straight to the ticket when there is only one.
  */
 export function TicketsPage({ section }: { section: Section }) {
   const tickets = useApi("tickets", (signal) => api.listTickets(signal));
   const { empty, meta } = SECTION[section];
-  useTitle(section === "fork" ? "Fork" : "Paper Trail");
+  useTitle(section === "clarify" ? "Clarify" : "Track");
 
   if (tickets.status === "loading") return <Loading what="tickets" />;
   if (tickets.status === "error") return <ErrorState error={tickets.error} what="the tickets" />;
@@ -39,7 +39,7 @@ export function TicketsPage({ section }: { section: Section }) {
     return (
       <EmptyState title="No tickets yet">
         <p>
-          Run <code>/fork-trail-coach:fork DEMO-1</code> in Claude Code, inside the demo repository. {empty}
+          Run <code>/devgym:clarify DEMO-1</code> in Claude Code, inside the demo repository. {empty}
         </p>
       </EmptyState>
     );

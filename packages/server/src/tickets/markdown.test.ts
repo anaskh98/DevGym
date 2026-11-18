@@ -11,7 +11,7 @@ let b: string;
 const ticket = (id: string, title: string) => `---\nid: ${id}\ntitle: ${title}\n---\nBody of ${id}`;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "ftc-tickets-"));
+  root = mkdtempSync(join(tmpdir(), "devgym-tickets-"));
   a = mkdtempSync(join(root, "a-"));
   b = mkdtempSync(join(root, "b-"));
 });

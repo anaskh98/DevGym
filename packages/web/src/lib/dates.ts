@@ -1,4 +1,4 @@
-import { parseServerDate } from "@ftc/shared";
+import { parseServerDate } from "@devgym/shared";
 
 const dayTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const dayLong = new Intl.DateTimeFormat(undefined, { dateStyle: "long" });

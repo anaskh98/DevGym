@@ -214,7 +214,7 @@ const DATA_TABLES = [
   "assumptions",
   "tickets",
 ] as const;
-/** Everything Coach stores about the developer. "Delete everything" must remove all of it. */
+/** Everything Grow stores about the developer. "Delete everything" must remove all of it. */
 const COACH_TABLES = [
   "developer_messages",
   "ticket_findings",

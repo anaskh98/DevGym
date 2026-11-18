@@ -137,7 +137,7 @@ describe("pointers through a squash merge", () => {
   const FEATURE = `export function listOrders() {\n  return [];\n}\n\nexport function exportOrders(limit: number) {\n  const capped = Math.min(limit, 5000);\n  return listOrders().slice(0, capped);\n}\n\nexport class Pager {\n  next() {\n    return 1;\n  }\n}\n`;
 
   beforeEach(() => {
-    repo = mkdtempSync(join(tmpdir(), "ftc-pointers-"));
+    repo = mkdtempSync(join(tmpdir(), "devgym-pointers-"));
     mkdirSync(join(repo, "src"));
     git("init", "-q", "-b", "main");
     git("remote", "add", "origin", "https://github.com/team/roomly.git");

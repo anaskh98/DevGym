@@ -134,7 +134,7 @@ export const saveObservationInput = z.strictObject({
     .trim()
     .regex(/^[a-z0-9][a-z0-9-]{0,49}$/, "skill_tag must be lowercase letters, digits and dashes"),
   summary: shortText,
-  evidence_ids: z.array(id).min(1).max(20).describe("Ids of the decisions or explain-backs that support this"),
+  evidence_ids: z.array(id).min(1).max(20).describe("Ids of the decisions or explanations that support this"),
 });
 
 export const saveGrowthPlanInput = z.strictObject({
@@ -166,21 +166,21 @@ export const saveGrowthPlanInput = z.strictObject({
     .max(3),
 });
 
-export const coachStatusInput = z.strictObject({});
+export const growStatusInput = z.strictObject({});
 
-export const setCoachTracksInput = z.strictObject({
+export const setGrowTracksInput = z.strictObject({
   tracks: z.array(z.enum(["backend", "frontend"])).min(1).max(2).describe("What the developer works on"),
   extra_emails: z.array(z.email()).max(5).optional().describe("Other emails the developer commits with"),
 });
 
 const ladderId = z.string().trim().min(1).max(200);
 
-export const coachItemInput = z.strictObject({
+export const growItemInput = z.strictObject({
   item_id: itemId,
   ladder_id: ladderId.optional().describe("Leave out to use the active ladder"),
 });
 
-export const coachHistoryInput = z.strictObject({
+export const growHistoryInput = z.strictObject({
   ladder_id: ladderId.optional(),
 });
 
@@ -236,8 +236,8 @@ export const disagreeInput = z.strictObject({
 export const askQuestionInput = z
   .strictObject({
     session_id: id.describe("The Claude Code session id"),
-    question_id: id.optional().describe("A pending question from coach_status"),
-    decision_id: id.optional().describe("Or: a decision to ask an explain-back about"),
+    question_id: id.optional().describe("A pending question from grow_status"),
+    decision_id: id.optional().describe("Or: a decision to ask an explanation about"),
     item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none. Alone: a follow-up question on that item"),
     text: shortText.describe("The question exactly as you will ask it. It must not give the answer away"),
   })

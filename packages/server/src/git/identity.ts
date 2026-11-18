@@ -1,6 +1,6 @@
 // One identity per repo, the same in every worktree and from any folder inside it: git's shared .git folder.
-// Coach keys line hashes, read commits and the capture start by it, so a line Claude wrote in one checkout is
-// still known as Claude's when Coach runs in another.
+// Grow keys line hashes, read commits and the capture start by it, so a line Claude wrote in one checkout is
+// still known as Claude's when Grow runs in another.
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";

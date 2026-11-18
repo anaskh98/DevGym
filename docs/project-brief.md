@@ -1,13 +1,13 @@
-# Project brief: "Fork, Paper Trail, Coach", a Claude Code plugin
+# Project brief: "DevGym", a Claude Code plugin
 
 This brief is written to be pasted into another AI assistant to think the idea through. It is self-contained.
 
 ## 1. The idea in one paragraph
 
 AI now writes much of the code. The risk is that developers ship code they did not choose, do not understand, and
-do not learn from. This plugin sits inside Claude Code and does three things: **Fork** asks the right questions
-about a ticket before coding, **Paper Trail** records every real choice made while coding (and who made it: the
-developer or the AI), and **Coach** turns that record into a private growth plan for the developer. **The main
+do not learn from. This plugin sits inside Claude Code and does three things: **Clarify** asks the right questions
+about a ticket before coding, **Track** records every real choice made while coding (and who made it: the
+developer or the AI), and **Grow** turns that record into a private growth plan for the developer. **The main
 purpose is the developer's improvement.** The pull request "Decisions" section for reviewers is a side benefit.
 All profile data stays on the developer's machine.
 
@@ -15,21 +15,21 @@ All profile data stays on the developer's machine.
 
 | Part | What it does |
 |---|---|
-| **Fork** (`/fork <ticket>`) | Reads a ticket (from local Markdown tickets, or from Jira through the Atlassian connector), finds the places where it can be read in more than one way that would change the code, asks only those questions, and saves the answers as an assumption list. |
-| **Paper Trail** (`/paper-trail <ticket>`) | Tracks a coding session. A hook records which files Claude edits (paths only). Each real choice is logged as a decision: summary, alternatives, origin (`ai`, `dev`, `dev_changed_ai`), and a pointer to the code (file, function, commit). Never the code itself. |
+| **Clarify** (`/clarify <ticket>`) | Reads a ticket (from local Markdown tickets, or from Jira through the Atlassian connector), finds the places where it can be read in more than one way that would change the code, asks only those questions, and saves the answers as an assumption list. |
+| **Track** (`/track <ticket>`) | Tracks a coding session. A hook records which files Claude edits (paths only). Each real choice is logged as a decision: summary, alternatives, origin (`ai`, `dev`, `dev_changed_ai`), and a pointer to the code (file, function, commit). Never the code itself. |
 | **Pointers** (`/pointers`) | Checks each decision's pointer still finds its code, and moves pointers to the merge commit after a PR merges. Uses tree-sitter for function names. |
 | **PR Decisions** (`/pr-decisions`) | Writes a "Decisions" section into the pull request: assumptions, decisions, who chose, where. No profile data. |
-| **Explain-back** (`/explain-back`) | After coding, asks the developer "why" about 2 or 3 decisions and rates the answer `clear`, `partial` or `not_yet`. |
-| **Coach** (`/coach`) | Today: writes 1 to 3 focus areas from saved observations, each citing evidence, with one exercise. `/coach open` shows a local web report. |
+| **Explain** (`/explain`) | After coding, asks the developer "why" about 2 or 3 decisions and rates the answer `clear`, `partial` or `not_yet`. |
+| **Grow** (`/grow`) | Today: writes 1 to 3 focus areas from saved observations, each citing evidence, with one exercise. `/grow open` shows a local web report. |
 
 **Tech:** TypeScript, Node 22 (built-in `node:sqlite`), an MCP server over stdio, Claude Code hooks (PostToolUse
 for edits), zod, an esbuild bundle committed inside the plugin, a small local web app for the report. Profiles live
-in `~/.fork-trail-coach/profile.sqlite`. A privacy guard rejects code, secrets and client names in anything saved.
+in `~/.devgym/profile.sqlite`. A privacy guard rejects code, secrets and client names in anything saved.
 About 300 automated tests.
 
 ## 3. What we did so far
 
-1. **Built the whole backend** (13 tasks: data model, MCP tools, hooks, pointers, PR section, coach report, privacy
+1. **Built the whole backend** (13 tasks: data model, MCP tools, hooks, pointers, PR section, grow report, privacy
    guard, eval harness) and replaced a teammate's earlier backend on `main` with a normal commit (no force push).
    The teammate has since added Jira ticket import on `main`.
 2. **Explored 3 alternative directions** on separate local branches, to answer the hardest objection a judge might
@@ -47,9 +47,9 @@ About 300 automated tests.
 3. **Decided to make developer growth the core**, and designed it (next section). New work goes on a `dev` branch
    from `main`; it does not depend on the path branches.
 
-## 4. The new design: Coach that knows your level
+## 4. The new design: Grow that knows your level
 
-**Problem with today's Coach:** observations are written by the AI with free-text tags, and nothing says what
+**Problem with today's Grow:** observations are written by the AI with free-text tags, and nothing says what
 "good" looks like at a given level. So the plan drifts into general advice ("study error handling"), and nobody can
 tell when a weakness is really fixed.
 
@@ -81,7 +81,7 @@ gap, I practised it in my real work, I passed the drill, and now I can pass the 
 - **Judging:** fixed rules find signals; an AI judge may add findings only with citations the server checks; **plain
   code decides every state and level.** Answers are captured word for word by a prompt hook, so the AI cannot
   rewrite them. Scores need quotes from the real answer.
-- **A ticket check** after coding: compares the change with the ticket and the Fork assumptions and shows
+- **A ticket check** after coding: compares the change with the ticket and the Clarify assumptions and shows
   **missing**, **extra** (works but nobody asked for it) and **different** code. Shown to the developer only; the
   developer fixes it or keeps it with a reason.
 - **The stack is the project's own stack**, found from the repo (Express, NestJS, Spring, React, Next.js, Angular,
@@ -95,7 +95,7 @@ gap, I practised it in my real work, I passed the drill, and now I can pass the 
 |---|---|
 | **Not seen** | No evidence. |
 | **Learning** | Any proof, any weak answer, any fault. |
-| **Shown** | **Both:** 3 proofs in the developer's own lines or decisions across 2+ tickets in the last 60 days, with no open fault; **and** 2 "clear" explain-back answers on different tickets, at least one naming the trade-off. |
+| **Shown** | **Both:** 3 proofs in the developer's own lines or decisions across 2+ tickets in the last 60 days, with no open fault; **and** 2 "clear" explanation answers on different tickets, at least one naming the trade-off. |
 | **Proven** | Shown, **plus a passed interview drill** on a new situation, scored against the fixed answer key. Required. |
 
 A fault on a serious signal, or a "not yet" answer, drops the item back to Learning, and only newer evidence counts
@@ -108,7 +108,7 @@ level, never raise it.
 ```
 Backend · Errors and failure        Level: Mid  ·  working toward Senior
   BE.ERR.M1 Validate input at the edge     PROVEN    drill passed 12 Nov
-  BE.ERR.M2 Handle outside-call failure    SHOWN     ready for a drill → /coach drill BE.ERR.M2
+  BE.ERR.M2 Handle outside-call failure    SHOWN     ready for a drill → /grow drill BE.ERR.M2
   BE.ERR.M3 Errors carry useful context    LEARNING  1 of 3 proofs · 1 owned fault · last answer: partial
   Next for Senior: BE.ERR.S1 Design for partial failure    NOT SEEN
 

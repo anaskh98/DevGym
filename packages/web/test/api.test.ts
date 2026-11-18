@@ -8,7 +8,7 @@ import {
   TicketDetailResponse,
   TicketListResponse,
   type EvalScore,
-} from "@ftc/shared";
+} from "@devgym/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "../src/api/client";
 import { readApiConfig } from "../src/api/config";
@@ -83,7 +83,7 @@ describe("sample data (generated from the real API by pnpm mock:refresh)", () =>
     for (const area of plan?.focus_areas ?? []) expect(area.tentative).toBe(area.evidence.length === 1);
   });
 
-  it("links every piece of Coach evidence to something on the ticket's Paper Trail", async () => {
+  it("links every piece of Grow evidence to something on the ticket's Track", async () => {
     const plan = GrowthPlanResponse.parse(await mockFile("/api/growth-plan")).growth_plan;
     const detail = TicketDetailResponse.parse(await mockFile("/api/tickets/SAMPLE-1"));
     const known = new Set(detail.decisions.flatMap((d) => [d.id, ...d.explain_backs.map((e) => e.id)]));
@@ -169,7 +169,7 @@ describe("page helpers", () => {
   it("exports exactly what the service exported", async () => {
     const response = ExportResponse.parse(await mockFile("/api/export"));
     const file = buildExport(response, new Date("2026-11-16T08:00:00Z"));
-    expect(file.filename).toBe("fork-trail-coach-export-2026-11-16.json");
+    expect(file.filename).toBe("devgym-export-2026-11-16.json");
     expect(JSON.parse(file.text)).toEqual(response);
   });
 
@@ -182,7 +182,7 @@ describe("page helpers", () => {
   });
 
   it("always shows five scores in order, and never shows a score that was not run as zero", () => {
-    const score = (o: Partial<EvalScore>): EvalScore => ({ id: "fork", label: "Fork", measures: "m", status: "measured", passed: 3, total: 5, also: [], ...o });
+    const score = (o: Partial<EvalScore>): EvalScore => ({ id: "fork", label: "Clarify", measures: "m", status: "measured", passed: 3, total: 5, also: [], ...o });
     const scores = orderedScores({ scores: [score({ id: "privacy" }), score({}), score({ id: "coach", status: "not_run", total: 0, passed: 0 })] });
     expect(scores.map((s) => s.id)).toEqual(["fork", "paper_trail", "pointers", "coach", "privacy"]);
     expect(scores.map(scoreText)).toEqual(["3 of 5", "Not run yet", "Not run yet", "Not run yet", "3 of 5"]);

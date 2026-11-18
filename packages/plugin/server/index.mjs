@@ -28616,12 +28616,25 @@ import { dirname as dirname5, join as join11 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/db/connection.ts
-import { mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function defaultDbPath() {
-  return process.env.FTC_DB_PATH ?? join(homedir(), ".fork-trail-coach", "profile.sqlite");
+  if (process.env.DEVGYM_DB_PATH) return process.env.DEVGYM_DB_PATH;
+  const dir = join(homedir(), ".devgym");
+  carryOverLegacyFolder(dir, join(homedir(), ".fork-trail-coach"));
+  return join(dir, "profile.sqlite");
+}
+var carriedOver = false;
+function carryOverLegacyFolder(dir, legacy) {
+  if (carriedOver) return;
+  carriedOver = true;
+  if (existsSync(dir) || !existsSync(legacy)) return;
+  try {
+    cpSync(legacy, dir, { recursive: true });
+  } catch {
+  }
 }
 function openDb(path = defaultDbPath()) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -28783,7 +28796,7 @@ var migrations = [
       );
       CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
 
-      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      -- Commits Grow has already read. change_id spots the same change after a rebase or cherry-pick.
       CREATE TABLE commits_seen (
         repo_root    TEXT NOT NULL,
         sha          TEXT NOT NULL,
@@ -28822,7 +28835,7 @@ var migrations = [
       );
       CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
 
-      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      -- A grow question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
       CREATE TABLE pending_questions (
         id             TEXT PRIMARY KEY,
         kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
@@ -28872,7 +28885,7 @@ var migrations = [
       );
       CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
 
-      -- Coach choices of the developer, for example which tracks to follow.
+      -- Grow choices of the developer, for example which tracks to follow.
       CREATE TABLE coach_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL CHECK (json_valid(value))
@@ -28889,7 +28902,7 @@ var migrations = [
         PRIMARY KEY (ladder_id, item_id, stack_id)
       );
 
-      -- The ladder item a decision or an explain-back is about.
+      -- The ladder item a decision or an explanation is about.
       ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
@@ -37106,7 +37119,7 @@ import { readFile as readFile3 } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname as dirname3, join as join7 } from "node:path";
 
-// src/coach/bugs.ts
+// src/grow/bugs.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 
 // src/git/diff.ts
@@ -37165,7 +37178,7 @@ async function lookupPr(repo, prNumber, root, deps = {}) {
     throw new StoreError("The GitHub CLI (gh) is not installed. Install it, or pass pr_number or commit.");
   }
   const response = await (deps.fetch ?? fetch)(`https://api.github.com/repos/${repo}/pulls/${prNumber}`, {
-    headers: { Accept: "application/vnd.github+json", "User-Agent": "fork-trail-coach" },
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "devgym" },
     signal: AbortSignal.timeout(15e3)
   });
   if (!response.ok) {
@@ -37373,10 +37386,10 @@ function matchLine(rules, filePath, line) {
   return rules.filter((rule) => ruleMatches(rule, filePath, line));
 }
 
-// src/coach/capture.ts
+// src/grow/capture.ts
 import { randomUUID } from "node:crypto";
 
-// src/coach/facts.ts
+// src/grow/facts.ts
 function toIso(value) {
   return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
 }
@@ -37406,7 +37419,7 @@ function factsForItem(db2, ladderId2, itemId2) {
 }
 
 // src/pointers/symbols.ts
-import { existsSync } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 import { dirname as dirname2, extname, join as join3 } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41442,7 +41455,7 @@ var GRAMMARS = {
 function wasmPath(file2, pkg) {
   const here = dirname2(fileURLToPath(import.meta.url));
   const bundled = join3(here, "wasm", file2);
-  return existsSync(bundled) ? bundled : join3(here, "..", "..", "node_modules", pkg, file2);
+  return existsSync2(bundled) ? bundled : join3(here, "..", "..", "node_modules", pkg, file2);
 }
 var ready;
 var parsers = /* @__PURE__ */ new Map();
@@ -41530,7 +41543,7 @@ async function findSymbol(filePath, source, name2) {
   return loose.length === 1 ? loose[0] ?? null : null;
 }
 
-// src/coach/attribution.ts
+// src/grow/attribution.ts
 import { createHash as createHash2 } from "node:crypto";
 function normalizeLine(line) {
   let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
@@ -41556,7 +41569,7 @@ function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
   return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
 }
 
-// src/coach/ladder/schema.ts
+// src/grow/ladder/schema.ts
 var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
 var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
@@ -41647,7 +41660,7 @@ var ladderSchema = external_exports.strictObject({
   }
 });
 
-// src/coach/signals.ts
+// src/grow/signals.ts
 var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
 var WEB = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"];
 var ts = (line) => ({ file: "src/pay.ts", line });
@@ -41848,7 +41861,7 @@ function signalById(id2) {
   return BY_ID.get(id2);
 }
 
-// src/coach/capture.ts
+// src/grow/capture.ts
 function isGeneratedPath(path) {
   const p = path.replaceAll("\\", "/").toLowerCase();
   const name2 = p.split("/").pop() ?? "";
@@ -42019,14 +42032,14 @@ async function catchUp(db2, opts) {
     remaining: 0
   });
   const identity = await repoIdentity(opts.root, exec);
-  if (identity === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  if (identity === null) return nothing("This folder is not a git repo, so Grow has no commits to read.");
   const { top, key } = identity;
   const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
-  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
+  if (emails.length === 0) return nothing("No git user.email is set, so Grow can't tell which commits are yours.");
   const since = captureStart(db2, key);
   pruneAiLines(db2, t.hash_keep_days, now);
   const history = opts.history === true;
-  if (since === null && !history) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
+  if (since === null && !history) return nothing("Grow starts reading commits after Claude's first edit in this repo.");
   const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(key).map((r) => r.sha));
   const listed = await listCommits(top, { authorEmails: emails, ...history || since === null ? {} : { sinceIso: since }, exec });
   const wanted = history && since !== null ? listed.filter((c) => Date.parse(c.authorDate) < Date.parse(since)) : listed;
@@ -42090,7 +42103,7 @@ async function catchUp(db2, opts) {
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
 }
 
-// src/coach/settings.ts
+// src/grow/settings.ts
 function read(db2, key, fallback) {
   const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
   return row ? JSON.parse(row.value) : fallback;
@@ -42111,7 +42124,7 @@ function setExtraEmails(db2, emails) {
   write(db2, "extra_emails", [...new Set(emails.map((e) => e.trim().toLowerCase()))]);
 }
 
-// src/coach/bugs.ts
+// src/grow/bugs.ts
 var FIX_WORDS = /\b(fix(es|ed)?|bug(fix)?|hotfix|revert(s|ed)?)\b/i;
 var MAX_FIXES_PER_RUN = 50;
 async function blameLine(top, rev, path, line, exec) {
@@ -42203,10 +42216,10 @@ function repeats(db2, now = /* @__PURE__ */ new Date()) {
   })).sort((a, b) => Number(b.coming_back) - Number(a.coming_back) || Date.parse(b.last_at) - Date.parse(a.last_at));
 }
 
-// src/coach/drills.ts
+// src/grow/drills.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 
-// src/coach/exposure.ts
+// src/grow/exposure.ts
 function exposureFor(db2, ladderId2, itemId2, now, t) {
   const since = now.getTime() - t.exposure_window_days * 864e5;
   const rows2 = [
@@ -42223,14 +42236,14 @@ function exposureFor(db2, ladderId2, itemId2, now, t) {
   return { level, functions };
 }
 
-// src/coach/quote.ts
+// src/grow/quote.ts
 var squeeze = (text2) => text2.replace(/\s+/g, " ").trim().toLowerCase();
 function quoteIn(answer, quote) {
   const q = squeeze(quote);
   return q.length >= 12 && squeeze(answer).includes(q);
 }
 
-// src/coach/state.ts
+// src/grow/state.ts
 var DAY = 864e5;
 var ms = (iso) => Date.parse(iso);
 var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -42375,7 +42388,7 @@ function areaLevel(area, statuses) {
   return { level, working_toward: null };
 }
 
-// src/coach/drills.ts
+// src/grow/drills.ts
 var DAY2 = 864e5;
 var DRILL_REF = "drill:";
 function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
@@ -42490,13 +42503,13 @@ function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
   return ready2;
 }
 
-// src/coach/ladder/load.ts
+// src/grow/ladder/load.ts
 import { createHash as createHash3 } from "node:crypto";
-import { existsSync as existsSync2, readFileSync } from "node:fs";
+import { existsSync as existsSync3, readFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join4 } from "node:path";
 
-// src/coach/ladder/builtin/backend.json
+// src/grow/ladder/builtin/backend.json
 var backend_default = {
   track: "backend",
   areas: [
@@ -43516,7 +43529,7 @@ var backend_default = {
   ]
 };
 
-// src/coach/ladder/builtin/frontend.json
+// src/grow/ladder/builtin/frontend.json
 var frontend_default = {
   track: "frontend",
   areas: [
@@ -44517,14 +44530,15 @@ var frontend_default = {
   ]
 };
 
-// src/coach/ladder/builtin.ts
+// src/grow/ladder/builtin.ts
 var BUILTIN_LADDERS = {
   backend: backend_default,
   frontend: frontend_default
 };
 
-// src/coach/ladder/load.ts
-var FILE = join4(".fork-trail-coach", "ladder.json");
+// src/grow/ladder/load.ts
+var FILE = join4(".devgym", "ladder.json");
+var LEGACY_FILE = join4(".fork-trail-coach", "ladder.json");
 function withThresholds(ladder) {
   return { ...DEFAULT_THRESHOLDS, ...ladder.thresholds };
 }
@@ -44541,7 +44555,7 @@ function unknownSignals(ladder) {
   return [...missing];
 }
 function readCompanyFile(path, track) {
-  if (!existsSync2(path)) return null;
+  if (!existsSync3(path)) return null;
   let raw;
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
@@ -44560,10 +44574,12 @@ function readCompanyFile(path, track) {
 function loadLadder(track, opts) {
   const home = opts.home ?? homedir2();
   const builtin = BUILTIN_LADDERS[track];
+  const repoId = `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}`;
   const tries = [
-    // The id must not depend on how the path is spelled (slashes, case on Windows), or one ladder would get two ids.
-    { source: "repo", path: join4(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(normalizeRepoPath(opts.repoRoot)).digest("hex").slice(0, 8)}/${track}` },
-    { source: "home", path: join4(home, FILE), id: `home/${track}` }
+    { source: "repo", path: join4(opts.repoRoot, FILE), id: repoId },
+    { source: "repo", path: join4(opts.repoRoot, LEGACY_FILE), id: repoId },
+    { source: "home", path: join4(home, FILE), id: `home/${track}` },
+    { source: "home", path: join4(home, LEGACY_FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
     const found = readCompanyFile(t.path, track);
@@ -44595,11 +44611,11 @@ function findItem(ladder, itemId2) {
   return null;
 }
 
-// src/coach/status.ts
+// src/grow/status.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
 
-// src/coach/stack.ts
-import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
+// src/grow/stack.ts
+import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
 import { join as join5 } from "node:path";
 var SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "vendor", ".next", "out", "target", "bin", "obj", ".venv", "venv"]);
 var NPM = [
@@ -44643,7 +44659,7 @@ function stacksInFolder(abs, folder) {
     const text2 = read2(join5(abs, file2));
     if (text2 !== null && /spring/i.test(text2)) add("spring", "backend");
   }
-  if (existsSync3(join5(abs, "go.mod"))) add("go", "backend");
+  if (existsSync4(join5(abs, "go.mod"))) add("go", "backend");
   for (const file2 of ["requirements.txt", "pyproject.toml"]) {
     const text2 = read2(join5(abs, file2));
     if (text2 === null) continue;
@@ -44692,7 +44708,7 @@ function stackForPath(stacks, filePath, track) {
   return best?.stack_id ?? null;
 }
 
-// src/coach/plan.ts
+// src/grow/plan.ts
 function priority(status, faults) {
   if (faults.has(status.item_id)) return 0;
   if (status.state === "shown") return 1;
@@ -44801,7 +44817,7 @@ function checkItemArea(db2, area, allowedKinds = EXERCISE_KINDS) {
   }
 }
 
-// src/coach/questions.ts
+// src/grow/questions.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 var EVIDENCE_REF = "evidence:";
 function aboutEvidence(row) {
@@ -44959,7 +44975,7 @@ function rateAnswer(db2, input2) {
   return { rating: input2.rating, names_tradeoff: namesTradeoff, ...note ? { note } : {} };
 }
 
-// src/coach/status.ts
+// src/grow/status.ts
 var capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var shortDate = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 function trackOfItem(itemId2) {
@@ -45012,9 +45028,9 @@ function detail(s, proofsNeeded) {
     case "proven":
       return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
     case "shown":
-      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /coach drill ${s.item_id}`;
+      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /grow drill ${s.item_id}`;
     case "not_assessed":
-      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /coach drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
+      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /grow drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
     case "learning": {
       const parts2 = [`${s.proofs} of ${proofsNeeded} code proofs`];
       if (s.open_faults > 0) parts2.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
@@ -45058,7 +45074,7 @@ function areaViews(results) {
   return { areas, notWritten };
 }
 function renderProgress(s) {
-  if (s.tracks.length === 0) return "Coach needs to know what you work on: backend, frontend, or both?";
+  if (s.tracks.length === 0) return "Grow needs to know what you work on: backend, frontend, or both?";
   const lines = [];
   for (const area of s.areas) {
     const track = area.ladder_id.endsWith("/frontend") ? "Frontend" : "Backend";
@@ -45104,7 +45120,7 @@ function focusFrames(db2, results, stacks) {
   }
   return pickFocus(results, { recentFaultItems, workedAreas }).map(({ loaded, status }) => buildFrame(db2, status, { ladder: loaded, stacks }));
 }
-async function coachStatus(db2, opts) {
+async function growStatus(db2, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const tracks = getTracks(db2);
   const base = {
@@ -45221,9 +45237,9 @@ function disagree(db2, input2) {
   throw new StoreError("You can disagree with evidence or a drill score. To change an answer, ask for a new question.");
 }
 
-// src/coach/dashboard.ts
+// src/grow/dashboard.ts
 var EVIDENCE_PER_ITEM = 12;
-function coachDashboard(db2, opts) {
+function growDashboard(db2, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const tracks = getTracks(db2);
   const ladders = loadActiveLadders(tracks, { repoRoot: opts.root, ...opts.home ? { home: opts.home } : {} });
@@ -45295,7 +45311,7 @@ function coachDashboard(db2, opts) {
   const ready_for_assessment = allItems.filter((i2) => ready2.has(i2.item_id) || i2.state === "not_assessed" && (i2.exposure === "none" || i2.exposure === "low")).map((i2) => i2.item_id);
   const next_actions = [];
   for (const f of open_faults.slice(0, 2)) next_actions.push(`Fix the open fault in ${f.file ?? "your code"}${f.symbol ? ` (${f.symbol})` : ""}: ${f.title}`);
-  for (const id2 of [...ready2].slice(0, 2)) next_actions.push(`Take a drill for ${id2}: /fork-trail-coach:coach drill ${id2}`);
+  for (const id2 of [...ready2].slice(0, 2)) next_actions.push(`Take a drill for ${id2}: /devgym:grow drill ${id2}`);
   for (const i2 of allItems.filter((x) => x.state === "learning").slice(0, 2)) if (i2.needs[0]) next_actions.push(`${i2.item_id}: ${i2.needs[0]}`);
   const drill_results = allItems.flatMap((i2) => i2.drills.map((d) => ({ item_id: i2.item_id, title: i2.title, drill_id: d.drill_id, passed: d.passed, void: d.void, at: d.at }))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 20);
   const titles = new Map(allItems.map((i2) => [i2.item_id, i2.title]));
@@ -45340,7 +45356,7 @@ function pathKey(path) {
 
 // src/store.ts
 function localDeveloperId() {
-  return process.env.FTC_DEVELOPER_ID ?? "local";
+  return process.env.DEVGYM_DEVELOPER_ID ?? "local";
 }
 function exists(db2, table, id2) {
   return db2.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id2) !== void 0;
@@ -45502,7 +45518,7 @@ function recordExplainBack(db2, input2) {
 function saveObservation(db2, input2) {
   for (const evidenceId of input2.evidence_ids) {
     if (!exists(db2, "decisions", evidenceId) && !exists(db2, "explain_backs", evidenceId)) {
-      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explain-back`);
+      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explanation`);
     }
   }
   const id2 = randomUUID6();
@@ -45757,7 +45773,7 @@ function deleteAll(db2) {
 }
 
 // src/api/static.ts
-import { existsSync as existsSync4 } from "node:fs";
+import { existsSync as existsSync5 } from "node:fs";
 import { readFile as readFile2, stat } from "node:fs/promises";
 import { extname as extname2, join as join6, normalize, resolve as resolve3, sep as sep2 } from "node:path";
 
@@ -45767,7 +45783,7 @@ var REPORT_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coach report</title>
+<title>Grow report</title>
 <style>
   :root { --bg:#f7f7f5; --card:#ffffff; --text:#1f2328; --muted:#5b636d; --line:#d9dce0; --accent:#1f5fbf; --warn-bg:#fff4d6; --warn:#7a5200; --bad:#a3261d; }
   @media (prefers-color-scheme: dark) {
@@ -45797,7 +45813,7 @@ var REPORT_HTML = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Coach report</h1>
+  <h1>Grow report</h1>
   <p class="muted">Private to you. Stored on this machine only and never shared.</p>
   <div id="report" aria-live="polite"><p class="muted">Loading\u2026</p></div>
 </main>
@@ -45825,7 +45841,7 @@ var REPORT_JS = `"use strict";
     var item = el("li", "", observation.summary);
     var parts = [];
     (observation.evidence || []).forEach(function (e) {
-      if (e.kind === "explain_back") parts.push("explain-back on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
+      if (e.kind === "explain_back") parts.push("explanation on " + e.ticket_id + ": " + (RATING[e.rating] || e.rating));
       if (e.kind === "decision") parts.push("decision on " + e.ticket_id + ": " + (ORIGIN[e.origin] || e.origin));
     });
     if (parts.length) item.appendChild(el("div", "muted", "Based on " + parts.join("; ")));
@@ -45905,7 +45921,7 @@ var REPORT_JS = `"use strict";
 
   function render(plan) {
     if (!plan) {
-      message("No growth plan yet. Run the coach command in Claude Code, then reload this page.");
+      message("No growth plan yet. Run the grow command in Claude Code, then reload this page.");
       return;
     }
     var nodes = [el("p", "muted", "Plan made " + plan.created_at + " UTC \xB7 " + plan.focus_areas.length + " focus area" + (plan.focus_areas.length === 1 ? "" : "s"))];
@@ -45953,10 +45969,10 @@ function send(res, status, type, body2, extra = {}) {
   res.end(body2);
 }
 function hasWebApp(webDir2) {
-  return webDir2 !== void 0 && existsSync4(join6(webDir2, "index.html"));
+  return webDir2 !== void 0 && existsSync5(join6(webDir2, "index.html"));
 }
 function reportPath(webDir2) {
-  return hasWebApp(webDir2) ? "/#/coach" : "/";
+  return hasWebApp(webDir2) ? "/#/grow" : "/";
 }
 async function servePage(res, pathname, webDir2) {
   if (!hasWebApp(webDir2)) {
@@ -45986,7 +46002,7 @@ var API_HOST = "127.0.0.1";
 var DEFAULT_API_PORT = 4317;
 var MAX_BODY_BYTES = 64 * 1024;
 function defaultEvalResultsPath() {
-  return process.env.FTC_EVAL_RESULTS ?? join7(dirname3(defaultDbPath()), "eval-results.json");
+  return process.env.DEVGYM_EVAL_RESULTS ?? join7(dirname3(defaultDbPath()), "eval-results.json");
 }
 var annotationInput = external_exports.strictObject({
   target_id: external_exports.string().trim().min(1).max(200),
@@ -46114,8 +46130,8 @@ function createApiServer(options) {
       }
       case "GET /growth-plan":
         return ok({ growth_plan: latestGrowthPlan(db2) });
-      case "GET /coach":
-        return ok(coachDashboard(db2, { root: options.coachRoot ?? process.cwd(), ...options.coachHome ? { home: options.coachHome } : {} }));
+      case "GET /grow":
+        return ok(growDashboard(db2, { root: options.growRoot ?? process.cwd(), ...options.growHome ? { home: options.growHome } : {} }));
       case "POST /annotations": {
         const input2 = parse4(annotationInput, await readJson(req));
         guard.check(input2);
@@ -46139,7 +46155,7 @@ function createApiServer(options) {
       }
       case "GET /export":
         return ok(exportAll(db2), 200, {
-          "Content-Disposition": `attachment; filename="fork-trail-coach-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
+          "Content-Disposition": `attachment; filename="devgym-export-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
         });
       case "DELETE /data": {
         parse4(deleteAllInput, await readJson(req));
@@ -46181,7 +46197,7 @@ var ReportServer = class {
   options;
   server;
   port;
-  /** Starts the local server if needed, and returns the address of the Coach report. */
+  /** Starts the local server if needed, and returns the address of the Grow report. */
   async open(openBrowser = true) {
     const { started, port: port2 } = await this.ensureRunning();
     const url2 = `http://${API_HOST}:${port2}${reportPath(this.options.webDir)}`;
@@ -46195,7 +46211,7 @@ var ReportServer = class {
       db: this.options.db,
       guard: this.options.guard,
       webDir: this.options.webDir,
-      coachRoot: this.options.coachRoot,
+      growRoot: this.options.growRoot,
       allowedOrigins: this.options.allowedOrigins ?? []
     });
     let server2 = create();
@@ -46300,8 +46316,8 @@ import { tmpdir } from "node:os";
 import { join as join8 } from "node:path";
 
 // src/pr/section.ts
-var SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
-var SECTION_END = "<!-- fork-trail-coach:decisions:end -->";
+var SECTION_START = "<!-- devgym:decisions:start -->";
+var SECTION_END = "<!-- devgym:decisions:end -->";
 var ORIGIN_LABEL = {
   ai: "AI chose",
   dev: "Developer chose",
@@ -46358,7 +46374,7 @@ function buildDecisionsSection(db2, ticketId) {
     });
     lines.push("");
   }
-  lines.push("<sub>Written by the Fork, Paper Trail, Coach plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
+  lines.push("<sub>Written by the DevGym plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
   return { markdown: lines.join("\n"), assumptions: assumptions.length, decisions: decisions.length };
 }
 function mergeSection(body2, section) {
@@ -46424,7 +46440,7 @@ async function updatePrDecisions(db2, options, deps = {}) {
   }
   const body2 = JSON.parse(view2.stdout).body ?? "";
   const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
-  const dir = await mkdtemp(join8(tmpdir(), "ftc-pr-"));
+  const dir = await mkdtemp(join8(tmpdir(), "devgym-pr-"));
   try {
     const file2 = join8(dir, "body.md");
     await writeFile(file2, next, "utf8");
@@ -46438,7 +46454,7 @@ async function updatePrDecisions(db2, options, deps = {}) {
   return { ...result, updated: true };
 }
 
-// src/coach/review.ts
+// src/grow/review.ts
 import { randomUUID as randomUUID8 } from "node:crypto";
 async function mergeBase(top, exec) {
   for (const ref of ["origin/HEAD", "origin/main", "main", "origin/master", "master"]) {
@@ -46500,10 +46516,10 @@ async function proposeFault(db2, root, input2, exec = run2, home) {
   return { evidence_id: id2, owned: aiWritten };
 }
 
-// src/coach/ticketcheck.ts
+// src/grow/ticketcheck.ts
 import { randomUUID as randomUUID10 } from "node:crypto";
 
-// src/coach/messages.ts
+// src/grow/messages.ts
 import { randomUUID as randomUUID9 } from "node:crypto";
 function quoteInSession(db2, sessionId, quote, since) {
   const rows2 = since === void 0 ? db2.prepare("SELECT message FROM developer_messages WHERE session_id = ?").all(sessionId) : db2.prepare("SELECT message FROM developer_messages WHERE session_id = ? AND created_at >= ?").all(sessionId, since);
@@ -46523,7 +46539,7 @@ function decisionEvidence(db2, d) {
   ).run(randomUUID9(), d.ladder_id, d.item_id, d.decided_by, d.ticket, d.file, d.symbol, (/* @__PURE__ */ new Date()).toISOString());
 }
 
-// src/coach/ticketcheck.ts
+// src/grow/ticketcheck.ts
 function reqItem(file2, tracks, level) {
   const web = file2 !== null && /\.(tsx|jsx|vue|svelte|css|html)$/i.test(file2);
   const frontend = web || tracks.length === 1 && tracks[0] === "frontend";
@@ -46625,7 +46641,7 @@ function creditSpottedNeeds(db2, root, ticketId, askedPo, home) {
 import { readFileSync as readFileSync3 } from "node:fs";
 import { dirname as dirname4, join as join9 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join9(dirname4(defaultDbPath()), "denylist.txt");
+  return process.env.DEVGYM_DENYLIST_PATH ?? join9(dirname4(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -46636,7 +46652,7 @@ function loadDenylist(path = defaultDenylistPath()) {
     }
   } catch {
   }
-  for (const name2 of (process.env.FTC_DENYLIST ?? "").split(",")) {
+  for (const name2 of (process.env.DEVGYM_DENYLIST ?? "").split(",")) {
     if (name2.trim()) names.push(name2.trim());
   }
   return names;
@@ -47031,7 +47047,7 @@ var saveObservationInput = external_exports.strictObject({
   developer_id: id.optional().describe("Leave out to use the local developer"),
   skill_tag: external_exports.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,49}$/, "skill_tag must be lowercase letters, digits and dashes"),
   summary: shortText,
-  evidence_ids: external_exports.array(id).min(1).max(20).describe("Ids of the decisions or explain-backs that support this")
+  evidence_ids: external_exports.array(id).min(1).max(20).describe("Ids of the decisions or explanations that support this")
 });
 var saveGrowthPlanInput = external_exports.strictObject({
   developer_id: id.optional().describe("Leave out to use the local developer"),
@@ -47048,17 +47064,17 @@ var saveGrowthPlanInput = external_exports.strictObject({
     })
   ).min(1).max(3)
 });
-var coachStatusInput = external_exports.strictObject({});
-var setCoachTracksInput = external_exports.strictObject({
+var growStatusInput = external_exports.strictObject({});
+var setGrowTracksInput = external_exports.strictObject({
   tracks: external_exports.array(external_exports.enum(["backend", "frontend"])).min(1).max(2).describe("What the developer works on"),
   extra_emails: external_exports.array(external_exports.email()).max(5).optional().describe("Other emails the developer commits with")
 });
 var ladderId = external_exports.string().trim().min(1).max(200);
-var coachItemInput = external_exports.strictObject({
+var growItemInput = external_exports.strictObject({
   item_id: itemId,
   ladder_id: ladderId.optional().describe("Leave out to use the active ladder")
 });
-var coachHistoryInput = external_exports.strictObject({
+var growHistoryInput = external_exports.strictObject({
   ladder_id: ladderId.optional()
 });
 var proposeEvidenceInput = external_exports.strictObject({
@@ -47105,8 +47121,8 @@ var disagreeInput = external_exports.strictObject({
 });
 var askQuestionInput = external_exports.strictObject({
   session_id: id.describe("The Claude Code session id"),
-  question_id: id.optional().describe("A pending question from coach_status"),
-  decision_id: id.optional().describe("Or: a decision to ask an explain-back about"),
+  question_id: id.optional().describe("A pending question from grow_status"),
+  decision_id: id.optional().describe("Or: a decision to ask an explanation about"),
   item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none. Alone: a follow-up question on that item"),
   text: shortText.describe("The question exactly as you will ask it. It must not give the answer away")
 }).refine((i2) => !(i2.question_id !== void 0 && i2.decision_id !== void 0), { message: "Give question_id or decision_id, not both" }).refine((i2) => i2.question_id !== void 0 || i2.decision_id !== void 0 || i2.item_id !== void 0, {
@@ -47145,7 +47161,7 @@ var saveStackNoteInput = external_exports.strictObject({
 });
 
 // src/mcp/server.ts
-var SERVER_NAME = "fork-trail-coach";
+var SERVER_NAME = "devgym";
 var SERVER_VERSION = "0.1.0";
 async function reply(run3) {
   try {
@@ -47160,15 +47176,15 @@ function createServer2(db2, tickets2, options = {}) {
   const root = options.root ?? process.cwd();
   const guard = options.guard ?? new PrivacyGuard({ root });
   const server2 = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
-  const report = new ReportServer({ db: db2, guard, coachRoot: repoIdentitySync(root)?.top ?? root, ...options.report });
+  const report = new ReportServer({ db: db2, guard, growRoot: repoIdentitySync(root)?.top ?? root, ...options.report });
   server2.server.onclose = () => report.close();
   const write2 = (input2, save) => reply(() => {
     guard.check(input2);
     return save(input2);
   });
   const ticket = (ticketId) => ensureTicket(db2, tickets2, ticketId, guard);
-  const home = options.coachHome === void 0 ? {} : { home: options.coachHome };
-  const coachRoot = repoIdentitySync(root)?.top ?? root;
+  const home = options.growHome === void 0 ? {} : { home: options.growHome };
+  const growRoot = repoIdentitySync(root)?.top ?? root;
   server2.registerTool(
     "get_ticket",
     {
@@ -47196,14 +47212,14 @@ function createServer2(db2, tickets2, options = {}) {
     "save_assumptions",
     {
       title: "Save assumptions",
-      description: "Save the assumption list for a ticket after Fork. Each item is 'answered_by_po' (with the answer) or 'assumed_by_dev'. Replaces the ticket's previous list. Words only: text that looks like code, a secret, or a client name is rejected.",
+      description: "Save the assumption list for a ticket after Clarify. Each item is 'answered_by_po' (with the answer) or 'assumed_by_dev'. Replaces the ticket's previous list. Words only: text that looks like code, a secret, or a client name is rejected.",
       inputSchema: saveAssumptionsInput
     },
     (input2) => write2(input2, async (i2) => {
       await ticket(i2.ticket_id);
       const saved = saveAssumptions(db2, i2);
       try {
-        creditSpottedNeeds(db2, coachRoot, i2.ticket_id, i2.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+        creditSpottedNeeds(db2, growRoot, i2.ticket_id, i2.assumptions.some((a) => a.status === "answered_by_po"), options.growHome);
       } catch {
       }
       return saved;
@@ -47220,7 +47236,7 @@ function createServer2(db2, tickets2, options = {}) {
       const decision = input2.pointer ? { ...input2, pointer: await enrichPointer(input2.pointer, root) } : input2;
       guard.check(decision);
       await ticket(decision.ticket_id);
-      const ladderId2 = decision.item_id === void 0 ? null : ladderForItem(coachRoot, decision.item_id, home).loaded.ladder_id;
+      const ladderId2 = decision.item_id === void 0 ? null : ladderForItem(growRoot, decision.item_id, home).loaded.ladder_id;
       const checked = resolveOrigin(db2, decision.session_id, decision.origin, decision.origin_quote);
       const saved = logDecision(db2, { ...decision, origin: checked.origin }, root, ladderId2, checked.quote);
       if (decision.item_id !== void 0 && ladderId2 !== null) {
@@ -47242,7 +47258,7 @@ function createServer2(db2, tickets2, options = {}) {
     "update_pr_decisions",
     {
       title: "Update PR Decisions section",
-      description: "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explain-backs, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
+      description: "Build the pull request's 'Decisions' section from a ticket's assumptions and logged decisions, and write it into the PR description with the GitHub CLI. It holds no profile data: no explanations, ratings, observations, growth plans or notes. With dry_run it only returns the markdown. Running it again replaces the earlier section.",
       inputSchema: updatePrDecisionsInput
     },
     (input2) => write2(input2, (i2) => updatePrDecisions(db2, { ticketId: i2.ticket_id, root, prNumber: i2.pr_number, dryRun: i2.dry_run }))
@@ -47250,16 +47266,16 @@ function createServer2(db2, tickets2, options = {}) {
   server2.registerTool(
     "open_report",
     {
-      title: "Open Coach report",
-      description: "Start the local web server if it is not running, and open the Coach report in the developer's browser. The server listens on 127.0.0.1 only and stops when this Claude Code session ends. Returns the address.",
+      title: "Open Grow report",
+      description: "Start the local web server if it is not running, and open the Grow report in the developer's browser. The server listens on 127.0.0.1 only and stops when this Claude Code session ends. Returns the address.",
       inputSchema: openReportInput
     },
     (input2) => reply(() => report.open(input2.open_browser))
   );
   server2.registerTool(
-    "start_trail",
+    "start_track",
     {
-      title: "Start Paper Trail",
+      title: "Start Track",
       description: "Start tracking a coding session for a ticket. From then on the plugin records which files the session edits (paths only). Returns the ticket and its saved assumptions.",
       inputSchema: startTrailInput
     },
@@ -47269,9 +47285,9 @@ function createServer2(db2, tickets2, options = {}) {
     })
   );
   server2.registerTool(
-    "get_trail",
+    "get_track",
     {
-      title: "Get Paper Trail",
+      title: "Get Track",
       description: "List a session's logged decisions and edited files. 'unexplained_files' are edited files that no decision points at.",
       inputSchema: getTrailInput,
       annotations: { readOnlyHint: true }
@@ -47282,16 +47298,16 @@ function createServer2(db2, tickets2, options = {}) {
     "list_decisions",
     {
       title: "List decisions",
-      description: "List every decision logged for a ticket, across sessions, with how many explain-backs each one already has.",
+      description: "List every decision logged for a ticket, across sessions, with how many explanations each one already has.",
       inputSchema: listDecisionsInput,
       annotations: { readOnlyHint: true }
     },
     (input2) => reply(() => listDecisions(db2, input2.ticket_id))
   );
   server2.registerTool(
-    "record_explain_back",
+    "record_explanation",
     {
-      title: "Record explain-back",
+      title: "Record explanation",
       description: "Save the developer's own explanation of a logged decision, with a rating of how clear it was. Words only: code, secrets and client names are rejected.",
       inputSchema: recordExplainBackInput
     },
@@ -47301,7 +47317,7 @@ function createServer2(db2, tickets2, options = {}) {
     "save_observation",
     {
       title: "Save observation",
-      description: "Save one observation about a developer skill. It must cite the decisions or explain-backs it is based on. Words only: code, secrets and client names are rejected.",
+      description: "Save one observation about a developer skill. It must cite the decisions or explanations it is based on. Words only: code, secrets and client names are rejected.",
       inputSchema: saveObservationInput
     },
     (input2) => write2(input2, (i2) => saveObservation(db2, i2))
@@ -47310,7 +47326,7 @@ function createServer2(db2, tickets2, options = {}) {
     "list_observations",
     {
       title: "List observations",
-      description: "List the developer's saved observations, each with its evidence: the decisions (with origin) and explain-backs (with rating) it is based on.",
+      description: "List the developer's saved observations, each with its evidence: the decisions (with origin) and explanations (with rating) it is based on.",
       inputSchema: listObservationsInput,
       annotations: { readOnlyHint: true }
     },
@@ -47320,33 +47336,33 @@ function createServer2(db2, tickets2, options = {}) {
     "save_growth_plan",
     {
       title: "Save growth plan",
-      description: "Save a growth plan with 1 to 3 focus areas. With item_id (from a coach_status focus frame), a claim cites that item's evidence ids and the exercise names the frame's spot file, or the next ticket when there is no spot; the server refuses anything general. Old plans cite observation ids. The server marks a claim 'tentative' when it rests on one piece of evidence. Words only: code, secrets and client names are rejected.",
+      description: "Save a growth plan with 1 to 3 focus areas. With item_id (from a grow_status focus frame), a claim cites that item's evidence ids and the exercise names the frame's spot file, or the next ticket when there is no spot; the server refuses anything general. Old plans cite observation ids. The server marks a claim 'tentative' when it rests on one piece of evidence. Words only: code, secrets and client names are rejected.",
       inputSchema: saveGrowthPlanInput
     },
     (input2) => write2(
       input2,
       (i2) => saveGrowthPlan(db2, i2, (area) => {
-        const { loaded, item } = ladderForItem(coachRoot, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
+        const { loaded, item } = ladderForItem(growRoot, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
         checkItemArea(db2, { ...area, ladder_id: loaded.ladder_id }, item.exercise_kinds);
         return loaded.ladder_id;
       })
     )
   );
   server2.registerTool(
-    "coach_status",
+    "grow_status",
     {
-      title: "Coach status",
+      title: "Grow status",
       description: "Read the developer's new commits, then return each ladder item's state (not seen, learning, shown, proven), each area's level, the stack, focus items, pending questions, and drills that are ready. Plain code decides every state and level; you never set one. 'text' is the progress view: show it as it is.",
-      inputSchema: coachStatusInput
+      inputSchema: growStatusInput
     },
-    () => reply(() => coachStatus(db2, { root, ...home }))
+    () => reply(() => growStatus(db2, { root, ...home }))
   );
   server2.registerTool(
-    "set_coach_tracks",
+    "set_grow_tracks",
     {
-      title: "Set coach tracks",
+      title: "Set grow tracks",
       description: "Save what the developer works on: backend, frontend, or both. Optionally, other emails they commit with.",
-      inputSchema: setCoachTracksInput
+      inputSchema: setGrowTracksInput
     },
     (input2) => reply(() => {
       setTracks(db2, input2.tracks);
@@ -47355,24 +47371,24 @@ function createServer2(db2, tickets2, options = {}) {
     })
   );
   server2.registerTool(
-    "coach_item",
+    "grow_item",
     {
-      title: "Coach item",
+      title: "Grow item",
       description: "Everything stored about one ladder item: its state, what it still needs, and every piece of evidence, answer and drill, each with an id the developer can disagree with.",
-      inputSchema: coachItemInput,
+      inputSchema: growItemInput,
       annotations: { readOnlyHint: true }
     },
     (input2) => reply(() => {
-      const { loaded, item } = ladderForItem(coachRoot, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+      const { loaded, item } = ladderForItem(growRoot, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
       return itemDetail(db2, loaded, item);
     })
   );
   server2.registerTool(
-    "coach_history",
+    "grow_history",
     {
-      title: "Coach history",
+      title: "Grow history",
       description: "Every change of an item's state over time, with the reason, oldest first.",
-      inputSchema: coachHistoryInput,
+      inputSchema: growHistoryInput,
       annotations: { readOnlyHint: true }
     },
     (input2) => reply(() => stateHistory(db2, input2.ladder_id))
@@ -47393,7 +47409,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "PR-time review: name a bad practice or bug in the pull request's final change, citing exact lines. Accepted only if those lines were added in this change and the ladder item exists. A fault in lines Claude wrote is owned by the developer: they shipped it. It never sets a state by itself; plain code counts it.",
       inputSchema: proposeFaultInput
     },
-    (input2) => write2(input2, (i2) => proposeFault(db2, root, i2, void 0, options.coachHome))
+    (input2) => write2(input2, (i2) => proposeFault(db2, root, i2, void 0, options.growHome))
   );
   server2.registerTool(
     "propose_ticket_finding",
@@ -47404,7 +47420,7 @@ function createServer2(db2, tickets2, options = {}) {
     },
     (input2) => write2(input2, async (i2) => {
       const t = await ticket(i2.ticket_id);
-      return proposeFinding(db2, root, t, i2, void 0, options.coachHome);
+      return proposeFinding(db2, root, t, i2, void 0, options.growHome);
     })
   );
   server2.registerTool(
@@ -47423,7 +47439,7 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Close the ticket check. A check with no findings on a ticket with 3 or more needs is a positive sign for building what the ticket asks. Credit is given once per ticket.",
       inputSchema: finishTicketCheckInput
     },
-    (input2) => reply(() => finishTicketCheck(db2, coachRoot, input2, options.coachHome))
+    (input2) => reply(() => finishTicketCheck(db2, growRoot, input2, options.growHome))
   );
   server2.registerTool(
     "disagree",
@@ -47437,18 +47453,18 @@ function createServer2(db2, tickets2, options = {}) {
   server2.registerTool(
     "ask_question",
     {
-      title: "Ask coach question",
-      description: "Call this right before you ask the developer a Coach question, with the question exactly as you will ask it. Their next message is then saved as the answer by a hook, word for word; you never write it. Ask one question at a time.",
+      title: "Ask grow question",
+      description: "Call this right before you ask the developer a Grow question, with the question exactly as you will ask it. Their next message is then saved as the answer by a hook, word for word; you never write it. Ask one question at a time.",
       inputSchema: askQuestionInput
     },
     (input2) => write2(input2, (i2) => {
       let ladderId2;
       if (i2.question_id === void 0 && i2.decision_id === void 0 && i2.item_id !== void 0) {
-        ladderId2 = ladderForItem(coachRoot, i2.item_id, home).loaded.ladder_id;
+        ladderId2 = ladderForItem(growRoot, i2.item_id, home).loaded.ladder_id;
       } else if (i2.decision_id !== void 0) {
         const decision = db2.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i2.decision_id);
         const item = i2.item_id ?? decision?.item_id ?? void 0;
-        if (item) ladderId2 = ladderForItem(coachRoot, item, home).loaded.ladder_id;
+        if (item) ladderId2 = ladderForItem(growRoot, item, home).loaded.ladder_id;
       }
       return openQuestion(db2, { ...i2, ...ladderId2 ? { ladder_id: ladderId2 } : {} });
     })
@@ -47466,7 +47482,7 @@ function createServer2(db2, tickets2, options = {}) {
     "rate_answer",
     {
       title: "Rate answer",
-      description: "Rate the developer's saved answer to a Coach question: clear, partial or not_yet. Rate what they said, not what they meant. To mark that it names the trade-off, copy the exact words from the answer into tradeoff_quote; the server checks them. An answer is rated once.",
+      description: "Rate the developer's saved answer to a Grow question: clear, partial or not_yet. Rate what they said, not what they meant. To mark that it names the trade-off, copy the exact words from the answer into tradeoff_quote; the server checks them. An answer is rated once.",
       inputSchema: rateAnswerInput
     },
     (input2) => reply(() => rateAnswer(db2, input2))
@@ -47480,7 +47496,7 @@ function createServer2(db2, tickets2, options = {}) {
     },
     (input2) => reply(async () => {
       await catchUpHere(db2, { root, ...home });
-      const ctx = ladderForItem(coachRoot, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+      const ctx = ladderForItem(growRoot, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
       return startDrill(db2, ctx, { session_id: input2.session_id });
     })
   );
@@ -47495,7 +47511,7 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => reply(() => {
       const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
       if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
-      return drillKey(db2, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input2.question_id);
+      return drillKey(db2, ladderForItem(growRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input2.question_id);
     })
   );
   server2.registerTool(
@@ -47508,7 +47524,7 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => reply(() => {
       const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
       if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
-      return scoreDrill(db2, ladderForItem(coachRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input2);
+      return scoreDrill(db2, ladderForItem(growRoot, row.item_id, { ...home, ladderId: row.ladder_id }), input2);
     })
   );
   server2.registerTool(
@@ -47519,7 +47535,7 @@ function createServer2(db2, tickets2, options = {}) {
       inputSchema: saveStackNoteInput
     },
     (input2) => write2(input2, (i2) => {
-      const { loaded } = ladderForItem(coachRoot, i2.item_id, home);
+      const { loaded } = ladderForItem(growRoot, i2.item_id, home);
       return saveStackNote(db2, loaded, i2);
     })
   );
@@ -47529,14 +47545,14 @@ function createServer2(db2, tickets2, options = {}) {
 // src/mcp/stdio.ts
 var db = openDb();
 migrate(db);
-var projectTickets = process.env.FTC_TICKETS_DIR ?? join11(process.cwd(), "tickets");
+var projectTickets = process.env.DEVGYM_TICKETS_DIR ?? join11(process.cwd(), "tickets");
 var demoTickets = join11(dirname5(fileURLToPath2(import.meta.url)), "..", "demo-tickets");
 var tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
 var webDir = join11(dirname5(fileURLToPath2(import.meta.url)), "..", "web");
-var port = process.env.FTC_PORT ? Number(process.env.FTC_PORT) : void 0;
+var port = process.env.DEVGYM_PORT ? Number(process.env.DEVGYM_PORT) : void 0;
 var server = createServer2(db, tickets, { report: { webDir, port } });
 await server.connect(new StdioServerTransport());
-console.error("fork-trail-coach MCP server running on stdio");
+console.error("devgym MCP server running on stdio");
 var shutdown = () => {
   db.close();
   process.exit(0);

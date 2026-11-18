@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "fork-trail-coach": {
+    "devgym": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/server/start.mjs"]
     }

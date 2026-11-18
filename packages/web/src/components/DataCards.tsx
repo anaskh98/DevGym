@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { AssumptionStatus, DecisionOrigin, ExplainBackRating, type ExportResponse } from "@ftc/shared";
+import { AssumptionStatus, DecisionOrigin, ExplainBackRating, type ExportResponse } from "@devgym/shared";
 import { formatDayTime } from "../lib/dates";
-import { plural } from "../lib/fork";
+import { plural } from "../lib/clarify";
 import { countBy, flag, indexBy, list, num, plainPreview, text, type Row } from "../lib/myData";
 import { OriginBadge } from "./OriginBadge";
 import { RatingTag } from "./RatingTag";
@@ -65,7 +65,7 @@ function TicketChip({ id, lookup }: { id: string; lookup: Lookup }) {
   if (!id) return null;
   const ticket = lookup.tickets.get(id);
   return (
-    <Link className="chip chip--ticket" to={`/fork/${encodeURIComponent(id)}`} title={ticket ? text(ticket, "title") : id}>
+    <Link className="chip chip--ticket" to={`/clarify/${encodeURIComponent(id)}`} title={ticket ? text(ticket, "title") : id}>
       {id}
     </Link>
   );

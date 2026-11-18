@@ -1,4 +1,4 @@
-// "coach open": make sure the local server is running, then open the Coach report in the browser.
+// "grow open": make sure the local server is running, then open the Grow report in the browser.
 import { spawn } from "node:child_process";
 import type { Server } from "node:http";
 import type { Db } from "../db/connection.js";
@@ -12,7 +12,7 @@ export interface ReportOptions {
   guard: PrivacyGuard;
   port?: number | undefined;
   webDir?: string | undefined;
-  coachRoot?: string | undefined;
+  growRoot?: string | undefined;
   allowedOrigins?: string[] | undefined;
   /** Opens a URL in the developer's browser. Replaced in tests. */
   openUrl?: ((url: string) => void) | undefined;
@@ -56,7 +56,7 @@ export class ReportServer {
 
   constructor(private readonly options: ReportOptions) {}
 
-  /** Starts the local server if needed, and returns the address of the Coach report. */
+  /** Starts the local server if needed, and returns the address of the Grow report. */
   async open(openBrowser = true): Promise<OpenReportResult> {
     const { started, port } = await this.ensureRunning();
     const url = `http://${API_HOST}:${port}${reportPath(this.options.webDir)}`;
@@ -72,7 +72,7 @@ export class ReportServer {
         db: this.options.db,
         guard: this.options.guard,
         webDir: this.options.webDir,
-        coachRoot: this.options.coachRoot,
+        growRoot: this.options.growRoot,
         allowedOrigins: this.options.allowedOrigins ?? [],
       });
     let server = create();

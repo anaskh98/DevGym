@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publishes demo-repo/ as its own GitHub repository (EV-1).
 #
-# The demo repo must be separate from this monorepo: Fork runs on a clone of
+# The demo repo must be separate from this monorepo: Clarify runs on a clone of
 # it, and the answer key in packages/eval must not be inside that clone.
 #
 #   scripts/publish-demo-repo.sh <owner/name> [--public]
@@ -25,7 +25,7 @@ git init -q -b main
 git add .
 git commit -q -m "Roomly: synthetic demo service and ticket DEMO-1"
 gh repo create "$REPO" "$VISIBILITY" --source . --push \
-  --description "Synthetic demo service for Fork, Paper Trail, Coach"
+  --description "Synthetic demo service for DevGym"
 
 echo
 echo "Published https://github.com/$REPO"

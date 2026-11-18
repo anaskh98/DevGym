@@ -1,5 +1,5 @@
 // Serves the pages of the local web app: the built app when it ships with the plugin,
-// otherwise the small built-in Coach report.
+// otherwise the small built-in Grow report.
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
@@ -39,9 +39,9 @@ export function hasWebApp(webDir: string | undefined): webDir is string {
   return webDir !== undefined && existsSync(join(webDir, "index.html"));
 }
 
-/** Where the Coach report lives: a route of the web app, or the built-in page. */
+/** Where the Grow report lives: a route of the web app, or the built-in page. */
 export function reportPath(webDir: string | undefined): string {
-  return hasWebApp(webDir) ? "/#/coach" : "/";
+  return hasWebApp(webDir) ? "/#/grow" : "/";
 }
 
 export async function servePage(res: ServerResponse, pathname: string, webDir: string | undefined): Promise<void> {

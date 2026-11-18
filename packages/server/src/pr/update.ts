@@ -84,7 +84,7 @@ export async function updatePrDecisions(db: Db, options: UpdatePrOptions, deps: 
   const next = mergeSection(body.replace(/\r\n/g, "\n"), section.markdown);
 
   // The body goes through a file: it is long, and passing it as an argument would need shell escaping.
-  const dir = await mkdtemp(join(tmpdir(), "ftc-pr-"));
+  const dir = await mkdtemp(join(tmpdir(), "devgym-pr-"));
   try {
     const file = join(dir, "body.md");
     await writeFile(file, next, "utf8");

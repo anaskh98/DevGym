@@ -1,7 +1,7 @@
 // SessionStart and Stop hook. It does two small things and never blocks:
 //  1. At most every 10 minutes per project, it starts a detached background worker that reads the developer's new
 //     commits (no command needed, nothing printed, the session never waits for it).
-//  2. At SessionStart only, when Coach questions are waiting, it adds ONE short line for Claude, at most once a day.
+//  2. At SessionStart only, when Grow questions are waiting, it adds ONE short line for Claude, at most once a day.
 // A hook must never break the session, so every failure ends quietly with exit code 0.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -24,7 +24,7 @@ async function readStdin(): Promise<string> {
 function main(stdin: string): void {
   const input = JSON.parse(stdin) as Input;
   if (typeof input.cwd !== "string") return;
-  // No database means no Coach was ever set up. Do not create one just to find that out.
+  // No database means no Grow was ever set up. Do not create one just to find that out.
   if (!existsSync(defaultDbPath())) return;
   const db = openDb();
   let spawnFor: string | null = null;
@@ -35,7 +35,7 @@ function main(stdin: string): void {
     const put = (key: string, value: unknown) =>
       db.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
     const tracks = setting("tracks");
-    if (tracks === undefined || JSON.parse(tracks).length === 0) return; // Coach is not set up: stay out of the way.
+    if (tracks === undefined || JSON.parse(tracks).length === 0) return; // Grow is not set up: stay out of the way.
 
     const now = Date.now();
     const lastRun = Number(JSON.parse(setting(`bg_last:${input.cwd}`) ?? "0"));
@@ -50,14 +50,14 @@ function main(stdin: string): void {
       const lastNudge = Number(JSON.parse(setting("nudge_last") ?? "0"));
       if (waiting > 0 && now - lastNudge >= NUDGE_EVERY_MS) {
         put("nudge_last", now);
-        note = `Coach: ${waiting} coach question${waiting === 1 ? " is" : "s are"} waiting about the developer's recent work. If it fits a natural pause, mention once that they can run /fork-trail-coach:coach. Do not interrupt.`;
+        note = `Grow: ${waiting} grow question${waiting === 1 ? " is" : "s are"} waiting about the developer's recent work. If it fits a natural pause, mention once that they can run /devgym:grow. Do not interrupt.`;
       }
     }
   } finally {
     db.close();
   }
-  // FTC_NO_BACKGROUND=1 turns the background worker off (tests, or a developer who prefers to run Coach by hand).
-  if (spawnFor !== null && process.env.FTC_NO_BACKGROUND !== "1") {
+  // DEVGYM_NO_BACKGROUND=1 turns the background worker off (tests, or a developer who prefers to run Grow by hand).
+  if (spawnFor !== null && process.env.DEVGYM_NO_BACKGROUND !== "1") {
     // Detached: the worker outlives this hook, so the session never waits for it.
     const child = spawn(process.execPath, [process.argv[1]!, "background", spawnFor], { detached: true, stdio: "ignore", windowsHide: true, env: process.env });
     child.unref();
@@ -70,6 +70,6 @@ function main(stdin: string): void {
 try {
   main(await readStdin());
 } catch (err) {
-  console.error(`fork-trail-coach session hook: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`devgym session hook: ${err instanceof Error ? err.message : String(err)}`);
 }
 process.exitCode = 0;

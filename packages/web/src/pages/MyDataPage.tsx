@@ -1,12 +1,12 @@
 import { useState } from "react";
-import type { ExportResponse } from "@ftc/shared";
+import type { ExportResponse } from "@devgym/shared";
 import { api, ApiError } from "../api/client";
 import { apiConfig } from "../api/config";
 import { useApi } from "../api/useApi";
 import { TableSection } from "../components/DataCards";
 import { Icon } from "../components/Icon";
 import { ErrorState, Loading } from "../components/States";
-import { plural } from "../lib/fork";
+import { plural } from "../lib/clarify";
 import { useTitle } from "../lib/useTitle";
 import { buildExport, downloadFile, TABLE_GROUPS, TABLE_INFO, tablesOf, totalRecords } from "../lib/myData";
 

@@ -1,6 +1,8 @@
 {
-  "name": "fork-trail-coach",
-  "version": "0.19.0",
-  "description": "Fork (ticket questions), Paper Trail (decision log) and Coach (your level on a BE/FE ladder, from your own code, with drills, a dashboard and a personal plan). Profiles stay on your machine.",
-  "author": { "name": "Plugin team" }
+  "name": "devgym",
+  "version": "0.20.0",
+  "description": "DevGym: Clarify a ticket before coding, Track the decisions while coding, Explain them and Check the change after, and Grow your level on a backend or frontend ladder from your own code. Profiles stay on your machine.",
+  "author": {
+    "name": "Plugin team"
+  }
 }

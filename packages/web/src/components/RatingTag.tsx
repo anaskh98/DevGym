@@ -1,4 +1,4 @@
-import { EXPLAIN_BACK_RATING_LABEL, type ExplainBackRating } from "@ftc/shared";
+import { EXPLAIN_BACK_RATING_LABEL, type ExplainBackRating } from "@devgym/shared";
 
 const DESCRIPTION: Record<ExplainBackRating, string> = {
   clear: "The developer explained the decision clearly",
@@ -6,7 +6,7 @@ const DESCRIPTION: Record<ExplainBackRating, string> = {
   not_yet: "The developer could not explain the decision yet",
 };
 
-/** How well a decision was explained back: clear, partial, or not yet. */
+/** How well a decision was explained: clear, partial, or not yet. */
 export function RatingTag({ rating }: { rating: ExplainBackRating }) {
   return (
     <span className={`rating rating--${rating}`} title={DESCRIPTION[rating]}>

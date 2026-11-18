@@ -1,5 +1,5 @@
 {
-  "name": "@ftc/plugin",
+  "name": "@devgym/plugin",
   "version": "0.1.0",
   "private": true,
   "description": "The Claude Code plugin: skills, commands and hooks."

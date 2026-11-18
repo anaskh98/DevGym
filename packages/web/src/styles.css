@@ -1,5 +1,5 @@
 /*
- * Fork, Paper Trail, Coach: local web app.
+ * DevGym: local web app.
  *
  * A soft grey canvas with rounded white panels and forest-green accents.
  * One idea still carries the meaning: a fork is drawn as a fork. The branch
@@ -333,7 +333,7 @@ code {
   text-wrap: balance;
 }
 
-/* ---- Fork page --------------------------------------------------------- */
+/* ---- Clarify page --------------------------------------------------------- */
 
 /* The ticket's header is the page's hero card. */
 .ticket-head {
@@ -459,7 +459,7 @@ code {
 .trail__head h2,
 .eval__heading,
 .data__heading,
-.coach-page > h2 {
+.grow-page > h2 {
   font-size: var(--step-1);
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -824,7 +824,7 @@ code {
   height: 1rem;
 }
 
-/* ---- Paper Trail ----------------------------------------------------------- */
+/* ---- Track ----------------------------------------------------------- */
 
 .trail {
   padding-top: 1.75rem;
@@ -970,7 +970,7 @@ code {
   text-wrap: pretty;
 }
 
-/* Dotted branches: the options that were not taken, as on the Fork page. */
+/* Dotted branches: the options that were not taken, as on the Clarify page. */
 .decision__alternatives {
   margin-top: 0.6rem;
   display: grid;
@@ -1583,7 +1583,7 @@ code {
   line-height: 1.55;
 }
 
-/* Linked to from the Coach page. */
+/* Linked to from the Grow page. */
 .decision__linked {
   margin-left: 0.6rem;
   font-size: var(--step--1);
@@ -1597,9 +1597,9 @@ code {
   box-shadow: inset 0 -0.6em 0 var(--override-wash);
 }
 
-/* ---- Coach ------------------------------------------------------------------ */
+/* ---- Grow ------------------------------------------------------------------ */
 
-.coach-page > h2 {
+.grow-page > h2 {
   margin-top: 2.5rem;
 }
 
@@ -2307,7 +2307,7 @@ code {
   }
 }
 
-/* ---- Coach growth dashboard ------------------------------------------------ */
+/* ---- Grow growth dashboard ------------------------------------------------ */
 
 .growth {
   margin-bottom: 1rem;

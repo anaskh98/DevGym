@@ -19,7 +19,7 @@ let ids: { decision: string; explainBack: string; observation: string; plan: str
 const VITE = "http://localhost:5173";
 
 beforeEach(async () => {
-  repo = mkdtempSync(join(tmpdir(), "ftc-api-"));
+  repo = mkdtempSync(join(tmpdir(), "devgym-api-"));
   db = openDb(":memory:");
   migrate(db);
   store.upsertTicket(db, { id: "SAMPLE-1", title: "Export orders", body: "Body", source: "markdown" });
@@ -117,7 +117,7 @@ describe("reading", () => {
     expect(res.body.tickets).toMatchObject([{ id: "SAMPLE-1", title: "Export orders", assumption_count: 2, decision_count: 2 }]);
   });
 
-  it("returns a ticket with assumptions, decisions, explain-backs and unexplained files", async () => {
+  it("returns a ticket with assumptions, decisions, explanations and unexplained files", async () => {
     const { status, body } = await call("GET", "/api/tickets/SAMPLE-1");
     expect(status).toBe(200);
     expect(body.ticket).toMatchObject({ id: "SAMPLE-1", body: "Body" });
@@ -221,7 +221,7 @@ describe("annotations", () => {
 describe("export and delete-all", () => {
   it("exports every stored row", async () => {
     const res = await call("GET", "/api/export");
-    expect(res.headers["content-disposition"]).toMatch(/attachment; filename="fork-trail-coach-export-\d{4}-\d{2}-\d{2}\.json"/);
+    expect(res.headers["content-disposition"]).toMatch(/attachment; filename="devgym-export-\d{4}-\d{2}-\d{2}\.json"/);
     expect(res.body.counts).toMatchObject({ tickets: 1, assumptions: 2, decisions: 2, pointers: 1, explain_backs: 1, observations: 1, growth_plans: 1, trail_sessions: 1, file_edits: 2 });
     for (const [table, n] of Object.entries(res.body.counts)) expect(res.body.data[table], table).toHaveLength(n as number);
     expect(res.body.data.decisions[0].alternatives).toEqual(["Build it all in memory"]);
@@ -328,16 +328,16 @@ describe("eval results", () => {
   });
 });
 
-describe("GET /api/coach", () => {
+describe("GET /api/grow", () => {
   it("serves the growth dashboard in the shared shape", async () => {
-    const res = await call("GET", "/api/coach");
+    const res = await call("GET", "/api/grow");
     expect(res.status).toBe(200);
-    const parsed = (await import("@ftc/shared")).CoachDashboard.safeParse(res.body);
+    const parsed = (await import("@devgym/shared")).GrowDashboard.safeParse(res.body);
     expect(parsed.success).toBe(true);
   });
 });
 
-describe("delete everything also deletes the Coach tables (I8)", () => {
+describe("delete everything also deletes the Grow tables (I8)", () => {
   it("removes developer messages, evidence and questions too", async () => {
     db.prepare("INSERT INTO developer_messages (id, session_id, message) VALUES ('m', 's', 'something I typed here')").run();
     db.prepare("INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, at) VALUES ('e', 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', 'T', '2026-11-01')").run();

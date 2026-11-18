@@ -13,8 +13,8 @@ import { PrivacyGuard } from "../privacy/guard.js";
 import { recordFileEdit } from "../store.js";
 import { MarkdownTicketAdapter } from "../tickets/markdown.js";
 import { latestGrowthPlan } from "../api/data.js";
-import { saveAiLines } from "../coach/attribution.js";
-import { saveMessage } from "../coach/messages.js";
+import { saveAiLines } from "../grow/attribution.js";
+import { saveMessage } from "../grow/messages.js";
 import { repoIdentitySync } from "../git/identity.js";
 import { createServer } from "./server.js";
 
@@ -30,13 +30,13 @@ beforeEach(async () => {
   for (const session of ["s1", "s2"]) saveMessage(db, session, "Please do it, the developer asked for this exact approach for it");
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   // A fixed denylist and a small temp repo: tests must not read the developer's real list or this repo.
-  repo = mkdtempSync(join(tmpdir(), "ftc-server-"));
+  repo = mkdtempSync(join(tmpdir(), "devgym-server-"));
   writeFileSync(join(repo, "export.ts"), "export const pageSize = Math.min(requested ?? 500, 5000);\n");
   writeFileSync(join(repo, "GLOBEX-1.md"), "---\nid: GLOBEX-1\ntitle: Export for the Globex tenant\n---\nBody");
   const guard = new PrivacyGuard({ root: repo, denylist: () => ["Globex"] });
   const tickets = new MarkdownTicketAdapter([defaultTicketsDir(), repo]);
   opened = [];
-  await createServer(db, tickets, { root: repo, guard, coachHome: repo, report: { port: 0, openUrl: (url) => opened.push(url) } }).connect(serverSide);
+  await createServer(db, tickets, { root: repo, guard, growHome: repo, report: { port: 0, openUrl: (url) => opened.push(url) } }).connect(serverSide);
   client = new Client({ name: "test", version: "0.0.0" });
   await client.connect(clientSide);
 });
@@ -86,15 +86,15 @@ describe("tool list", () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "ask_question",
-      "coach_history",
-      "coach_item",
-      "coach_status",
       "decide_ticket_finding",
       "disagree",
       "drill_key",
       "finish_ticket_check",
       "get_ticket",
-      "get_trail",
+      "get_track",
+      "grow_history",
+      "grow_item",
+      "grow_status",
       "import_ticket",
       "list_decisions",
       "list_observations",
@@ -104,7 +104,7 @@ describe("tool list", () => {
       "propose_fault",
       "propose_ticket_finding",
       "rate_answer",
-      "record_explain_back",
+      "record_explanation",
       "release_answer",
       "resolve_pointers",
       "save_assumptions",
@@ -112,9 +112,9 @@ describe("tool list", () => {
       "save_observation",
       "save_stack_note",
       "score_drill",
-      "set_coach_tracks",
+      "set_grow_tracks",
       "start_drill",
-      "start_trail",
+      "start_track",
       "update_pr_decisions",
     ]);
   });
@@ -138,10 +138,10 @@ describe("privacy guard on every write tool", () => {
       ["log_decision", decision({ summary: "The limit is Math.min(requested ?? 500, 5000) for one page" }), /copies code from this repository/],
       ["log_decision", decision({ pointer: { repo: "team/demo", file_path: "src/globex/export.ts" } }), /'pointer.file_path'.*client denylist/],
       ["log_decision", decision({ summary: "Upload with password=Hunter2secret" }), /secret or credential/],
-      ["record_explain_back", { decision_id, question: "Why?", answer: CODE, rating: "clear" }, /'answer' looks like code/],
+      ["record_explanation", { decision_id, question: "Why?", answer: CODE, rating: "clear" }, /'answer' looks like code/],
       ["save_observation", { skill_tag: "t", summary: "Knows the Globex setup well", evidence_ids: [decision_id] }, /client denylist/],
       ["save_growth_plan", { focus_areas: [{ claim: "c", evidence_ids: [observation_id], exercise: CODE }] }, /'focus_areas\[0\].exercise' looks like code/],
-      ["start_trail", { ticket_id: "SAMPLE-1", session_id: "globex-session" }, /client denylist/],
+      ["start_track", { ticket_id: "SAMPLE-1", session_id: "globex-session" }, /client denylist/],
     ];
     for (const [tool, args, reason] of attempts) {
       const error = await rejected(tool, args);
@@ -165,7 +165,7 @@ describe("open_report", () => {
     expect(opened).toEqual([first.url]);
     const page = await fetch(first.url);
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("Coach report");
+    expect(await page.text()).toContain("Grow report");
 
     const second = await ok("open_report", { open_browser: false });
     expect(second).toEqual({ url: first.url, started: false, opened: false });
@@ -174,31 +174,31 @@ describe("open_report", () => {
   });
 });
 
-describe("paper trail", () => {
+describe("track", () => {
   const edit = (file: string) => recordFileEdit(db, "s1", file);
 
-  it("start_trail returns the ticket and its assumptions, and can be called twice", async () => {
+  it("start_track returns the ticket and its assumptions, and can be called twice", async () => {
     await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Format?", status: "assumed_by_dev", answer: "Assuming: CSV" }] });
-    const out = await ok("start_trail", { ticket_id: "SAMPLE-1", session_id: "s1" });
+    const out = await ok("start_track", { ticket_id: "SAMPLE-1", session_id: "s1" });
     expect(out.ticket.id).toBe("SAMPLE-1");
     expect(out.assumptions).toMatchObject([{ text: "Format?", status: "assumed_by_dev", answer: "Assuming: CSV" }]);
-    await ok("start_trail", { ticket_id: "SAMPLE-1", session_id: "s1" });
+    await ok("start_track", { ticket_id: "SAMPLE-1", session_id: "s1" });
     expect(count("trail_sessions")).toBe(1);
-    await rejected("start_trail", { ticket_id: "NOPE", session_id: "s2" });
-    await rejected("start_trail", { ticket_id: "SAMPLE-1" });
+    await rejected("start_track", { ticket_id: "NOPE", session_id: "s2" });
+    await rejected("start_track", { ticket_id: "SAMPLE-1" });
   });
 
   it("records edits only for a tracked session", async () => {
     expect(edit("src/a.ts")).toEqual({ tracked: false, first: false });
     expect(count("file_edits")).toBe(0);
-    await ok("start_trail", { ticket_id: "SAMPLE-1", session_id: "s1" });
+    await ok("start_track", { ticket_id: "SAMPLE-1", session_id: "s1" });
     expect(edit("src/a.ts")).toEqual({ tracked: true, first: true });
     expect(edit("src/a.ts")).toEqual({ tracked: true, first: false });
     expect(db.prepare("SELECT file_path, edit_count FROM file_edits").all()).toEqual([{ file_path: "src/a.ts", edit_count: 2 }]);
   });
 
   it("flags edited files that no decision points at as unexplained", async () => {
-    await ok("start_trail", { ticket_id: "SAMPLE-1", session_id: "s1" });
+    await ok("start_track", { ticket_id: "SAMPLE-1", session_id: "s1" });
     for (const f of ["src/export.ts", "src/export.test.ts", "src/routes.ts", "README.md"]) edit(f);
     await ok(
       "log_decision",
@@ -210,7 +210,7 @@ describe("paper trail", () => {
     // A decision from another session must not explain this session's files.
     await ok("log_decision", decision({ session_id: "other", pointer: { repo: "acme/demo", file_path: "README.md" } }));
 
-    const trail = await ok("get_trail", { session_id: "s1" });
+    const trail = await ok("get_track", { session_id: "s1" });
     expect(trail.tracking).toBe(true);
     expect(trail.ticket_id).toBe("SAMPLE-1");
     expect(trail.decisions).toHaveLength(1);
@@ -220,7 +220,7 @@ describe("paper trail", () => {
   });
 
   it("reports an untracked session as not tracking", async () => {
-    const trail = await ok("get_trail", { session_id: "never-started" });
+    const trail = await ok("get_track", { session_id: "never-started" });
     expect(trail).toMatchObject({ tracking: false, ticket_id: null, decisions: [], unexplained_files: [] });
   });
 
@@ -374,10 +374,10 @@ describe("log_decision", () => {
 });
 
 describe("list_decisions", () => {
-  it("lists a ticket's decisions across sessions with their explain-back counts", async () => {
+  it("lists a ticket's decisions across sessions with their explanation counts", async () => {
     const first = await ok("log_decision", decision({ pointer: { repo: "team/demo", file_path: "src/export.ts", symbol: "exportOrders" } }));
     await ok("log_decision", decision({ session_id: "s2", summary: "Limit one export to 10,000 rows", origin: "dev", origin_quote: "developer asked for this exact approach" }));
-    await ok("record_explain_back", { decision_id: first.decision_id, question: "Why?", answer: "To keep memory low", rating: "clear" });
+    await ok("record_explanation", { decision_id: first.decision_id, question: "Why?", answer: "To keep memory low", rating: "clear" });
 
     const out = await ok("list_decisions", { ticket_id: "SAMPLE-1" });
     expect(out.decisions).toMatchObject([
@@ -393,10 +393,10 @@ describe("list_decisions", () => {
   });
 });
 
-describe("record_explain_back", () => {
+describe("record_explanation", () => {
   it("saves an answer linked to its decision", async () => {
     const { decision_id } = await ok("log_decision", decision());
-    const out = await ok("record_explain_back", {
+    const out = await ok("record_explanation", {
       decision_id,
       question: "Why stream the export?",
       answer: "So a big export does not fill memory.",
@@ -411,9 +411,9 @@ describe("record_explain_back", () => {
   it("rejects an unknown decision and a bad rating", async () => {
     const { decision_id } = await ok("log_decision", decision());
     const base = { decision_id, question: "Why?", answer: "Because." };
-    await rejected("record_explain_back", { ...base, rating: "great" });
-    await rejected("record_explain_back", { ...base, rating: "clear", decision_id: "NOPE" });
-    await rejected("record_explain_back", { decision_id, question: "Why?", rating: "clear" });
+    await rejected("record_explanation", { ...base, rating: "great" });
+    await rejected("record_explanation", { ...base, rating: "clear", decision_id: "NOPE" });
+    await rejected("record_explanation", { decision_id, question: "Why?", rating: "clear" });
     expect(count("explain_backs")).toBe(0);
   });
 });
@@ -444,7 +444,7 @@ describe("save_observation", () => {
 describe("list_observations", () => {
   it("lists observations with what each piece of evidence is", async () => {
     const { decision_id } = await ok("log_decision", decision({ origin: "dev_changed_ai", origin_quote: "developer asked for this exact approach" }));
-    const { explain_back_id } = await ok("record_explain_back", { decision_id, question: "Why?", answer: "Not sure", rating: "partial" });
+    const { explain_back_id } = await ok("record_explanation", { decision_id, question: "Why?", answer: "Not sure", rating: "partial" });
     const { observation_id } = await ok("save_observation", {
       skill_tag: "performance",
       summary: "Knew paging helps memory, not why the limit exists.",
@@ -503,7 +503,7 @@ describe("save_growth_plan", () => {
   });
 });
 
-describe("coach tools", () => {
+describe("grow tools", () => {
   const evidence = (id: string, itemId = "BE.ERR.M2") =>
     db
       .prepare(
@@ -512,18 +512,18 @@ describe("coach tools", () => {
       .run(id, itemId, new Date(Date.now() - 86_400_000).toISOString());
 
   it("sets tracks and reports them in the status", async () => {
-    await ok("set_coach_tracks", { tracks: ["backend"] });
-    const status = await ok("coach_status", {});
+    await ok("set_grow_tracks", { tracks: ["backend"] });
+    const status = await ok("grow_status", {});
     expect(status.tracks).toEqual(["backend"]);
   });
 
   it("lowers an item when the developer disagrees with its evidence", async () => {
     const id = randomUUID();
     evidence(id);
-    expect((await ok("coach_item", { item_id: "BE.ERR.M2" })).status.proofs).toBe(1);
+    expect((await ok("grow_item", { item_id: "BE.ERR.M2" })).status.proofs).toBe(1);
     const out = await ok("disagree", { target_id: id, reason: "That timeout was copied from the old service" });
     expect(out.target).toBe("evidence");
-    expect((await ok("coach_item", { item_id: "BE.ERR.M2" })).status.proofs).toBe(0);
+    expect((await ok("grow_item", { item_id: "BE.ERR.M2" })).status.proofs).toBe(0);
   });
 
   it("does not let an answer be disagreed away", async () => {
@@ -604,7 +604,7 @@ describe("start_drill reads new commits first", () => {
     git(["config", "commit.gpgsign", "false"]);
     const top = repoIdentitySync(repo)!.key;
     db.prepare("INSERT INTO ai_line_hashes (repo_root, file_path, hash, session_id, created_at) VALUES (?, 'x', 'seed', 's0', datetime('now', '-1 day'))").run(top);
-    await ok("set_coach_tracks", { tracks: ["backend"] });
+    await ok("set_grow_tracks", { tracks: ["backend"] });
     // Shown: 3 proofs on 2 tickets and 2 clear answers, then a failed drill just now.
     const proof = db.prepare(
       "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES (?, 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', ?, 'err.timeout-set', 'a.ts', ?, ?)",
@@ -794,8 +794,8 @@ describe("stage 4: the ticket check", () => {
     expect(db.prepare("SELECT count(*) AS n FROM skill_evidence WHERE polarity = 'positive' AND kind = 'ticket_check'").get()).toEqual({ n: 0 });
   });
 
-  it("credits spotting unclear needs when Fork saved answered questions", async () => {
-    await ok("set_coach_tracks", { tracks: ["backend"] });
+  it("credits spotting unclear needs when Clarify saved answered questions", async () => {
+    await ok("set_grow_tracks", { tracks: ["backend"] });
     await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes, marked as cancelled" }] });
     expect(db.prepare("SELECT item_id, author FROM skill_evidence WHERE kind = 'ticket_check'").get()).toMatchObject({ item_id: "BE.REQ.M1", author: "dev" });
     await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes, marked as cancelled" }] });
@@ -832,12 +832,12 @@ describe("stage 2 to 4 review fixes", () => {
   });
 
   it("keeps a saved assumption list working with a company ladder that has no requirements area (C3)", async () => {
-    const { BUILTIN_LADDERS } = await import("../coach/ladder/builtin.js");
+    const { BUILTIN_LADDERS } = await import("../grow/ladder/builtin.js");
     const company = structuredClone(BUILTIN_LADDERS.backend);
     company.areas = company.areas.filter((a) => a.id === "ERR");
-    mkdirSync(join(repo, ".fork-trail-coach"), { recursive: true });
-    writeFileSync(join(repo, ".fork-trail-coach", "ladder.json"), JSON.stringify(company));
-    await ok("set_coach_tracks", { tracks: ["backend"] });
+    mkdirSync(join(repo, ".devgym"), { recursive: true });
+    writeFileSync(join(repo, ".devgym", "ladder.json"), JSON.stringify(company));
+    await ok("set_grow_tracks", { tracks: ["backend"] });
     const out = await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes" }] });
     expect(out.assumption_ids).toHaveLength(1);
     expect(await ok("finish_ticket_check", { ticket_id: "SAMPLE-1", needs: 4 })).toMatchObject({ credited: false });

@@ -3,15 +3,28 @@ const require = __ftcCreateRequire(import.meta.url);
 
 // src/hook/session-hook.ts
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 
 // src/db/connection.ts
-import { mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function defaultDbPath() {
-  return process.env.FTC_DB_PATH ?? join(homedir(), ".fork-trail-coach", "profile.sqlite");
+  if (process.env.DEVGYM_DB_PATH) return process.env.DEVGYM_DB_PATH;
+  const dir = join(homedir(), ".devgym");
+  carryOverLegacyFolder(dir, join(homedir(), ".fork-trail-coach"));
+  return join(dir, "profile.sqlite");
+}
+var carriedOver = false;
+function carryOverLegacyFolder(dir, legacy) {
+  if (carriedOver) return;
+  carriedOver = true;
+  if (existsSync(dir) || !existsSync(legacy)) return;
+  try {
+    cpSync(legacy, dir, { recursive: true });
+  } catch {
+  }
 }
 function openDb(path = defaultDbPath()) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -31,7 +44,7 @@ async function readStdin() {
 function main(stdin) {
   const input = JSON.parse(stdin);
   if (typeof input.cwd !== "string") return;
-  if (!existsSync(defaultDbPath())) return;
+  if (!existsSync2(defaultDbPath())) return;
   const db = openDb();
   let spawnFor = null;
   let note = null;
@@ -53,13 +66,13 @@ function main(stdin) {
       const lastNudge = Number(JSON.parse(setting("nudge_last") ?? "0"));
       if (waiting > 0 && now - lastNudge >= NUDGE_EVERY_MS) {
         put("nudge_last", now);
-        note = `Coach: ${waiting} coach question${waiting === 1 ? " is" : "s are"} waiting about the developer's recent work. If it fits a natural pause, mention once that they can run /fork-trail-coach:coach. Do not interrupt.`;
+        note = `Grow: ${waiting} grow question${waiting === 1 ? " is" : "s are"} waiting about the developer's recent work. If it fits a natural pause, mention once that they can run /devgym:grow. Do not interrupt.`;
       }
     }
   } finally {
     db.close();
   }
-  if (spawnFor !== null && process.env.FTC_NO_BACKGROUND !== "1") {
+  if (spawnFor !== null && process.env.DEVGYM_NO_BACKGROUND !== "1") {
     const child = spawn(process.execPath, [process.argv[1], "background", spawnFor], { detached: true, stdio: "ignore", windowsHide: true, env: process.env });
     child.unref();
   }
@@ -70,6 +83,6 @@ function main(stdin) {
 try {
   main(await readStdin());
 } catch (err) {
-  console.error(`fork-trail-coach session hook: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`devgym session hook: ${err instanceof Error ? err.message : String(err)}`);
 }
 process.exitCode = 0;

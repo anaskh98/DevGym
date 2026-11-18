@@ -6,10 +6,10 @@ export const SAMPLE_EVAL: EvalResultsFile = {
   ticket_id: "SAMPLE-1",
   fork_runs: 3,
   scores: [
-    { id: "fork", label: "Fork", measures: "planted ambiguities caught, across 3 runs", status: "measured", passed: 13, total: 15, also: [{ label: "false alarms", value: 2 }] },
-    { id: "paper_trail", label: "Paper Trail", measures: "hand-marked decisions that were logged", status: "measured", passed: 9, total: 11, also: [] },
+    { id: "fork", label: "Clarify", measures: "planted ambiguities caught, across 3 runs", status: "measured", passed: 13, total: 15, also: [{ label: "false alarms", value: 2 }] },
+    { id: "paper_trail", label: "Track", measures: "hand-marked decisions that were logged", status: "measured", passed: 9, total: 11, also: [] },
     { id: "pointers", label: "Pointers", measures: "pointers that still resolve after the squash merge", status: "measured", passed: 10, total: 11, also: [] },
-    { id: "coach", label: "Coach", measures: "claims the seniors rated as supported by their evidence", status: "not_run", passed: 0, total: 0, also: [], note: "Needs the senior review (EV-4)." },
+    { id: "coach", label: "Grow", measures: "claims the seniors rated as supported by their evidence", status: "not_run", passed: 0, total: 0, also: [], note: "Needs the senior review (EV-4)." },
     { id: "privacy", label: "Privacy guard", measures: "red-team attempts that were rejected", status: "measured", passed: 15, total: 16, also: [{ label: "harmless texts wrongly blocked", value: 0 }] },
   ],
   failures: [

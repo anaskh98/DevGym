@@ -1,4 +1,4 @@
-import type { Pointer } from "@ftc/shared";
+import type { Pointer } from "@devgym/shared";
 
 /**
  * linked: opens the code on GitHub. broken: the last check could not find the code (see resolve_note).

@@ -1,4 +1,4 @@
-import { ASSUMPTION_STATUS_LABEL, type AssumptionStatus } from "@ftc/shared";
+import { ASSUMPTION_STATUS_LABEL, type AssumptionStatus } from "@devgym/shared";
 
 /** "answered by PO" or "assumed by dev". */
 export function StatusTag({ status }: { status: AssumptionStatus }) {

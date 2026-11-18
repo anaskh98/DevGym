@@ -9,14 +9,14 @@ argument-hint: <ticket-id> [pr-number]
 The "Decisions" section is the one thing this plugin shares with the team. It tells reviewers what was
 assumed, what was chosen, who chose it, and where it lives in the code.
 
-It holds no profile data. Explain-back answers, ratings, observations, growth plans and notes stay on the
+It holds no profile data. Explain answers, ratings, observations, growth plans and notes stay on the
 developer's machine. The server builds the section from a fixed list of fields, so you do not need to filter anything.
 
 Arguments: `$ARGUMENTS` (a ticket id, then an optional pull request number)
 
 If no ticket id was given, ask for one and stop.
 
-All tools below are on the `fork-trail-coach` MCP server.
+All tools below are on the `devgym` MCP server.
 
 ## Step 1: Preview
 
@@ -34,7 +34,7 @@ If no pull request was found, say what the note says. Offer the markdown for pas
 
 Ask: "Add this section to pull request #N?" This publishes it to everyone who can see the pull request,
 so wait for a clear yes. If the developer wants a change, the fix is in the data (log or correct a decision,
-rerun Fork), not in editing the markdown here.
+rerun Clarify), not in editing the markdown here.
 
 ## Step 3: Update
 
@@ -54,7 +54,7 @@ Remind the developer of two things, in one line each:
 
 ## Step 5: Ticket check (private)
 
-Run the check-ticket skill for this ticket (`/fork-trail-coach:check-ticket <ticket-id>`) if it has not been run for this
+Run the check skill for this ticket (`/devgym:check <ticket-id>`) if it has not been run for this
 change: it shows code that is missing, extra or different from the ticket, only to the developer.
 
 ## Step 6: Fault review (private)
@@ -72,13 +72,13 @@ were added in this change.
   their reason but does not remove the fault.
 - These stay on this machine and are **not** in the pull request.
 
-## Step 7: Coach questions (private)
+## Step 7: Grow questions (private)
 
-Call `coach_status`. It reads the developer's new commits.
+Call `grow_status`. It reads the developer's new commits.
 
 If `questions` is not empty, say there are up to 3 short questions about choices in this work, that they stay on
 this machine and are **not** in the pull request, and that "later" is fine. If the developer agrees, ask them one at
-a time exactly as the coach skill says under "Asking a question": word it from `about` without giving the answer
+a time exactly as the grow skill says under "Asking a question": word it from `about` without giving the answer
 away, call `ask_question` right before asking, wait for the reply (a hook saves it), then call `rate_answer`.
 
-If `drills_ready` is not empty, offer one drill: `/fork-trail-coach:coach drill <item-id>`. Do not start it unasked.
+If `drills_ready` is not empty, offer one drill: `/devgym:grow drill <item-id>`. Do not start it unasked.

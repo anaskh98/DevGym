@@ -11,7 +11,7 @@ import { expect, it } from "vitest";
 const entry = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "plugin", "server", "start.mjs");
 
 it.skipIf(!existsSync(entry))("serves tools over stdio from the built file", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ftc-stdio-"));
+  const dir = mkdtempSync(join(tmpdir(), "devgym-stdio-"));
   const dbPath = join(dir, "test.sqlite");
   // The server's working folder is the developer's project.
   const project = join(dir, "project");
@@ -27,7 +27,7 @@ it.skipIf(!existsSync(entry))("serves tools over stdio from the built file", asy
         command: process.execPath,
         args: [entry],
         cwd: project,
-        env: { ...(process.env as Record<string, string>), FTC_DB_PATH: dbPath, FTC_TICKETS_DIR: join(dir, "none") },
+        env: { ...(process.env as Record<string, string>), DEVGYM_DB_PATH: dbPath, DEVGYM_TICKETS_DIR: join(dir, "none") },
         stderr: "ignore",
       }),
     );
@@ -48,7 +48,7 @@ it.skipIf(!existsSync(entry))("serves tools over stdio from the built file", asy
       },
     });
     expect(logged.isError, text(logged)).toBeFalsy();
-    const trail = JSON.parse(text(await client.callTool({ name: "get_trail", arguments: { session_id: "s1" } })));
+    const trail = JSON.parse(text(await client.callTool({ name: "get_track", arguments: { session_id: "s1" } })));
     expect(trail.decisions[0]).toMatchObject({ file_path: "src/orders.ts", symbol: "Pager.next" });
   } finally {
     await client.close();

@@ -88,7 +88,7 @@ export async function lookupPr(repo: string, prNumber: number | undefined, root:
     throw new StoreError("The GitHub CLI (gh) is not installed. Install it, or pass pr_number or commit.");
   }
   const response = await (deps.fetch ?? fetch)(`https://api.github.com/repos/${repo}/pulls/${prNumber}`, {
-    headers: { Accept: "application/vnd.github+json", "User-Agent": "fork-trail-coach" },
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "devgym" },
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {

@@ -155,7 +155,7 @@ export function buildSampleProfile(dbPath: string, repoRoot: string): void {
 
 /** Saves what each API route answers for the sample profile, as public/mock/<path>.json. */
 export async function writeMocks(outDir: string): Promise<string[]> {
-  const work = mkdtempSync(join(tmpdir(), "ftc-sample-"));
+  const work = mkdtempSync(join(tmpdir(), "devgym-sample-"));
   const dbPath = join(work, "profile.sqlite");
   const evalFile = join(work, "eval-results.json");
   writeFileSync(evalFile, JSON.stringify(SAMPLE_EVAL, null, 2));

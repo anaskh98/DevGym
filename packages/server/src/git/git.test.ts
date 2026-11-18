@@ -29,7 +29,7 @@ function commit(files: Record<string, string>, message: string, email = "dev@exa
 }
 
 beforeEach(() => {
-  repo = mkdtempSync(join(tmpdir(), "ftc-git-"));
+  repo = mkdtempSync(join(tmpdir(), "devgym-git-"));
   git(["init", "-q", "-b", "main"]);
   git(["config", "user.email", "Dev@Example.com"]);
   git(["config", "user.name", "Dev"]);
@@ -125,7 +125,7 @@ describe("log helpers", () => {
   });
 
   it("answers plainly outside a git repo", async () => {
-    const plain = mkdtempSync(join(tmpdir(), "ftc-plain-"));
+    const plain = mkdtempSync(join(tmpdir(), "devgym-plain-"));
     try {
       expect(await isGitRepo(plain)).toBe(false);
       expect(await repoTopLevel(plain)).toBeNull();

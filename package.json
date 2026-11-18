@@ -1,8 +1,8 @@
 {
-  "name": "ftc-monorepo",
+  "name": "devgym-monorepo",
   "private": true,
   "version": "0.1.0",
-  "description": "Fork, Paper Trail, Coach: a Claude Code plugin with a local service and web app.",
+  "description": "DevGym: a Claude Code plugin with a local service and web app.",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
   "engines": {
@@ -13,16 +13,16 @@
     "typecheck": "corepack pnpm -r typecheck",
     "test": "corepack pnpm -r test",
     "check": "corepack pnpm typecheck && corepack pnpm build && corepack pnpm test",
-    "plugin:bundle": "corepack pnpm --filter @ftc/server build",
+    "plugin:bundle": "corepack pnpm --filter @devgym/server build",
     "plugin:validate": "claude plugin validate . && claude plugin validate ./packages/plugin",
-    "db:migrate": "corepack pnpm --filter @ftc/server db:migrate",
-    "db:seed": "corepack pnpm --filter @ftc/server db:seed",
-    "db:status": "corepack pnpm --filter @ftc/server db:status",
-    "api": "corepack pnpm --filter @ftc/server api",
-    "dev:web": "corepack pnpm --filter @ftc/web dev",
-    "plugin:web": "corepack pnpm --filter @ftc/web build:plugin",
-    "mock:refresh": "corepack pnpm --filter @ftc/server build && corepack pnpm --filter @ftc/server sample-data",
-    "eval": "corepack pnpm --filter @ftc/server build && corepack pnpm --filter @ftc/server eval",
-    "eval:save-run": "corepack pnpm --filter @ftc/server build && corepack pnpm --filter @ftc/server eval:save-run"
+    "db:migrate": "corepack pnpm --filter @devgym/server db:migrate",
+    "db:seed": "corepack pnpm --filter @devgym/server db:seed",
+    "db:status": "corepack pnpm --filter @devgym/server db:status",
+    "api": "corepack pnpm --filter @devgym/server api",
+    "dev:web": "corepack pnpm --filter @devgym/web dev",
+    "plugin:web": "corepack pnpm --filter @devgym/web build:plugin",
+    "mock:refresh": "corepack pnpm --filter @devgym/server build && corepack pnpm --filter @devgym/server sample-data",
+    "eval": "corepack pnpm --filter @devgym/server build && corepack pnpm --filter @devgym/server eval",
+    "eval:save-run": "corepack pnpm --filter @devgym/server build && corepack pnpm --filter @devgym/server eval:save-run"
   }
 }

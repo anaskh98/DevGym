@@ -1,6 +1,6 @@
-import type { Decision as DecisionView } from "@ftc/shared";
+import type { Decision as DecisionView } from "@devgym/shared";
 import { formatTime, isoDate } from "../lib/dates";
-import { ExplainBackPanel } from "./ExplainBackPanel";
+import { ExplainPanel } from "./ExplainPanel";
 import { OriginBadge } from "./OriginBadge";
 import { PointerLink } from "./PointerLink";
 
@@ -46,7 +46,7 @@ export function DecisionItem({ decision, highlighted = false }: { decision: Deci
           </p>
 
           {decision.explain_backs.map((explainBack) => (
-            <ExplainBackPanel key={explainBack.id} explainBack={explainBack} />
+            <ExplainPanel key={explainBack.id} explainBack={explainBack} />
           ))}
         </div>
       </div>

@@ -18,7 +18,7 @@ const servers: Server[] = [];
 const reports: ReportServer[] = [];
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "ftc-open-"));
+  dir = mkdtempSync(join(tmpdir(), "devgym-open-"));
   db = openDb(":memory:");
   migrate(db);
   guard = new PrivacyGuard({ root: dir, denylist: () => [] });
@@ -56,7 +56,7 @@ describe("built-in report page", () => {
     const page = await get(port, "/");
     expect(page.status).toBe(200);
     expect(page.type).toContain("text/html");
-    expect(page.body).toContain("<h1>Coach report</h1>");
+    expect(page.body).toContain("<h1>Grow report</h1>");
     expect(page.body).toContain('<script src="/report.js"></script>');
     expect(page.csp).toContain("script-src 'self'");
     expect(page.csp).toContain("default-src 'none'");
@@ -98,7 +98,7 @@ describe("built web app", () => {
     const asset = await get(port, "/assets/app.js");
     expect(asset.type).toContain("text/javascript");
     expect(asset.body).toBe("console.log('app')");
-    expect((await get(port, "/coach")).body).toContain("Real app");
+    expect((await get(port, "/grow")).body).toContain("Real app");
     expect((await get(port, "/assets/missing.js")).status).toBe(404);
     expect((await get(port, "/report.js")).status).toBe(404);
   });
@@ -128,7 +128,7 @@ describe("ReportServer", () => {
     expect(first).toMatchObject({ started: true, opened: true });
     expect(first.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
     expect(opened).toEqual([first.url]);
-    expect((await get(portOf(first.url), "/")).body).toContain("Coach report");
+    expect((await get(portOf(first.url), "/")).body).toContain("Grow report");
     expect((await get(portOf(first.url), "/api/growth-plan")).body).toBe('{"growth_plan":null}');
 
     const second = await r.open();
@@ -142,12 +142,12 @@ describe("ReportServer", () => {
     expect(opened).toEqual([]);
   });
 
-  it("points at the web app's coach page when the web app is shipped", async () => {
+  it("points at the web app's grow page when the web app is shipped", async () => {
     const web = join(dir, "web");
     mkdirSync(web);
     writeFileSync(join(web, "index.html"), "<title>Real app</title>");
     const { r } = report({ webDir: web });
-    expect((await r.open(false)).url).toMatch(/\/#\/coach$/);
+    expect((await r.open(false)).url).toMatch(/\/#\/grow$/);
   });
 
   it("reuses our own server when the port is already taken by it", async () => {

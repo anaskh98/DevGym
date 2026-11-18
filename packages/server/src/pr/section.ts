@@ -1,13 +1,13 @@
 // Builds the "Decisions" section of a pull request.
 // This is the ONLY thing that leaves the developer's machine, so it is built from a fixed list
 // of fields: the ticket's assumptions, and each decision's summary, alternatives, origin and pointer.
-// Nothing from the developer's profile goes in: no explain-backs, ratings, observations,
+// Nothing from the developer's profile goes in: no explanations, ratings, observations,
 // growth plans, notes, developer id or session id.
 import type { Db } from "../db/connection.js";
 import { StoreError } from "../errors.js";
 
-export const SECTION_START = "<!-- fork-trail-coach:decisions:start -->";
-export const SECTION_END = "<!-- fork-trail-coach:decisions:end -->";
+export const SECTION_START = "<!-- devgym:decisions:start -->";
+export const SECTION_END = "<!-- devgym:decisions:end -->";
 
 const ORIGIN_LABEL: Record<string, string> = {
   ai: "AI chose",
@@ -106,7 +106,7 @@ export function buildDecisionsSection(db: Db, ticketId: string): SectionResult {
     lines.push("");
   }
 
-  lines.push("<sub>Written by the Fork, Paper Trail, Coach plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
+  lines.push("<sub>Written by the DevGym plugin. Edit above or below this section; it is replaced when the command runs again.</sub>", SECTION_END);
   return { markdown: lines.join("\n"), assumptions: assumptions.length, decisions: decisions.length };
 }
 

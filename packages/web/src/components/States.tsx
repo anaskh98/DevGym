@@ -28,7 +28,7 @@ export function ErrorState({ error, what }: { error: ApiError; what: string }) {
       {error.kind === "unreachable" && live && (
         <p>
           The local service at <code>{apiHost(apiConfig)}</code> is not answering. In Claude Code, run{" "}
-          <code>/fork-trail-coach:coach open</code> to start it, or <code>pnpm api</code> when developing.
+          <code>/devgym:grow open</code> to start it, or <code>pnpm api</code> when developing.
         </p>
       )}
       {error.kind === "bad_response" && (

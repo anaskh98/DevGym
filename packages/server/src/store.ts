@@ -24,7 +24,7 @@ export interface Ticket {
 }
 
 export function localDeveloperId(): string {
-  return process.env.FTC_DEVELOPER_ID ?? "local";
+  return process.env.DEVGYM_DEVELOPER_ID ?? "local";
 }
 
 function exists(db: Db, table: string, id: string): boolean {
@@ -88,7 +88,7 @@ export async function importTicket(
   return getTicket(db, input.ticket_id);
 }
 
-/** Replaces the ticket's assumption list, so running Fork again does not pile up duplicates. */
+/** Replaces the ticket's assumption list, so running Clarify again does not pile up duplicates. */
 export function saveAssumptions(db: Db, input: SaveAssumptionsInput): { assumption_ids: string[] } {
   requireRow(db, "tickets", "Ticket", input.ticket_id);
   const insert = db.prepare(
@@ -251,7 +251,7 @@ export function getTrail(db: Db, sessionId: string): Trail {
 
 export interface TicketDecision extends TrailDecision {
   session_id: string;
-  /** How many explain-backs this decision already has. */
+  /** How many explanations this decision already has. */
   explain_back_count: number;
 }
 
@@ -299,7 +299,7 @@ export function recordExplainBack(db: Db, input: RecordExplainBackInput): { expl
 export function saveObservation(db: Db, input: SaveObservationInput): { observation_id: string } {
   for (const evidenceId of input.evidence_ids) {
     if (!exists(db, "decisions", evidenceId) && !exists(db, "explain_backs", evidenceId)) {
-      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explain-back`);
+      throw new StoreError(`Evidence '${evidenceId}' is not a known decision or explanation`);
     }
   }
   const id = randomUUID();
@@ -319,7 +319,7 @@ export interface ObservationEvidence {
   ticket_id?: string;
   /** For a decision: who made the choice. */
   origin?: string;
-  /** For an explain-back: how clear the developer's answer was. */
+  /** For an explanation: how clear the developer's answer was. */
   rating?: string;
 }
 

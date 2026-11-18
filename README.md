@@ -1,11 +1,11 @@
-# Fork, Paper Trail, Coach
+# DevGym
 
 One Claude Code plugin with a small local service and web app.
 
-- **Fork** finds the places where a ticket can be read in more than one way and each reading leads to different code, asks only those questions, and saves what was answered and what was assumed.
-- **Paper Trail** records each decision made while coding, with who made it and a pointer to the code.
-- **Explain-back** asks the developer why a few of those decisions were made, and saves the answers with a rating.
-- **Coach** shows the developer's level per area on a backend or frontend ladder (junior, mid, senior, staff), built from their own commits and answers, and a personal plan with exercises on real spots in their code. A skill is Proven only after an interview-style drill. How it decides: [docs/coach-levels.md](docs/coach-levels.md).
+- **Clarify** finds the places where a ticket can be read in more than one way and each reading leads to different code, asks only those questions, and saves what was answered and what was assumed.
+- **Track** records each decision made while coding, with who made it and a pointer to the code.
+- **Explain** asks the developer why a few of those decisions were made, and saves the answers with a rating.
+- **Grow** shows the developer's level per area on a backend or frontend ladder (junior, mid, senior, staff), built from their own commits and answers, and a personal plan with exercises on real spots in their code. A skill is Proven only after an interview-style drill. How it decides: [docs/grow-levels.md](docs/grow-levels.md).
 
 Developer profiles live in a SQLite file on the developer's machine and never leave it. Only the PR's "Decisions" section is shared with the team.
 
@@ -29,27 +29,27 @@ claude plugin marketplace add <owner>/<repo>
 ```
 
 ```bash
-claude plugin install fork-trail-coach@md-labs
+claude plugin install devgym@md-labs
 ```
 
-Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets/` folder, or with Claude Code's Atlassian connector connected so Fork can read Jira issues by key (for example `/fork-trail-coach:fork PROJ-123`):
+Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets/` folder, or with Claude Code's Atlassian connector connected so Clarify can read Jira issues by key (for example `/devgym:clarify PROJ-123`):
 
 | Command | What it does |
 | --- | --- |
-| `/fork-trail-coach:fork DEMO-1` | Ask the questions that change the code, save the assumption list |
-| `/fork-trail-coach:paper-trail DEMO-1` | Start logging decisions for this coding session |
-| `/fork-trail-coach:explain-back DEMO-1` | Explain 2 or 3 logged decisions, save answers and ratings |
-| `/fork-trail-coach:pr-decisions DEMO-1` | Add the "Decisions" section to the pull request. Needs the GitHub CLI (`gh`), signed in |
-| `/fork-trail-coach:pointers DEMO-1 12` | After the PR is opened or merged: move the pointers to its commit and check they resolve |
-| `/fork-trail-coach:coach` | Show your level per area and a personal plan, from your own commits and answers |
-| `/fork-trail-coach:coach drill BE.ERR.M2` | Take an interview-style drill for a Shown item; passing it makes the item Proven |
-| `/fork-trail-coach:coach why BE.ERR.M2` | See every piece of evidence behind an item, and disagree with any of it |
-| `/fork-trail-coach:coach history` | See how your items moved over time |
-| `/fork-trail-coach:check-ticket DEMO-1` | After coding: show code that is missing, extra or different from the ticket (private) |
-| `/fork-trail-coach:coach open` | Start the local server and open the Coach report in the browser |
-| `/fork-trail-coach:status` | Check the plugin and the local service |
+| `/devgym:clarify DEMO-1` | Ask the questions that change the code, save the assumption list |
+| `/devgym:track DEMO-1` | Start logging decisions for this coding session |
+| `/devgym:explain DEMO-1` | Explain 2 or 3 logged decisions, save answers and ratings |
+| `/devgym:pr-decisions DEMO-1` | Add the "Decisions" section to the pull request. Needs the GitHub CLI (`gh`), signed in |
+| `/devgym:pointers DEMO-1 12` | After the PR is opened or merged: move the pointers to its commit and check they resolve |
+| `/devgym:grow` | Show your level per area and a personal plan, from your own commits and answers |
+| `/devgym:grow drill BE.ERR.M2` | Take an interview-style drill for a Shown item; passing it makes the item Proven |
+| `/devgym:grow why BE.ERR.M2` | See every piece of evidence behind an item, and disagree with any of it |
+| `/devgym:grow history` | See how your items moved over time |
+| `/devgym:check DEMO-1` | After coding: show code that is missing, extra or different from the ticket (private) |
+| `/devgym:grow open` | Start the local server and open the Grow report in the browser |
+| `/devgym:status` | Check the plugin and the local service |
 
-Claude Code prefixes a plugin's skills with the plugin name, so the plan's `/fork` is `/fork-trail-coach:fork`.
+Claude Code prefixes a plugin's skills with the plugin name, so the plan's `/clarify` is `/devgym:clarify`.
 
 ## Work on it
 
@@ -66,8 +66,8 @@ corepack pnpm api        # REST API and the built web app on http://127.0.0.1:43
 | --- | --- |
 | `pnpm build` | Rebuild what ships in the plugin: `packages/plugin/server/` and `packages/plugin/web/`. **Commit the result** |
 | `pnpm mock:refresh` | Regenerate the web app's sample data from the real API (`packages/web/public/mock`) |
-| `pnpm eval:save-run` | After each `/fork` run on DEMO-1, keep its questions for scoring (Fork replaces the list on the next run) |
-| `pnpm eval` | Score the saved Fork runs, the pointers and the privacy guard; the Eval page shows the result |
+| `pnpm eval:save-run` | After each `/clarify` run on DEMO-1, keep its questions for scoring (Clarify replaces the list on the next run) |
+| `pnpm eval` | Score the saved Clarify runs, the pointers and the privacy guard; the Eval page shows the result |
 | `pnpm plugin:validate` | Run Claude Code's validator on the marketplace and the plugin |
 | `pnpm db:seed` | Create your local database and load the sample ticket |
 | `pnpm db:status` | Show your local database and its row counts |
@@ -116,35 +116,35 @@ Every write is checked before it is saved. A write is refused, with a reason, wh
 - looks like code or holds a secret,
 - copies a run of code from the repo you are working in.
 
-Put client names in `~/.fork-trail-coach/denylist.txt`, one per line (`#` starts a comment). The list stays on your machine.
+Put client names in `~/.devgym/denylist.txt`, one per line (`#` starts a comment). The list stays on your machine.
 
-The edit hook records file paths only, and only for sessions started with `paper-trail`.
+The edit hook records file paths only, and only for sessions started with `track`.
 
 ## The demo repo and the answer key
 
-`demo-repo/` is the source of the synthetic service. It is published as **its own GitHub repository**, and Fork runs on a clone of that:
+`demo-repo/` is the source of the synthetic service. It is published as **its own GitHub repository**, and Clarify runs on a clone of that:
 
 ```bash
 scripts/publish-demo-repo.sh <owner>/roomly
 ```
 
-The answer key is in `packages/eval/answer-key/`. It must stay out of `demo-repo/` and out of `packages/plugin/`; a test in `packages/eval` fails if anything from it leaks into either. Do not run Fork from inside this monorepo: the key would be inside Claude Code's project folder. See [packages/eval/README.md](packages/eval/README.md).
+The answer key is in `packages/eval/answer-key/`. It must stay out of `demo-repo/` and out of `packages/plugin/`; a test in `packages/eval` fails if anything from it leaks into either. Do not run Clarify from inside this monorepo: the key would be inside Claude Code's project folder. See [packages/eval/README.md](packages/eval/README.md).
 
 The plugin ships one ticket of its own, `SAMPLE-1`, so the tools can be tried anywhere. It is unrelated to `DEMO-1`.
 
-Jira tickets: Fork looks in the Markdown tickets first. If the id is not there and the Atlassian connector is connected, it reads the issue with the connector (read only) and saves a local copy through the `import_ticket` tool, so Paper Trail, explain-back and the PR Decisions section can link to it. The plugin holds no Jira credentials. An id that exists in the Markdown tickets always uses the Markdown copy.
+Jira tickets: Clarify looks in the Markdown tickets first. If the id is not there and the Atlassian connector is connected, it reads the issue with the connector (read only) and saves a local copy through the `import_ticket` tool, so Track, explanation and the PR Decisions section can link to it. The plugin holds no Jira credentials. An id that exists in the Markdown tickets always uses the Markdown copy.
 
 ## Settings
 
 | Variable | Default | Used by |
 | --- | --- | --- |
-| `FTC_DB_PATH` | `~/.fork-trail-coach/profile.sqlite` | server |
-| `FTC_TICKETS_DIR` | `<project>/tickets` | server |
-| `FTC_DEVELOPER_ID` | `local` | server |
-| `FTC_DENYLIST_PATH` | `denylist.txt` next to the database | server |
-| `FTC_DENYLIST` | empty | server: extra client names, comma-separated |
-| `FTC_PORT` | `4317` | REST API |
-| `FTC_WEB_ORIGIN` | `http://127.0.0.1:4318,http://localhost:4318` | REST API: browser origins allowed to call it |
+| `DEVGYM_DB_PATH` | `~/.devgym/profile.sqlite` | server |
+| `DEVGYM_TICKETS_DIR` | `<project>/tickets` | server |
+| `DEVGYM_DEVELOPER_ID` | `local` | server |
+| `DEVGYM_DENYLIST_PATH` | `denylist.txt` next to the database | server |
+| `DEVGYM_DENYLIST` | empty | server: extra client names, comma-separated |
+| `DEVGYM_PORT` | `4317` | REST API |
+| `DEVGYM_WEB_ORIGIN` | `http://127.0.0.1:4318,http://localhost:4318` | REST API: browser origins allowed to call it |
 | `VITE_API_MODE` | `mock` | web: `mock` or `live` |
 | `VITE_API_BASE` | `http://127.0.0.1:4317` | web, live mode |
 | `VITE_MOCK_DIR` | `mock` | web, mock mode |

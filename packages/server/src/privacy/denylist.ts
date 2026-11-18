@@ -5,10 +5,10 @@ import { defaultDbPath } from "../db/connection.js";
 
 /** The list lives next to the local database, outside any repo, because it holds client names itself. */
 export function defaultDenylistPath(): string {
-  return process.env.FTC_DENYLIST_PATH ?? join(dirname(defaultDbPath()), "denylist.txt");
+  return process.env.DEVGYM_DENYLIST_PATH ?? join(dirname(defaultDbPath()), "denylist.txt");
 }
 
-/** One name per line. Blank lines and lines starting with # are ignored. FTC_DENYLIST adds comma-separated names. */
+/** One name per line. Blank lines and lines starting with # are ignored. DEVGYM_DENYLIST adds comma-separated names. */
 export function loadDenylist(path: string = defaultDenylistPath()): string[] {
   const names: string[] = [];
   try {
@@ -19,7 +19,7 @@ export function loadDenylist(path: string = defaultDenylistPath()): string[] {
   } catch {
     // No file: an empty list.
   }
-  for (const name of (process.env.FTC_DENYLIST ?? "").split(",")) {
+  for (const name of (process.env.DEVGYM_DENYLIST ?? "").split(",")) {
     if (name.trim()) names.push(name.trim());
   }
   return names;

@@ -1,13 +1,13 @@
-import type { EvalFailure, EvalResults, EvalScore, EvalScoreId } from "@ftc/shared";
+import type { EvalFailure, EvalResults, EvalScore, EvalScoreId } from "@devgym/shared";
 
 /** The five scores, in the order the dashboard shows them. */
 export const SCORE_ORDER: readonly EvalScoreId[] = ["fork", "paper_trail", "pointers", "coach", "privacy"];
 
 export const AREA_LABEL: Record<EvalScoreId, string> = {
-  fork: "Fork",
-  paper_trail: "Paper Trail",
+  fork: "Clarify",
+  paper_trail: "Track",
   pointers: "Pointers",
-  coach: "Coach",
+  coach: "Grow",
   privacy: "Privacy guard",
 };
 
@@ -41,7 +41,7 @@ export function missed(score: EvalScore): number {
   return isMeasured(score) ? score.total - score.passed : 0;
 }
 
-/** Failures grouped the way the scores are ordered, Fork runs first to last. */
+/** Failures grouped the way the scores are ordered, Clarify runs first to last. */
 export function sortedFailures(failures: readonly EvalFailure[]): EvalFailure[] {
   return [...failures].sort(
     (a, b) =>

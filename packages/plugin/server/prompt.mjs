@@ -7,7 +7,7 @@ var __export = (target, all) => {
 };
 
 // src/hook/prompt-submit.ts
-import { existsSync } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -19726,7 +19726,7 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// src/coach/ladder/schema.ts
+// src/grow/ladder/schema.ts
 var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
 var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
@@ -19814,7 +19814,7 @@ var ladderSchema = external_exports.strictObject({
   }
 });
 
-// src/coach/signals.ts
+// src/grow/signals.ts
 var CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rb", ".php"];
 var WEB = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte"];
 var ts = (line) => ({ file: "src/pay.ts", line });
@@ -20012,7 +20012,7 @@ var SIGNALS = [
 ];
 var BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
 
-// src/coach/questions.ts
+// src/grow/questions.ts
 function isLaterReply(text2) {
   return /^\s*(later|skip|not now|later please)\s*[.!]*\s*$/i.test(text2);
 }
@@ -20040,12 +20040,25 @@ function captureAnswer(db, sessionId, message, now = /* @__PURE__ */ new Date(),
 }
 
 // src/db/connection.ts
-import { mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function defaultDbPath() {
-  return process.env.FTC_DB_PATH ?? join(homedir(), ".fork-trail-coach", "profile.sqlite");
+  if (process.env.DEVGYM_DB_PATH) return process.env.DEVGYM_DB_PATH;
+  const dir = join(homedir(), ".devgym");
+  carryOverLegacyFolder(dir, join(homedir(), ".fork-trail-coach"));
+  return join(dir, "profile.sqlite");
+}
+var carriedOver = false;
+function carryOverLegacyFolder(dir, legacy) {
+  if (carriedOver) return;
+  carriedOver = true;
+  if (existsSync(dir) || !existsSync(legacy)) return;
+  try {
+    cpSync(legacy, dir, { recursive: true });
+  } catch {
+  }
 }
 function openDb(path = defaultDbPath()) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -20207,7 +20220,7 @@ var migrations = [
       );
       CREATE INDEX idx_ai_line_hashes_age ON ai_line_hashes(repo_root, created_at);
 
-      -- Commits Coach has already read. change_id spots the same change after a rebase or cherry-pick.
+      -- Commits Grow has already read. change_id spots the same change after a rebase or cherry-pick.
       CREATE TABLE commits_seen (
         repo_root    TEXT NOT NULL,
         sha          TEXT NOT NULL,
@@ -20246,7 +20259,7 @@ var migrations = [
       );
       CREATE INDEX idx_skill_evidence_item ON skill_evidence(ladder_id, item_id);
 
-      -- A coach question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
+      -- A grow question, its answer exactly as the developer typed it (saved by the prompt hook), and its rating.
       CREATE TABLE pending_questions (
         id             TEXT PRIMARY KEY,
         kind           TEXT NOT NULL CHECK (kind IN ('why', 'explain_back', 'drill')),
@@ -20296,7 +20309,7 @@ var migrations = [
       );
       CREATE INDEX idx_item_state_history_item ON item_state_history(ladder_id, item_id);
 
-      -- Coach choices of the developer, for example which tracks to follow.
+      -- Grow choices of the developer, for example which tracks to follow.
       CREATE TABLE coach_settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL CHECK (json_valid(value))
@@ -20313,7 +20326,7 @@ var migrations = [
         PRIMARY KEY (ladder_id, item_id, stack_id)
       );
 
-      -- The ladder item a decision or an explain-back is about.
+      -- The ladder item a decision or an explanation is about.
       ALTER TABLE decisions ADD COLUMN ladder_id TEXT;
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
@@ -20425,15 +20438,15 @@ function migrate(db, list = migrations) {
   return applied;
 }
 
-// src/coach/messages.ts
+// src/grow/messages.ts
 import { randomUUID } from "node:crypto";
 
-// src/coach/attribution.ts
+// src/grow/attribution.ts
 function sqliteTime(date5) {
   return date5.toISOString().replace("T", " ").slice(0, 19);
 }
 
-// src/coach/messages.ts
+// src/grow/messages.ts
 function saveMessage(db, sessionId, message) {
   const text2 = message.trim();
   if (text2 === "" || text2.startsWith("/")) return;
@@ -20448,7 +20461,7 @@ function pruneMessages(db, keepDays, now = /* @__PURE__ */ new Date()) {
 import { readFileSync } from "node:fs";
 import { dirname as dirname2, join as join2 } from "node:path";
 function defaultDenylistPath() {
-  return process.env.FTC_DENYLIST_PATH ?? join2(dirname2(defaultDbPath()), "denylist.txt");
+  return process.env.DEVGYM_DENYLIST_PATH ?? join2(dirname2(defaultDbPath()), "denylist.txt");
 }
 function loadDenylist(path = defaultDenylistPath()) {
   const names = [];
@@ -20459,7 +20472,7 @@ function loadDenylist(path = defaultDenylistPath()) {
     }
   } catch {
   }
-  for (const name of (process.env.FTC_DENYLIST ?? "").split(",")) {
+  for (const name of (process.env.DEVGYM_DENYLIST ?? "").split(",")) {
     if (name.trim()) names.push(name.trim());
   }
   return names;
@@ -20587,7 +20600,7 @@ function answerAllowed(text2) {
 async function main() {
   const input2 = JSON.parse(await readStdin());
   if (typeof input2.session_id !== "string" || typeof input2.prompt !== "string") return;
-  if (!existsSync(defaultDbPath())) return;
+  if (!existsSync2(defaultDbPath())) return;
   const db = openDb();
   try {
     migrate(db);
@@ -20597,12 +20610,12 @@ async function main() {
     const result = captureAnswer(db, input2.session_id, input2.prompt, /* @__PURE__ */ new Date(), answerAllowed);
     if (!result.captured) {
       if (result.held_back) {
-        const note2 = "Coach: this message was not saved as the answer, because it looked like code, a secret or a client name. The question is still open. Ask the developer to answer in plain words.";
+        const note2 = "Grow: this message was not saved as the answer, because it looked like code, a secret or a client name. The question is still open. Ask the developer to answer in plain words.";
         process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note2 } }));
       }
       return;
     }
-    const note = result.closed === "answered" ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (for a drill: drill_key, then score_drill). If it was not really an answer, call release_answer.` : `Coach: kept question ${result.question_id} for later. Do not rate it.`;
+    const note = result.closed === "answered" ? `Grow: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (for a drill: drill_key, then score_drill). If it was not really an answer, call release_answer.` : `Grow: kept question ${result.question_id} for later. Do not rate it.`;
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
   } finally {
     db.close();
@@ -20611,6 +20624,6 @@ async function main() {
 try {
   await main();
 } catch (err) {
-  console.error(`fork-trail-coach prompt hook: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`devgym prompt hook: ${err instanceof Error ? err.message : String(err)}`);
 }
 process.exitCode = 0;

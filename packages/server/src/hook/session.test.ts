@@ -16,14 +16,14 @@ let dir: string;
 let dbPath: string;
 let repo: string;
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "ftc-session-"));
+  dir = mkdtempSync(join(tmpdir(), "devgym-session-"));
   dbPath = join(dir, "test.sqlite");
   repo = join(dir, "repo");
   mkdirSync(repo);
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
 
-const env = (background = false) => ({ ...process.env, FTC_DB_PATH: dbPath, ...(background ? {} : { FTC_NO_BACKGROUND: "1" }) });
+const env = (background = false) => ({ ...process.env, DEVGYM_DB_PATH: dbPath, ...(background ? {} : { DEVGYM_NO_BACKGROUND: "1" }) });
 function session(event: string) {
   const r = spawnSync(process.execPath, [start, "session"], { input: JSON.stringify({ session_id: "s1", cwd: repo, hook_event_name: event }), encoding: "utf8", env: env() });
   return { status: r.status, stdout: r.stdout.trim() };
@@ -56,7 +56,7 @@ describe.skipIf(!built)("session hook", () => {
     expect(first.status).toBe(0);
     const note = JSON.parse(first.stdout).hookSpecificOutput;
     expect(note.hookEventName).toBe("SessionStart");
-    expect(note.additionalContext).toMatch(/1 coach question/);
+    expect(note.additionalContext).toMatch(/1 grow question/);
     expect(note.additionalContext.split("\n")).toHaveLength(1);
     expect(session("SessionStart").stdout).toBe("");
   });

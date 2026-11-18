@@ -1,10 +1,10 @@
 {
   "ticket_id": "DEMO-1",
   "version": 2,
-  "note": "Answer key for the synthetic ticket. Keep it out of the demo repo and out of the plugin: if Fork can read it, the score means nothing.",
+  "note": "Answer key for the synthetic ticket. Keep it out of the demo repo and out of the plugin: if Clarify can read it, the score means nothing.",
   "changes": [
-    "v2 (16 Nov 2026): A2 was \"delete the booking or keep it as cancelled\". The ticket's own acceptance line (\"Cancelling returns the updated booking\") and the README settle that, so it was not a real fork. A2 is now the part that is open: whether a cancelled booking still counts in the usage report. The delete-or-keep question moved to the decoys as D5. Found in the stand-in Fork run of 15 Nov.",
-    "v3 (16 Nov 2026): decoys and extras got match_hints, so the scorer (pnpm eval) can sort Fork's questions. Matching is by keyword and is approximate; read the failure log. A5 also matches \"message\", \"told\", \"tell\" and \"informed\": the stand-in run asked \"Who gets a message...\" and keyword matching missed it."
+    "v2 (16 Nov 2026): A2 was \"delete the booking or keep it as cancelled\". The ticket's own acceptance line (\"Cancelling returns the updated booking\") and the README settle that, so it was not a real fork. A2 is now the part that is open: whether a cancelled booking still counts in the usage report. The delete-or-keep question moved to the decoys as D5. Found in the stand-in Clarify run of 15 Nov.",
+    "v3 (16 Nov 2026): decoys and extras got match_hints, so the scorer (pnpm eval) can sort Clarify's questions. Matching is by keyword and is approximate; read the failure log. A5 also matches \"message\", \"told\", \"tell\" and \"informed\": the stand-in run asked \"Who gets a message...\" and keyword matching missed it."
   ],
   "planted": [
     {

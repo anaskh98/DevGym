@@ -17,7 +17,7 @@ let dir: string;
 let dbPath: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "ftc-prompt-"));
+  dir = mkdtempSync(join(tmpdir(), "devgym-prompt-"));
   dbPath = join(dir, "test.sqlite");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
@@ -26,7 +26,7 @@ function runPrompt(sessionId: string, prompt: string) {
   const result = spawnSync(process.execPath, [start, "prompt"], {
     input: JSON.stringify({ session_id: sessionId, cwd: dir, hook_event_name: "UserPromptSubmit", prompt }),
     encoding: "utf8",
-    env: { ...process.env, FTC_DB_PATH: dbPath },
+    env: { ...process.env, DEVGYM_DB_PATH: dbPath },
   });
   return { status: result.status, stdout: result.stdout.trim() };
 }
@@ -76,13 +76,13 @@ describe.skipIf(!built)("prompt hook", () => {
   });
 
   it("never fails the session on bad input", () => {
-    const result = spawnSync(process.execPath, [start, "prompt"], { input: "not json", encoding: "utf8", env: { ...process.env, FTC_DB_PATH: dbPath } });
+    const result = spawnSync(process.execPath, [start, "prompt"], { input: "not json", encoding: "utf8", env: { ...process.env, DEVGYM_DB_PATH: dbPath } });
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe("");
   });
 });
 
-describe.skipIf(!built)("prompt hook: developer messages are kept only when Coach is set up", () => {
+describe.skipIf(!built)("prompt hook: developer messages are kept only when Grow is set up", () => {
   const count = () => {
     const db = openDb(dbPath);
     try {

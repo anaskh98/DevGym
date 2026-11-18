@@ -31,7 +31,7 @@ const PRIVATE = {
 };
 
 beforeEach(async () => {
-  repo = mkdtempSync(join(tmpdir(), "ftc-pr-test-"));
+  repo = mkdtempSync(join(tmpdir(), "devgym-pr-test-"));
   mkdirSync(join(repo, "src"));
   writeFileSync(join(repo, "src", "export.ts"), "export function exportOrders(limit: number) {\n  const capped = Math.min(limit, 5000);\n  return capped;\n}\n");
   git("init", "-q", "-b", "feature");

@@ -1,7 +1,7 @@
-import { parseServerDate } from "@ftc/shared";
+import { parseServerDate } from "@devgym/shared";
 import { describe, expect, it } from "vitest";
 import { apiHost, readApiConfig, resolveUrl } from "../src/api/config";
-import { plural, summarize } from "../src/lib/fork";
+import { plural, summarize } from "../src/lib/clarify";
 import { parseBlocks } from "../src/lib/markdown";
 import { pointerLabel, pointerState } from "../src/lib/pointer";
 import { countBy, flag, list, plainPreview, text } from "../src/lib/myData";
@@ -83,9 +83,9 @@ describe("ticket markdown", () => {
   });
 });
 
-import { EXPOSURE_LABEL, STATE_LABEL, evidenceLine, levelText, visibleItems } from "../src/lib/coach";
+import { EXPOSURE_LABEL, STATE_LABEL, evidenceLine, levelText, visibleItems } from "../src/lib/grow";
 
-describe("coach helpers", () => {
+describe("grow helpers", () => {
   it("keeps Not assessed apart from Learning, and exposure apart from both", () => {
     expect(STATE_LABEL.not_assessed).toBe("Not assessed");
     expect(STATE_LABEL.learning).not.toBe(STATE_LABEL.not_assessed);

@@ -15,7 +15,7 @@ If no ticket id was given, ask for one and stop.
 
 ## Step 1: Resolve
 
-Call `resolve_pointers` on the `fork-trail-coach` MCP server with the ticket id.
+Call `resolve_pointers` on the `devgym` MCP server with the ticket id.
 Pass `pr_number` when one was given.
 
 - With no `pr_number`, the server finds the pull request of the current branch.

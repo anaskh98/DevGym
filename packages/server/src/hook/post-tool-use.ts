@@ -1,10 +1,10 @@
 // PostToolUse hook: after Claude edits a file, record its path for the tracked session, and save a hash of each
-// line Claude wrote (for any session in a git repo), so Coach can tell AI-written lines from the developer's.
+// line Claude wrote (for any session in a git repo), so Grow can tell AI-written lines from the developer's.
 // A hook must never break the developer's session, so every failure ends quietly with exit code 0.
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { repoIdentitySync } from "../git/identity.js";
-import { linesFromToolInput, saveAiLines } from "../coach/attribution.js";
+import { linesFromToolInput, saveAiLines } from "../grow/attribution.js";
 import { defaultDbPath, openDb } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
 import { toRepoPath } from "../paths.js";
@@ -60,9 +60,9 @@ async function main(): Promise<void> {
     if (tracked && first) {
       // Shown to Claude, once per file, so long sessions do not forget the rule.
       const note =
-        `Paper Trail: first edit to ${repoPath} in this session. ` +
+        `Track: first edit to ${repoPath} in this session. ` +
         `If this edit involved a real choice between options, call log_decision with pointer.file_path "${repoPath}". ` +
-        `If an earlier decision already covers it, no action is needed now; get_trail lists files with no decision.`;
+        `If an earlier decision already covers it, no action is needed now; get_track lists files with no decision.`;
       process.stdout.write(
         JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: note } }),
       );
@@ -75,6 +75,6 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (err) {
-  console.error(`fork-trail-coach hook: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`devgym hook: ${err instanceof Error ? err.message : String(err)}`);
 }
 process.exitCode = 0;

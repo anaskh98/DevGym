@@ -3,9 +3,9 @@ import { apiConfig, apiHost } from "../api/config";
 import { Icon, type IconName } from "./Icon";
 
 const SECTIONS: { to: string; label: string; icon: IconName }[] = [
-  { to: "/fork", label: "Fork", icon: "fork" },
-  { to: "/paper-trail", label: "Paper Trail", icon: "trail" },
-  { to: "/coach", label: "Coach", icon: "coach" },
+  { to: "/clarify", label: "Clarify", icon: "fork" },
+  { to: "/track", label: "Track", icon: "trail" },
+  { to: "/grow", label: "Grow", icon: "grow" },
   { to: "/eval", label: "Eval", icon: "eval" },
   { to: "/my-data", label: "My data", icon: "data" },
 ];
@@ -38,7 +38,7 @@ export function Layout() {
           <span className="rail__logo">
             <Icon name="logo" />
           </span>
-          <span>Fork, Paper Trail, Coach</span>
+          <span>DevGym</span>
         </p>
         <nav aria-label="Sections">
           <p className="rail__label" aria-hidden="true">

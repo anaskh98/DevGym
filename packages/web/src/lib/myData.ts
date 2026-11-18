@@ -1,19 +1,19 @@
-import { STORED_TABLES, type ExportResponse } from "@ftc/shared";
+import { STORED_TABLES, type ExportResponse } from "@devgym/shared";
 
 /** What each table holds, in the words the "My data" page uses. */
 export const TABLE_INFO: Record<string, { label: string; what: string }> = {
-  tickets: { label: "Tickets", what: "The tickets Fork has read." },
+  tickets: { label: "Tickets", what: "The tickets Clarify has read." },
   assumptions: {
     label: "Questions and assumptions",
-    what: "What Fork asked about each ticket, and whether the PO answered or the developer assumed.",
+    what: "What Clarify asked about each ticket, and whether the PO answered or the developer assumed.",
   },
-  trail_sessions: { label: "Coding sessions", what: "The coding sessions Paper Trail followed, and their ticket." },
+  trail_sessions: { label: "Coding sessions", what: "The coding sessions Track followed, and their ticket." },
   file_edits: { label: "Edited files", what: "Which files each session edited. Paths only, never the content." },
   decisions: { label: "Decisions", what: "Choices made while coding a ticket, and who made each one." },
   pointers: { label: "Code pointers", what: "Where each decision lives: file, function and line. Never the code itself." },
-  explain_backs: { label: "Explain-backs", what: "Your own explanations of decisions, each with a rating." },
+  explain_backs: { label: "Explanations", what: "Your own explanations of decisions, each with a rating." },
   observations: { label: "Observations", what: "Notes about your skills, each tied to the decisions it rests on." },
-  growth_plans: { label: "Growth plans", what: "Coach's focus areas and exercises." },
+  growth_plans: { label: "Growth plans", what: "Grow's focus areas and exercises." },
   annotations: { label: "Your notes", what: "Notes you added, including where you disagreed." },
 };
 
@@ -35,7 +35,7 @@ export interface ExportFile {
 /** The export is the service's own export, unchanged, so the file matches what is stored. */
 export function buildExport(response: ExportResponse, today: Date = new Date()): ExportFile {
   return {
-    filename: `fork-trail-coach-export-${today.toISOString().slice(0, 10)}.json`,
+    filename: `devgym-export-${today.toISOString().slice(0, 10)}.json`,
     text: `${JSON.stringify(response, null, 2)}\n`,
   };
 }
@@ -56,9 +56,9 @@ export type Row = Record<string, unknown>;
 
 /** The page groups the tables by the part of the tool that writes them. */
 export const TABLE_GROUPS: { title: string; tables: string[] }[] = [
-  { title: "Fork", tables: ["tickets", "assumptions"] },
-  { title: "Paper Trail", tables: ["trail_sessions", "file_edits", "decisions", "pointers"] },
-  { title: "Explain-back and Coach", tables: ["explain_backs", "observations", "growth_plans", "annotations"] },
+  { title: "Clarify", tables: ["tickets", "assumptions"] },
+  { title: "Track", tables: ["trail_sessions", "file_edits", "decisions", "pointers"] },
+  { title: "Explain and Grow", tables: ["explain_backs", "observations", "growth_plans", "annotations"] },
 ];
 
 /** The text in a field, or "" when it is missing or not text. */

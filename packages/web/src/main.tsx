@@ -2,15 +2,21 @@ import "@fontsource-variable/plus-jakarta-sans";
 import "./styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createHashRouter, Navigate, RouterProvider } from "react-router";
+import { createHashRouter, Navigate, RouterProvider, useParams } from "react-router";
 import { Layout } from "./components/Layout";
-import { CoachPage } from "./pages/CoachPage";
+import { GrowPage } from "./pages/GrowPage";
 import { EvalPage } from "./pages/EvalPage";
-import { ForkPage } from "./pages/ForkPage";
+import { ClarifyPage } from "./pages/ClarifyPage";
 import { MyDataPage } from "./pages/MyDataPage";
 import { NotFoundPage, PageError } from "./pages/NotFoundPage";
-import { PaperTrailPage } from "./pages/PaperTrailPage";
+import { TrackPage } from "./pages/TrackPage";
 import { TicketsPage } from "./pages/TicketsPage";
+
+/** Links from before the rename (Fork, Paper Trail, Coach) still land on the right page. */
+function Renamed({ to }: { to: string }) {
+  const { ticketId } = useParams();
+  return <Navigate to={ticketId ? `${to}/${encodeURIComponent(ticketId)}` : to} replace />;
+}
 
 // Hash routes, so the built app works when the local server (BE-13) serves it
 // as plain static files, with no rewrite rules.
@@ -24,14 +30,19 @@ const router = createHashRouter([
         // layout, so the screen is never blank and the menu still works.
         errorElement: <PageError />,
         children: [
-          { index: true, element: <Navigate to="/fork" replace /> },
-          { path: "fork", element: <TicketsPage section="fork" /> },
-          { path: "fork/:ticketId", element: <ForkPage /> },
-          { path: "paper-trail", element: <TicketsPage section="paper-trail" /> },
-          { path: "paper-trail/:ticketId", element: <PaperTrailPage /> },
-          { path: "coach", element: <CoachPage /> },
+          { index: true, element: <Navigate to="/clarify" replace /> },
+          { path: "clarify", element: <TicketsPage section="clarify" /> },
+          { path: "clarify/:ticketId", element: <ClarifyPage /> },
+          { path: "track", element: <TicketsPage section="track" /> },
+          { path: "track/:ticketId", element: <TrackPage /> },
+          { path: "grow", element: <GrowPage /> },
           { path: "eval", element: <EvalPage /> },
           { path: "my-data", element: <MyDataPage /> },
+          { path: "fork", element: <Renamed to="/clarify" /> },
+          { path: "fork/:ticketId", element: <Renamed to="/clarify" /> },
+          { path: "paper-trail", element: <Renamed to="/track" /> },
+          { path: "paper-trail/:ticketId", element: <Renamed to="/track" /> },
+          { path: "coach", element: <Renamed to="/grow" /> },
           { path: "*", element: <NotFoundPage /> },
         ],
       },

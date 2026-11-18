@@ -10,19 +10,19 @@ import { createServer } from "./server.js";
 const db = openDb();
 migrate(db);
 
-// Tickets come from the project first ("tickets" folder where Claude Code runs, or FTC_TICKETS_DIR),
+// Tickets come from the project first ("tickets" folder where Claude Code runs, or DEVGYM_TICKETS_DIR),
 // then from the demo tickets that ship next to this file inside the plugin.
-const projectTickets = process.env.FTC_TICKETS_DIR ?? join(process.cwd(), "tickets");
+const projectTickets = process.env.DEVGYM_TICKETS_DIR ?? join(process.cwd(), "tickets");
 const demoTickets = join(dirname(fileURLToPath(import.meta.url)), "..", "demo-tickets");
 const tickets = new MarkdownTicketAdapter([projectTickets, demoTickets]);
 
 // The built web app ships in "web" next to this file's folder, when the plugin includes it.
 const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
-const port = process.env.FTC_PORT ? Number(process.env.FTC_PORT) : undefined;
+const port = process.env.DEVGYM_PORT ? Number(process.env.DEVGYM_PORT) : undefined;
 
 const server = createServer(db, tickets, { report: { webDir, port } });
 await server.connect(new StdioServerTransport());
-console.error("fork-trail-coach MCP server running on stdio");
+console.error("devgym MCP server running on stdio");
 
 const shutdown = () => {
   db.close();

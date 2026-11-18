@@ -1,4 +1,4 @@
-// The web app reads the API through the schemas in @ftc/shared. These tests send every route's real answer
+// The web app reads the API through the schemas in @devgym/shared. These tests send every route's real answer
 // through them, so a change on either side that breaks the other fails here, not in the demo.
 import {
   AnnotationResponse,
@@ -9,7 +9,7 @@ import {
   STORED_TABLES,
   TicketDetailResponse,
   TicketListResponse,
-} from "@ftc/shared";
+} from "@devgym/shared";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -27,7 +27,7 @@ let server: Server;
 let base: string;
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "ftc-contract-"));
+  dir = mkdtempSync(join(tmpdir(), "devgym-contract-"));
   buildSampleProfile(join(dir, "profile.sqlite"), dir);
   writeFileSync(join(dir, "eval.json"), JSON.stringify(SAMPLE_EVAL));
   db = openDb(join(dir, "profile.sqlite"));

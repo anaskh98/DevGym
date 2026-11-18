@@ -4,7 +4,7 @@ import {
   AnnotationResponse,
   API_PATHS,
   ApiErrorBody,
-  CoachDashboard,
+  GrowDashboard,
   DELETE_ALL_BODY,
   DeleteAllResponse,
   EvalResults,
@@ -13,7 +13,7 @@ import {
   STORED_TABLES,
   TicketDetailResponse,
   TicketListResponse,
-} from "@ftc/shared";
+} from "@devgym/shared";
 import type { z } from "zod";
 import { apiConfig, resolveUrl, type ApiConfig } from "./config";
 import { browserStorage, createNoteStore, type NoteStore } from "./mockNotes";
@@ -123,7 +123,7 @@ export function createApi(config: ApiConfig = apiConfig, notes: NoteStore = crea
       return get(path, TicketDetailResponse, signal);
     },
 
-    getCoach: (signal?: AbortSignal) => get(API_PATHS.coach(), CoachDashboard, signal),
+    getGrow: (signal?: AbortSignal) => get(API_PATHS.grow(), GrowDashboard, signal),
 
     getGrowthPlan: async (signal?: AbortSignal): Promise<GrowthPlanResponse> => {
       const response = await get(API_PATHS.growthPlan(), GrowthPlanResponse, signal);

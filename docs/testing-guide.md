@@ -8,7 +8,7 @@ Short and simple. Needs **Node 22.13 or newer** on your PATH and Claude Code.
 
 ```bash
 claude plugin marketplace add anaskh98/ftc
-claude plugin install fork-trail-coach@md-labs
+claude plugin install devgym@md-labs
 ```
 
 Restart Claude Code. (Not tested by me: I tested option B.)
@@ -22,65 +22,65 @@ claude --plugin-dir /path/to/ftc/packages/plugin
 ```
 
 Start Claude Code **inside your own project** (a git repo, ideally with some commits of yours).
-Check it works: `/fork-trail-coach:status`. It should list the commands and say the local service is running.
+Check it works: `/devgym:status`. It should list the commands and say the local service is running.
 
 ## 2. First run: pick your track
 
 ```
-/fork-trail-coach:coach
+/devgym:grow
 ```
 
 - It asks: backend, frontend, or both. Answer once.
 - It then reads your commits (this repo only) and shows your levels and a first plan.
 - Your older commits are read in batches over the next runs ("reading older commits").
 
-Everything is saved in `~/.fork-trail-coach/profile.sqlite` on your machine only.
+Everything is saved in `~/.devgym/profile.sqlite` on your machine only.
 
 ## 3. Work normally
 
 Nothing else to do. While you code with Claude:
 
 - The edit hook remembers which lines Claude wrote (a hash only, never the line).
-- At session start/end a background worker reads your new commits (set `FTC_NO_BACKGROUND=1` to turn this off).
+- At session start/end a background worker reads your new commits (set `DEVGYM_NO_BACKGROUND=1` to turn this off).
 - If questions are waiting, Claude may mention them **once a day**.
 
 ## 4. The commands
 
 | Command | What it does |
 |---|---|
-| `/fork-trail-coach:coach` | Your level per area, exposure, repeats, and a personal plan |
-| `/fork-trail-coach:coach drill BE.ERR.M2` | An interview-style drill for one skill |
-| `/fork-trail-coach:coach why BE.ERR.M2` | Every piece of evidence behind a skill. You can disagree with it |
-| `/fork-trail-coach:coach history` | How your skills moved over time |
-| `/fork-trail-coach:coach open` | The dashboard in your browser (levels, evidence, faults, drills) |
-| `/fork-trail-coach:fork PROJ-1` | Questions about a ticket before coding (plugin tickets in `tickets/`, or Jira) |
-| `/fork-trail-coach:paper-trail PROJ-1` | Log the real choices while coding |
-| `/fork-trail-coach:check-ticket PROJ-1` | After coding: code that is missing, extra or different from the ticket (private) |
-| `/fork-trail-coach:pr-decisions PROJ-1` | Before the PR: decisions section, fault review, up to 3 questions |
+| `/devgym:grow` | Your level per area, exposure, repeats, and a personal plan |
+| `/devgym:grow drill BE.ERR.M2` | An interview-style drill for one skill |
+| `/devgym:grow why BE.ERR.M2` | Every piece of evidence behind a skill. You can disagree with it |
+| `/devgym:grow history` | How your skills moved over time |
+| `/devgym:grow open` | The dashboard in your browser (levels, evidence, faults, drills) |
+| `/devgym:clarify PROJ-1` | Questions about a ticket before coding (plugin tickets in `tickets/`, or Jira) |
+| `/devgym:track PROJ-1` | Log the real choices while coding |
+| `/devgym:check PROJ-1` | After coding: code that is missing, extra or different from the ticket (private) |
+| `/devgym:pr-decisions PROJ-1` | Before the PR: decisions section, fault review, up to 3 questions |
 
 ## 5. The flow from A to Z (about 20 minutes)
 
 Use a scratch git repo with a `tickets/` folder (a ticket is a Markdown file such as `tickets/PAY-1.md` with `id` and `title` at the top), or Jira.
 
-1. **Setup:** `/fork-trail-coach:coach`, choose a track.
-2. **Before coding:** `/fork-trail-coach:fork PAY-1`. Answer the questions about unclear needs. (This earns credit for spotting unclear needs.)
-3. **Code with Claude:** `/fork-trail-coach:paper-trail PAY-1`, then ask Claude to build it. Say it your way once (for example: "No, use a queue for the retries"). Claude logs that decision as yours, quoting your words. Commit as you go (put `PAY-1` in the message).
-4. **After coding:** `/fork-trail-coach:check-ticket PAY-1`. See what is missing, extra or different. Decide about each in your own words.
-5. **Before the PR:** `/fork-trail-coach:pr-decisions PAY-1`. It adds the Decisions section (review it before it is posted), reviews the final change for faults, and asks up to 3 short questions. Say `later` to skip any.
-6. **Your picture:** `/fork-trail-coach:coach`. Look for the state (Not assessed, Learning, Shown, Proven) and exposure, shown separately.
-7. **Why:** `/fork-trail-coach:coach why BE.ERR.M2` lists the evidence. Try disagreeing with a proof.
-8. **Drill:** `/fork-trail-coach:coach drill BE.ERR.M2`. Give a weak answer, then a strong one.
-9. **Dashboard:** `/fork-trail-coach:coach open`. Check the Growth section and the My data page.
+1. **Setup:** `/devgym:grow`, choose a track.
+2. **Before coding:** `/devgym:clarify PAY-1`. Answer the questions about unclear needs. (This earns credit for spotting unclear needs.)
+3. **Code with Claude:** `/devgym:track PAY-1`, then ask Claude to build it. Say it your way once (for example: "No, use a queue for the retries"). Claude logs that decision as yours, quoting your words. Commit as you go (put `PAY-1` in the message).
+4. **After coding:** `/devgym:check PAY-1`. See what is missing, extra or different. Decide about each in your own words.
+5. **Before the PR:** `/devgym:pr-decisions PAY-1`. It adds the Decisions section (review it before it is posted), reviews the final change for faults, and asks up to 3 short questions. Say `later` to skip any.
+6. **Your picture:** `/devgym:grow`. Look for the state (Not assessed, Learning, Shown, Proven) and exposure, shown separately.
+7. **Why:** `/devgym:grow why BE.ERR.M2` lists the evidence. Try disagreeing with a proof.
+8. **Drill:** `/devgym:grow drill BE.ERR.M2`. Give a weak answer, then a strong one.
+9. **Dashboard:** `/devgym:grow open`. Check the Growth section and the My data page.
 10. **Delete test:** on the My data page, delete everything; the levels should come back empty.
 
 ## 5b. A quick first test (10 minutes)
 
-1. `/fork-trail-coach:coach` and choose a track.
+1. `/devgym:grow` and choose a track.
 2. Make 2 or 3 commits in your repo that handle an outside call or errors.
-3. Run `/fork-trail-coach:coach` again. Look at: **state** (Not assessed, Learning, Shown, Proven) and **exposure** (kept apart).
-4. Answer one question. Then run `/fork-trail-coach:coach why <item>` and see your own words saved.
-5. Try `/fork-trail-coach:coach drill <item>` on a skill marked "drill available".
-6. Run `/fork-trail-coach:coach open` and look at the dashboard.
+3. Run `/devgym:grow` again. Look at: **state** (Not assessed, Learning, Shown, Proven) and **exposure** (kept apart).
+4. Answer one question. Then run `/devgym:grow why <item>` and see your own words saved.
+5. Try `/devgym:grow drill <item>` on a skill marked "drill available".
+6. Run `/devgym:grow open` and look at the dashboard.
 
 ## 6. What to know
 
