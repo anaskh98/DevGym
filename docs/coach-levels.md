@@ -100,3 +100,52 @@ spot. For a stack the ladder does not cover, the AI writes the note once and it 
 - A commit's ticket comes from a key in its message, else the current branch, else its calendar week.
 - Commits from before Claude's first edit in a repo are not read yet (the history scan is stage 2).
 - You could look up a drill answer. It is your own study tool, so that only fools yourself.
+
+## Measured results (stage 1)
+
+**Automated tests:** the full check passes (typecheck, build, server, eval and web tests).
+
+**One real run**, headless (`claude -p --plugin-dir`, Sonnet), in a scratch repo with an Express `package.json`.
+Each step was checked in the database as well as in Claude's reply.
+
+1. Claude wrote `src/client.ts` with a 5-second time limit. The edit hook saved 5 line hashes.
+2. As the developer, I committed time limits in `charge` and `refund` (ticket PAY-1) and a retry with backoff (PAY-2).
+3. `/coach` showed **BE.ERR.M2 LEARNING, 3 of 3 code proofs**, stack `express`. Claude's own time limit was stored
+   as **AI-written and did not count**. The plan was saved with an exercise naming `src/pay.ts`.
+4. Two why-questions, one per ticket. The prompt hook saved both answers **word for word**. Both were rated clear,
+   and the trade-off quote was checked. M2 became **SHOWN**.
+5. Drill, weak answer: **failed**, with every missed key point shown. Retrying at once was **refused** (no new proof).
+6. After a new commit with a time limit (PAY-3), the drill opened with a **new prompt** (d2). Strong answer:
+   **passed**, 3 of 3 key points with real quotes. M2 became **PROVEN**.
+7. Committing an empty catch in `charge` (PAY-4) dropped M2 back to **LEARNING**, with 0 of 3 proofs counted.
+
+The history table recorded each change: not seen → learning → shown → proven → learning.
+
+**What the real run found and fixed** (each with a test that failed first):
+
+- `/coach drill` did not read new commits, so a fresh proof never unlocked a failed drill.
+- Claude was never given the drill's key point ids, so it could not score the second drill. Now `drill_key` gives the
+  key, but only after the answer is saved.
+- After one why-question on an item, no second one was asked, so an item could never reach two clear answers.
+- If every saved hash was older than 120 days, capture would stop. The start point is now saved per repo.
+- A Proven item above the level being worked on was hidden from the view.
+
+**Not covered by the run:**
+
+- The interactive app: every step ran headless.
+- The frontend track.
+- A company ladder file.
+- Large real repos.
+
+**Hook time** on this machine, 10 runs each, while it was busy:
+
+| Process | Median time |
+|---|---|
+| Empty Node process | about 141 ms |
+| Edit hook (one `git` call plus the database) | about 240 ms |
+| Prompt hook (runs on every message once the database exists) | about 220 ms |
+
+So each hook adds roughly 80 to 100 ms of its own work.
+
+**Wording:** in one plan, Claude wrote that `charge` "retries" when it does not; the retry is in `withRetry`. The
+server checks that an exercise names a real file, but it cannot check every sentence.
