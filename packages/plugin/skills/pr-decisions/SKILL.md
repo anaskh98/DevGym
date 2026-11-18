@@ -52,7 +52,12 @@ Remind the developer of two things, in one line each:
 - Running this again replaces the section, so run it again after more decisions are logged.
 - After the pull request is merged, run the pointers skill so the links move to the merge commit.
 
-## Step 5: Fault review (private)
+## Step 5: Ticket check (private)
+
+Run the check-ticket skill for this ticket (`/fork-trail-coach:check-ticket <ticket-id>`) if it has not been run for this
+change: it shows code that is missing, extra or different from the ticket, only to the developer.
+
+## Step 6: Fault review (private)
 
 Review the pull request's **final change** for bad practices, faults and bugs, once, before the questions.
 Read only the changed functions (`git diff` of the pull request against its base). For each real problem call
@@ -67,7 +72,7 @@ were added in this change.
   their reason but does not remove the fault.
 - These stay on this machine and are **not** in the pull request.
 
-## Step 6: Coach questions (private)
+## Step 7: Coach questions (private)
 
 Call `coach_status`. It reads the developer's new commits.
 

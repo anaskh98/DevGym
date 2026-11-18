@@ -204,3 +204,42 @@ server checks that an exercise names a real file, but it cannot check every sent
    a drill".
 4. The history recorded not seen → not assessed → shown, with the reason "passed 2 drills and gave a clear answer,
    with little chance in the work".
+
+## Stage 2 to 4: ownership, history, automatic capture, dashboard and ticket check
+
+**Who decided is checked, not claimed.** The prompt hook saves what you type (locally, deleted after 120 days; slash
+commands are never saved). When the AI logs a decision as yours (`dev` or `dev_changed_ai`) it must quote your own
+words, and the server checks the quote is in a message you sent in that session. Otherwise it is stored as an AI
+choice. A decision on a ladder item becomes evidence that counts for you only if you decided it, and it shares the cap
+on AI-assisted proof (at most 1 of the 3 proofs).
+
+**You own what you ship.** A fault in code the AI wrote counts against you too: you shipped it. At pull request time
+the AI reviews the final change and may name a fault (`propose_fault`), but only with lines the server finds added in
+that change. A later commit that changes the same function clears it.
+
+**History.** Coach also reads your older commits, one batch of 200 per run, so it can see mistakes that keep coming
+back. Faults from old commits count fully; their credit is capped at 1 proof (it cannot tell who typed old lines).
+Fix commits (messages with fix, bug, hotfix or revert) are traced with `git blame` to the commit that brought the bug
+in; if that commit is yours, it is a **bug you shipped**. A **repeat** is the same mistake on 3 or more tickets. A
+repeat with nothing new in 60 days shows as a possible fixed habit.
+
+**Automatic.** A SessionStart and a Stop hook start a throttled (every 10 minutes) background worker that reads new
+commits, so nobody has to remember to run a command. It prints nothing and never blocks. At the start of a session, if
+questions are waiting, Claude gets one short line, at most once a day. Set `FTC_NO_BACKGROUND=1` to turn the worker off.
+
+**Dashboard.** `/coach open` shows your levels per area, exposure apart from proficiency, the evidence behind every
+state, repeats, open faults, drills ready and done, recent improvements and regressions, and what to do next
+(`GET /api/coach`, documented in `docs/api.md`).
+
+**Ticket check.** `/fork-trail-coach:check-ticket <ticket>` looks for code that is missing, extra or different from
+the ticket. The AI must quote the ticket's own words and point at lines the server finds in the change. You decide
+what to do about each finding, in your own words (the server checks them against what you typed). A finding you decide
+on before the pull request is not counted. Nothing from the ticket check reaches the pull request or reviewers.
+It feeds a new area, **Requirements and scope**: "builds what the ticket asks, and nothing extra" (also credited by a
+clean check on a ticket with 3 or more needs) and "spots unclear needs before coding" (credited when Fork asks the
+product owner).
+
+**Honest limits (stage 2 to 4).** Fix commits are found by their message. `git blame` can point at the wrong commit
+after large moves. Old commits give no line hashes, so their credit is capped. The history scan does not check for an
+AI trailer in old commit messages. The ticket check relies on the AI to find findings; the quote and line checks make
+them traceable, not complete.

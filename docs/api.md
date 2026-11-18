@@ -102,6 +102,16 @@ Field values:
 
 `{ "decisions": [ ... ] }` with the same decision shape as above.
 
+### `GET /coach`
+
+The growth dashboard (schema: `CoachDashboard` in `@ftc/shared`). Read only: it reads the database and the ladder, never git or the AI, so it is fast. The background worker keeps the data fresh.
+
+- `areas[]`: each ladder area with its `level`, `working_toward` and **`exposure`** (none, low, medium, high). Each item has its **`state`** (`not_seen`, `not_assessed`, `learning`, `shown`, `proven`) and its own `exposure`, kept apart: low exposure is never low skill. `shown_by` says whether Shown came from the work or from drills. `why_it_matters`, `needs`, `evidence[]` (the proofs and faults behind the state, newest first, up to 12, no code) and `drills[]`.
+- `repeats[]`: the same mistake on 3 or more tickets, newest first. `coming_back: false` means nothing new in 60 days.
+- `open_faults[]`, `ready_for_assessment[]`, `next_actions[]`, `drill_results[]`, `recent_changes[]` (up or down, with the reason).
+
+Everything here is personal profile data and stays on this machine.
+
 ### `GET /growth-plan`
 
 The newest plan, or `{ "growth_plan": null }` when there is none yet.

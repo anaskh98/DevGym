@@ -45,6 +45,7 @@ Needs Node.js 22.13 or later on your PATH. Then, in a repository with a `tickets
 | `/fork-trail-coach:coach drill BE.ERR.M2` | Take an interview-style drill for a Shown item; passing it makes the item Proven |
 | `/fork-trail-coach:coach why BE.ERR.M2` | See every piece of evidence behind an item, and disagree with any of it |
 | `/fork-trail-coach:coach history` | See how your items moved over time |
+| `/fork-trail-coach:check-ticket DEMO-1` | After coding: show code that is missing, extra or different from the ticket (private) |
 | `/fork-trail-coach:coach open` | Start the local server and open the Coach report in the browser |
 | `/fork-trail-coach:status` | Check the plugin and the local service |
 
