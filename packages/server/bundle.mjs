@@ -25,6 +25,10 @@ await build({ ...shared, entryPoints: [join(here, "src", "mcp", "stdio.ts")], ou
 await build({ ...shared, entryPoints: [join(here, "src", "hook", "post-tool-use.ts")], outfile: join(out, "hook.mjs") });
 // The prompt hook runs on every message the developer sends: it saves the answer to an open Coach question.
 await build({ ...shared, entryPoints: [join(here, "src", "hook", "prompt-submit.ts")], outfile: join(out, "prompt.mjs") });
+// The session hook is tiny: it only decides whether to start the background worker and whether to add one line.
+await build({ ...shared, entryPoints: [join(here, "src", "hook", "session-hook.ts")], outfile: join(out, "session.mjs") });
+// The background worker reads commits after a session starts or ends, so Coach stays current on its own.
+await build({ ...shared, entryPoints: [join(here, "src", "hook", "background.ts")], outfile: join(out, "background.mjs") });
 // The REST API for the local web app. Uses only Node's own http module.
 await build({ ...shared, entryPoints: [join(here, "src", "api", "main.ts")], outfile: join(out, "api.mjs") });
 
