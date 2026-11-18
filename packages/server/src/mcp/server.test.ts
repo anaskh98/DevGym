@@ -99,7 +99,9 @@ describe("tool list", () => {
       "save_assumptions",
       "save_growth_plan",
       "save_observation",
+      "score_drill",
       "set_coach_tracks",
+      "start_drill",
       "start_trail",
       "update_pr_decisions",
     ]);

@@ -8,6 +8,7 @@ import { run, type Run } from "../pointers/git.js";
 import { isSupported, symbolAtLine } from "../pointers/symbols.js";
 import { aiHashesFor, lineHash, normalizeLine } from "./attribution.js";
 import { catchUp, ticketForCommit, type CatchUpResult } from "./capture.js";
+import { drillsReady } from "./drills.js";
 import { toIso, factsForItem } from "./facts.js";
 import { findItem, loadActiveLadders, loadLadder, type LoadedLadder } from "./ladder/load.js";
 import { LEVELS, type LadderItem, type Level, type Track } from "./ladder/schema.js";
@@ -216,6 +217,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     areas,
     not_written: notWritten,
     questions,
+    drills_ready: drillsReady(db, results, now),
   };
   return { ...status, text: renderProgress(status) };
 }

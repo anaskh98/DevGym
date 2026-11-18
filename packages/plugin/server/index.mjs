@@ -42324,6 +42324,9 @@ var DEFAULT_THRESHOLDS = {
   hash_keep_days: 120,
   catchup_max: 200
 };
+function passCount(drill) {
+  return drill.pass ?? Math.ceil(2 / 3 * drill.key_points.length);
+}
 var text = external_exports.string().trim().min(1).max(600);
 var shortId = external_exports.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/, "ids are lowercase letters, digits, dots and dashes");
 var point = external_exports.strictObject({ id: shortId, text });
@@ -42690,8 +42693,237 @@ function rateAnswer(db2, input2) {
   return { rating: input2.rating, names_tradeoff: namesTradeoff, ...note ? { note } : {} };
 }
 
+// src/coach/drills.ts
+import { randomUUID as randomUUID4 } from "node:crypto";
+
+// src/coach/facts.ts
+function toIso(value) {
+  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+}
+function factsForItem(db2, ladderId2, itemId2) {
+  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map(
+    (r) => ({
+      id: r.id,
+      kind: r.kind,
+      polarity: r.polarity,
+      author: r.author,
+      decided_by: r.decided_by,
+      history: r.history === 1,
+      regresses: r.regresses === 1,
+      signal_id: r.signal_id,
+      file: r.file_path,
+      symbol: r.symbol,
+      ticket: r.ticket,
+      at: toIso(r.at),
+      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
+      fixed_ticket: r.fixed_ticket,
+      disagreed: r.disagreed_at !== null
+    })
+  );
+  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId2, itemId2).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
+  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
+  return { evidence, answers, drills };
+}
+
+// src/coach/state.ts
+var DAY = 864e5;
+var ms = (iso) => Date.parse(iso);
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var baseName = (path) => path.replaceAll("\\", "/").split("/").pop() ?? path;
+function isCredit(e) {
+  return e.polarity === "positive" && (e.author === "dev" || e.decided_by === "dev");
+}
+function isFault(e) {
+  return e.polarity === "negative" && !(e.fixed_ticket !== null && e.fixed_ticket === e.ticket);
+}
+function snapshot(input2, credits, faults, regressedAt, at, t) {
+  const counts = (iso) => (regressedAt === null || ms(iso) > regressedAt) && ms(iso) <= at;
+  const windowStart = at - t.window_days * DAY;
+  const groups = /* @__PURE__ */ new Map();
+  for (const e of credits) {
+    if (!counts(e.at) || ms(e.at) < windowStart) continue;
+    const key = [e.signal_id ?? e.id, e.file ?? "", e.symbol ?? ""].join("\0");
+    const prev = groups.get(key);
+    if (!prev || ms(e.at) < ms(prev.at)) groups.set(key, e);
+  }
+  const hasSignals = input2.item.signals.length > 0;
+  let judged = 0;
+  let fromHistory = 0;
+  const kept = [];
+  for (const e of [...groups.values()].sort((a, b) => ms(a.at) - ms(b.at))) {
+    if (e.kind === "judge" && hasSignals) {
+      if (judged >= t.judge_cap) continue;
+      judged++;
+    }
+    if (e.history) {
+      if (fromHistory >= 1) continue;
+      fromHistory++;
+    }
+    kept.push(e);
+  }
+  const proofTickets = new Set(kept.map((e) => e.ticket)).size;
+  const openFaults = faults.filter((f) => ms(f.at) >= windowStart && ms(f.at) <= at && (f.fixed_at === null || ms(f.fixed_at) > at));
+  const clear = input2.answers.filter((a) => a.rating === "clear" && counts(a.at));
+  const clearTickets = new Set(clear.map((a) => a.ticket)).size;
+  const tradeoff = clear.some((a) => a.names_tradeoff);
+  const lastProof = kept.length > 0 ? kept[kept.length - 1].at : null;
+  return {
+    shown: kept.length >= t.proofs && proofTickets >= t.tickets && openFaults.length === 0 && clearTickets >= t.clear_answers && tradeoff,
+    proofs: kept.length,
+    proofTickets,
+    openFaults,
+    clearTickets,
+    tradeoff,
+    lastProofAt: lastProof
+  };
+}
+function itemStatus(input2, now, t) {
+  const valid = input2.evidence.filter((e) => !e.disagreed);
+  const credits = valid.filter(isCredit);
+  const faults = valid.filter(isFault);
+  const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input2.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];
+  const regressedIso = drops.length > 0 ? drops.reduce((a, b) => ms(a) >= ms(b) ? a : b) : null;
+  const regressedAt = regressedIso === null ? null : ms(regressedIso);
+  const current = snapshot(input2, credits, faults, regressedAt, now.getTime(), t);
+  const proven = input2.drills.filter((d) => d.passed && !d.void && (regressedAt === null || ms(d.at) > regressedAt)).sort((a, b) => ms(a.at) - ms(b.at)).find((d) => snapshot(input2, credits, faults, regressedAt, ms(d.at), t).shown);
+  let state;
+  if (proven) state = "proven";
+  else if (current.shown) state = "shown";
+  else if (credits.length > 0 || input2.answers.length > 0 || faults.length > 0 || regressedAt !== null) state = "learning";
+  else state = "not_seen";
+  const needs = [];
+  if (state === "shown") needs.push("pass a drill");
+  else if (state !== "proven") {
+    if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
+    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
+    for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
+    if (current.clearTickets < t.clear_answers) needs.push(`${plural2(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
+    if (!current.tradeoff) needs.push("an answer that names the trade-off");
+  }
+  return {
+    item_id: input2.item.id,
+    state,
+    proofs: current.proofs,
+    proof_tickets: current.proofTickets,
+    clear_answers: current.clearTickets,
+    tradeoff_named: current.tradeoff,
+    open_faults: current.openFaults.length,
+    regressed_at: regressedIso,
+    last_proof_at: current.lastProofAt,
+    proven_at: proven?.at ?? null,
+    needs
+  };
+}
+function areaLevel(area, statuses) {
+  let level = null;
+  for (const lvl of LEVELS) {
+    const items = area.levels[lvl];
+    if (items.length === 0) continue;
+    if (items.every((i2) => statuses.get(i2.id)?.state === "proven")) level = lvl;
+    else return { level, working_toward: lvl };
+  }
+  return { level, working_toward: null };
+}
+
+// src/coach/drills.ts
+var DAY2 = 864e5;
+var DRILL_REF = "drill:";
+function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
+  if (status.state !== "shown") {
+    return { allowed: false, reason: `A drill opens when the item is Shown. It is ${status.state.replace("_", " ")} now.` };
+  }
+  const last = attempts.filter((a) => !a.void).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+  if (last && !last.passed) {
+    const waited = now.getTime() - Date.parse(last.at) >= t.drill_retry_days * DAY2;
+    if (!waited && newProofsSinceLastFail < 1) {
+      return { allowed: false, reason: `After a failed drill, try again after one new code proof or ${t.drill_retry_days} days.` };
+    }
+  }
+  return { allowed: true };
+}
+function pickDrill(item, attempts) {
+  const lastTried = /* @__PURE__ */ new Map();
+  for (const a of attempts) lastTried.set(a.drill_id, Math.max(lastTried.get(a.drill_id) ?? 0, Date.parse(a.at)));
+  const fresh = item.drills.find((d) => !lastTried.has(d.id));
+  if (fresh) return fresh;
+  return [...item.drills].sort((a, b) => (lastTried.get(a.id) ?? 0) - (lastTried.get(b.id) ?? 0))[0];
+}
+function gateFor(db2, ctx, now) {
+  const facts = factsForItem(db2, ctx.loaded.ladder_id, ctx.item.id);
+  const status = itemStatus({ item: ctx.item, ...facts }, now, ctx.loaded.thresholds);
+  const lastFail = facts.drills.filter((d) => !d.void && !d.passed).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+  const newProofs = lastFail ? facts.evidence.filter((e) => e.polarity === "positive" && !e.disagreed && (e.author === "dev" || e.decided_by === "dev") && Date.parse(e.at) > Date.parse(lastFail.at)).length : 0;
+  return { facts, gate: drillGate(status, facts.drills, newProofs, now, ctx.loaded.thresholds) };
+}
+function startDrill(db2, ctx, input2, now = /* @__PURE__ */ new Date()) {
+  const { facts, gate } = gateFor(db2, ctx, now);
+  if (!gate.allowed) throw new StoreError(gate.reason);
+  const drill = pickDrill(ctx.item, facts.drills);
+  const id2 = randomUUID4();
+  db2.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE open_session = ? AND answered_at IS NULL").run(input2.session_id);
+  db2.prepare(
+    "INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket, question, opened_at, open_session) VALUES (?, 'drill', ?, ?, ?, 'drill', ?, ?, ?)"
+  ).run(id2, ctx.loaded.ladder_id, ctx.item.id, `${DRILL_REF}${drill.id}`, drill.prompt, now.toISOString(), input2.session_id);
+  return { question_id: id2, drill_id: drill.id, prompt: drill.prompt };
+}
+function scoreDrill(db2, ctx, input2) {
+  const row = db2.prepare("SELECT kind, item_id, target_ref, answer, answered_at FROM pending_questions WHERE id = ?").get(input2.question_id);
+  if (!row || row.kind !== "drill" || row.item_id !== ctx.item.id) throw new StoreError(`Question '${input2.question_id}' is not a drill for ${ctx.item.id}`);
+  if (row.answer === null || row.answered_at === null) throw new StoreError("This drill has no answer yet. Ask it and wait for the developer's reply");
+  if (db2.prepare("SELECT 1 FROM drill_attempts WHERE question_id = ?").get(input2.question_id)) throw new StoreError("This drill was already scored");
+  const drill = ctx.item.drills.find((d) => `${DRILL_REF}${d.id}` === row.target_ref);
+  if (!drill) throw new StoreError("The drill this question came from is no longer in the ladder");
+  const keyIds = new Set(drill.key_points.map((k) => k.id));
+  const flagIds = new Set(drill.red_flags.map((f) => f.id));
+  const dropped = [];
+  const keep = (list, ids) => {
+    const kept = /* @__PURE__ */ new Set();
+    for (const h of list) {
+      if (ids.has(h.id) && quoteIn(row.answer, h.quote)) kept.add(h.id);
+      else dropped.push(h.id);
+    }
+    return [...kept];
+  };
+  const keptHits = keep(input2.hits, keyIds);
+  const flagsHit = keep(input2.red_flags, flagIds);
+  const passed = keptHits.length >= passCount(drill) && flagsHit.length === 0;
+  db2.prepare("INSERT INTO drill_attempts (id, ladder_id, item_id, drill_id, question_id, hits, red_flags, passed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+    randomUUID4(),
+    ctx.loaded.ladder_id,
+    ctx.item.id,
+    drill.id,
+    input2.question_id,
+    JSON.stringify(keptHits),
+    JSON.stringify(flagsHit),
+    passed ? 1 : 0,
+    row.answered_at
+  );
+  return {
+    passed,
+    kept_hits: keptHits,
+    dropped: [...new Set(dropped)],
+    missed_points: drill.key_points.filter((k) => !keptHits.includes(k.id)),
+    red_flags_hit: flagsHit,
+    study: ctx.item.study
+  };
+}
+function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
+  const ready2 = [];
+  for (const { loaded, statuses } of results) {
+    for (const area of loaded.ladder.areas) {
+      for (const items of Object.values(area.levels)) {
+        for (const item of items) {
+          if (statuses.get(item.id)?.state !== "shown") continue;
+          if (gateFor(db2, { loaded, item }, now).gate.allowed) ready2.push(item.id);
+        }
+      }
+    }
+  }
+  return ready2;
+}
+
 // src/coach/status.ts
-import { randomUUID as randomUUID5 } from "node:crypto";
+import { randomUUID as randomUUID6 } from "node:crypto";
 
 // src/git/diff.ts
 import { createHash } from "node:crypto";
@@ -42829,7 +43061,7 @@ function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/coach/capture.ts
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 
 // src/rules/engine.ts
 var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
@@ -43021,7 +43253,7 @@ async function catchUp(db2, opts) {
     const { rows: rows2, fixes } = await readCommit(db2, top, c.sha, diff, targets, exec);
     transaction(db2, () => {
       for (const r of rows2) {
-        insert.run(randomUUID4(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
         evidenceAdded++;
       }
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
@@ -43029,35 +43261,6 @@ async function catchUp(db2, opts) {
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
-}
-
-// src/coach/facts.ts
-function toIso(value) {
-  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
-}
-function factsForItem(db2, ladderId2, itemId2) {
-  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map(
-    (r) => ({
-      id: r.id,
-      kind: r.kind,
-      polarity: r.polarity,
-      author: r.author,
-      decided_by: r.decided_by,
-      history: r.history === 1,
-      regresses: r.regresses === 1,
-      signal_id: r.signal_id,
-      file: r.file_path,
-      symbol: r.symbol,
-      ticket: r.ticket,
-      at: toIso(r.at),
-      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
-      fixed_ticket: r.fixed_ticket,
-      disagreed: r.disagreed_at !== null
-    })
-  );
-  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId2, itemId2).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
-  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
-  return { evidence, answers, drills };
 }
 
 // src/coach/ladder/load.ts
@@ -43898,106 +44101,6 @@ function detectStacks(root) {
   return hits;
 }
 
-// src/coach/state.ts
-var DAY = 864e5;
-var ms = (iso) => Date.parse(iso);
-var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-var baseName = (path) => path.replaceAll("\\", "/").split("/").pop() ?? path;
-function isCredit(e) {
-  return e.polarity === "positive" && (e.author === "dev" || e.decided_by === "dev");
-}
-function isFault(e) {
-  return e.polarity === "negative" && !(e.fixed_ticket !== null && e.fixed_ticket === e.ticket);
-}
-function snapshot(input2, credits, faults, regressedAt, at, t) {
-  const counts = (iso) => (regressedAt === null || ms(iso) > regressedAt) && ms(iso) <= at;
-  const windowStart = at - t.window_days * DAY;
-  const groups = /* @__PURE__ */ new Map();
-  for (const e of credits) {
-    if (!counts(e.at) || ms(e.at) < windowStart) continue;
-    const key = [e.signal_id ?? e.id, e.file ?? "", e.symbol ?? ""].join("\0");
-    const prev = groups.get(key);
-    if (!prev || ms(e.at) < ms(prev.at)) groups.set(key, e);
-  }
-  const hasSignals = input2.item.signals.length > 0;
-  let judged = 0;
-  let fromHistory = 0;
-  const kept = [];
-  for (const e of [...groups.values()].sort((a, b) => ms(a.at) - ms(b.at))) {
-    if (e.kind === "judge" && hasSignals) {
-      if (judged >= t.judge_cap) continue;
-      judged++;
-    }
-    if (e.history) {
-      if (fromHistory >= 1) continue;
-      fromHistory++;
-    }
-    kept.push(e);
-  }
-  const proofTickets = new Set(kept.map((e) => e.ticket)).size;
-  const openFaults = faults.filter((f) => ms(f.at) >= windowStart && ms(f.at) <= at && (f.fixed_at === null || ms(f.fixed_at) > at));
-  const clear = input2.answers.filter((a) => a.rating === "clear" && counts(a.at));
-  const clearTickets = new Set(clear.map((a) => a.ticket)).size;
-  const tradeoff = clear.some((a) => a.names_tradeoff);
-  const lastProof = kept.length > 0 ? kept[kept.length - 1].at : null;
-  return {
-    shown: kept.length >= t.proofs && proofTickets >= t.tickets && openFaults.length === 0 && clearTickets >= t.clear_answers && tradeoff,
-    proofs: kept.length,
-    proofTickets,
-    openFaults,
-    clearTickets,
-    tradeoff,
-    lastProofAt: lastProof
-  };
-}
-function itemStatus(input2, now, t) {
-  const valid = input2.evidence.filter((e) => !e.disagreed);
-  const credits = valid.filter(isCredit);
-  const faults = valid.filter(isFault);
-  const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input2.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];
-  const regressedIso = drops.length > 0 ? drops.reduce((a, b) => ms(a) >= ms(b) ? a : b) : null;
-  const regressedAt = regressedIso === null ? null : ms(regressedIso);
-  const current = snapshot(input2, credits, faults, regressedAt, now.getTime(), t);
-  const proven = input2.drills.filter((d) => d.passed && !d.void && (regressedAt === null || ms(d.at) > regressedAt)).sort((a, b) => ms(a.at) - ms(b.at)).find((d) => snapshot(input2, credits, faults, regressedAt, ms(d.at), t).shown);
-  let state;
-  if (proven) state = "proven";
-  else if (current.shown) state = "shown";
-  else if (credits.length > 0 || input2.answers.length > 0 || faults.length > 0 || regressedAt !== null) state = "learning";
-  else state = "not_seen";
-  const needs = [];
-  if (state === "shown") needs.push("pass a drill");
-  else if (state !== "proven") {
-    if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
-    if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
-    for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
-    if (current.clearTickets < t.clear_answers) needs.push(`${plural2(t.clear_answers - current.clearTickets, "more clear answer", "more clear answers")}`);
-    if (!current.tradeoff) needs.push("an answer that names the trade-off");
-  }
-  return {
-    item_id: input2.item.id,
-    state,
-    proofs: current.proofs,
-    proof_tickets: current.proofTickets,
-    clear_answers: current.clearTickets,
-    tradeoff_named: current.tradeoff,
-    open_faults: current.openFaults.length,
-    regressed_at: regressedIso,
-    last_proof_at: current.lastProofAt,
-    proven_at: proven?.at ?? null,
-    needs
-  };
-}
-function areaLevel(area, statuses) {
-  let level = null;
-  for (const lvl of LEVELS) {
-    const items = area.levels[lvl];
-    if (items.length === 0) continue;
-    if (items.every((i2) => statuses.get(i2.id)?.state === "proven")) level = lvl;
-    else return { level, working_toward: lvl };
-  }
-  return { level, working_toward: null };
-}
-
 // src/coach/status.ts
 var capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var shortDate = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -44034,7 +44137,7 @@ function recordStateChanges(db2, ladderId2, statuses, reason = reasonFor) {
   for (const s of statuses) {
     const from = last.get(ladderId2, s.item_id)?.to_state ?? "not_seen";
     if (from === s.state) continue;
-    insert.run(randomUUID5(), ladderId2, s.item_id, from, s.state, reason(s));
+    insert.run(randomUUID6(), ladderId2, s.item_id, from, s.state, reason(s));
     written++;
   }
   return written;
@@ -44141,7 +44244,8 @@ async function coachStatus(db2, opts) {
     catch_up,
     areas,
     not_written: notWritten,
-    questions
+    questions,
+    drills_ready: drillsReady(db2, results, now)
   };
   return { ...status, text: renderProgress(status) };
 }
@@ -44186,7 +44290,7 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const source = await exec("git", ["show", `${sha}:${file2.path}`], top);
   const symbol2 = source.code === 0 && isSupported(file2.path) ? (await symbolAtLine(file2.path, source.stdout, devLine.line))?.name ?? null : null;
   const ticket = ticketForCommit({ sha, authorEmail: email3, authorDate, subject }, { onDefault: (await defaultBranchCommits(top, exec)).has(sha), branch: await currentBranch(top, exec) });
-  const id2 = randomUUID5();
+  const id2 = randomUUID6();
   db2.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)"
   ).run(id2, loaded.ladder_id, input2.item_id, top, sha, file2.path, symbol2, ticket, input2.why, authorDate);
@@ -44662,6 +44766,20 @@ var rateAnswerInput = external_exports.strictObject({
   rating: external_exports.enum(RATINGS),
   tradeoff_quote: external_exports.string().trim().min(12).max(500).optional().describe("Words copied exactly from the answer that name the trade-off. Leave out if it names none")
 });
+var startDrillInput = external_exports.strictObject({
+  item_id: itemId,
+  ladder_id: external_exports.string().trim().min(1).max(200).optional(),
+  session_id: id.describe("The Claude Code session id")
+});
+var scoredPoint = external_exports.strictObject({
+  id: external_exports.string().trim().min(1).max(50).describe("A key point or red flag id from the drill"),
+  quote: external_exports.string().trim().min(12).max(500).describe("The exact words from the answer that show it")
+});
+var scoreDrillInput = external_exports.strictObject({
+  question_id: id,
+  hits: external_exports.array(scoredPoint).max(10).describe("Key points the answer hits"),
+  red_flags: external_exports.array(scoredPoint).max(10).describe("Red flags the answer shows")
+});
 
 // src/mcp/server.ts
 var SERVER_NAME = "fork-trail-coach";
@@ -44921,6 +45039,31 @@ function createServer2(db2, tickets2, options = {}) {
       inputSchema: rateAnswerInput
     },
     (input2) => reply(() => rateAnswer(db2, input2))
+  );
+  server2.registerTool(
+    "start_drill",
+    {
+      title: "Start drill",
+      description: "Start an interview drill for a Shown ladder item: a question about a new situation, from the ladder's fixed list. Returns the prompt to ask as it is. The developer's next message is saved as the answer by a hook.",
+      inputSchema: startDrillInput
+    },
+    (input2) => reply(() => {
+      const ctx = ladderForItem(root, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
+      return startDrill(db2, ctx, { session_id: input2.session_id });
+    })
+  );
+  server2.registerTool(
+    "score_drill",
+    {
+      title: "Score drill",
+      description: "Score an answered drill against its fixed key. For each key point and red flag the answer shows, give its id and the exact words from the answer. The server keeps only real quotes and decides pass or fail; it returns the missed key points and study topics.",
+      inputSchema: scoreDrillInput
+    },
+    (input2) => reply(() => {
+      const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
+      if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
+      return scoreDrill(db2, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input2);
+    })
   );
   return server2;
 }

@@ -7,12 +7,15 @@ import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer } from "../coach/questions.js";
+import { scoreDrill, startDrill } from "../coach/drills.js";
 import { coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
 import {
   askQuestionInput,
+  scoreDrillInput,
+  startDrillInput,
   rateAnswerInput,
   coachHistoryInput,
   coachItemInput,
@@ -366,6 +369,39 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: rateAnswerInput,
     },
     (input) => reply(() => rateAnswer(db, input)),
+  );
+
+  server.registerTool(
+    "start_drill",
+    {
+      title: "Start drill",
+      description:
+        "Start an interview drill for a Shown ladder item: a question about a new situation, from the ladder's fixed list. Returns the prompt to ask as it is. The developer's next message is saved as the answer by a hook.",
+      inputSchema: startDrillInput,
+    },
+    (input) =>
+      reply(() => {
+        const ctx = ladderForItem(root, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
+        return startDrill(db, ctx, { session_id: input.session_id });
+      }),
+  );
+
+  server.registerTool(
+    "score_drill",
+    {
+      title: "Score drill",
+      description:
+        "Score an answered drill against its fixed key. For each key point and red flag the answer shows, give its id and the exact words from the answer. The server keeps only real quotes and decides pass or fail; it returns the missed key points and study topics.",
+      inputSchema: scoreDrillInput,
+    },
+    (input) =>
+      reply(() => {
+        const row = db.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input.question_id) as
+          | { item_id: string; ladder_id: string }
+          | undefined;
+        if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
+        return scoreDrill(db, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input);
+      }),
   );
 
   return server;

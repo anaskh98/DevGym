@@ -193,6 +193,23 @@ export const rateAnswerInput = z.strictObject({
   tradeoff_quote: z.string().trim().min(12).max(500).optional().describe("Words copied exactly from the answer that name the trade-off. Leave out if it names none"),
 });
 
+export const startDrillInput = z.strictObject({
+  item_id: itemId,
+  ladder_id: z.string().trim().min(1).max(200).optional(),
+  session_id: id.describe("The Claude Code session id"),
+});
+
+const scoredPoint = z.strictObject({
+  id: z.string().trim().min(1).max(50).describe("A key point or red flag id from the drill"),
+  quote: z.string().trim().min(12).max(500).describe("The exact words from the answer that show it"),
+});
+
+export const scoreDrillInput = z.strictObject({
+  question_id: id,
+  hits: z.array(scoredPoint).max(10).describe("Key points the answer hits"),
+  red_flags: z.array(scoredPoint).max(10).describe("Red flags the answer shows"),
+});
+
 export type ImportTicketInput = z.infer<typeof importTicketInput>;
 export type SaveAssumptionsInput = z.infer<typeof saveAssumptionsInput>;
 export type StartTrailInput = z.infer<typeof startTrailInput>;
