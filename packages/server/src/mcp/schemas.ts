@@ -74,6 +74,13 @@ export const logDecisionInput = z.strictObject({
     .default([])
     .describe("Other files this same decision covers, for example its test file. Paths only."),
   item_id: itemId.optional().describe("The ladder item this decision is about, if one fits. For example BE.ERR.M2"),
+  origin_quote: z
+    .string()
+    .trim()
+    .min(12)
+    .max(500)
+    .optional()
+    .describe("Required for origin dev or dev_changed_ai: the developer's own words, copied exactly from their message, that made the choice. The server checks them."),
 });
 
 export const startTrailInput = z.strictObject({

@@ -118,7 +118,8 @@ function snapshot(input: ItemInput, credits: EvidenceFact[], faults: EvidenceFac
   let fromHistory = 0;
   const kept: EvidenceFact[] = [];
   for (const e of [...groups.values()].sort((a, b) => ms(a.at) - ms(b.at))) {
-    if (e.kind === "judge" && hasSignals) {
+    // Judge evidence and decisions on lines the AI wrote are not provable by rules: they share the cap.
+    if ((e.kind === "judge" || e.kind === "decision") && hasSignals) {
       if (judged >= t.judge_cap) continue;
       judged++;
     }

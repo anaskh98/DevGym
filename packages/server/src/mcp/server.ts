@@ -6,6 +6,7 @@ import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { repoIdentitySync } from "../git/identity.js";
+import { decisionEvidence, resolveOrigin } from "../coach/messages.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer, releaseAnswer } from "../coach/questions.js";
 import { drillKey, scoreDrill, startDrill } from "../coach/drills.js";
@@ -149,7 +150,13 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         await ticket(decision.ticket_id);
         // An item id must be in the active ladder; the server finds which ladder that is.
         const ladderId = decision.item_id === undefined ? null : ladderForItem(coachRoot, decision.item_id, home).loaded.ladder_id;
-        return store.logDecision(db, decision, root, ladderId);
+        // Who decided is checked, not claimed: dev origins need the developer's own words from this session.
+        const checked = resolveOrigin(db, decision.session_id, decision.origin, decision.origin_quote);
+        const saved = store.logDecision(db, { ...decision, origin: checked.origin }, root, ladderId, checked.quote);
+        if (decision.item_id !== undefined && ladderId !== null) {
+          decisionEvidence(db, { ladder_id: ladderId, item_id: decision.item_id, ticket: decision.ticket_id, decided_by: checked.origin === "ai" ? "ai" : "dev", file: decision.pointer?.file_path ?? null, symbol: decision.pointer?.symbol ?? null });
+        }
+        return checked.note ? { ...saved, note: checked.note } : saved;
       }),
   );
 

@@ -340,3 +340,11 @@ describe("stage 1.5 review fixes", () => {
     expect(s.needs[0]).toMatch(/fix the open fault|code proof/);
   });
 });
+
+describe("stage 2: decision evidence", () => {
+  it("counts a developer decision on AI lines under the judge cap, and an AI decision never", () => {
+    const decided = (o: Partial<EvidenceFact> = {}) => dev({ kind: "decision", signal_id: null, author: "unknown", decided_by: "dev", ...o });
+    expect(status([decided({ symbol: "a" }), decided({ symbol: "b", ticket: "T-2" }), decided({ symbol: "c" })]).proofs).toBe(1);
+    expect(status([decided({ decided_by: "ai" })]).proofs).toBe(0);
+  });
+});

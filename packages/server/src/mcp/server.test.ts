@@ -14,6 +14,7 @@ import { recordFileEdit } from "../store.js";
 import { MarkdownTicketAdapter } from "../tickets/markdown.js";
 import { latestGrowthPlan } from "../api/data.js";
 import { saveAiLines } from "../coach/attribution.js";
+import { saveMessage } from "../coach/messages.js";
 import { repoIdentitySync } from "../git/identity.js";
 import { createServer } from "./server.js";
 
@@ -26,6 +27,7 @@ let opened: string[];
 beforeEach(async () => {
   db = openDb(":memory:");
   migrate(db);
+  for (const session of ["s1", "s2"]) saveMessage(db, session, "Please do it, the developer asked for this exact approach for it");
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   // A fixed denylist and a small temp repo: tests must not read the developer's real list or this repo.
   repo = mkdtempSync(join(tmpdir(), "ftc-server-"));
@@ -337,6 +339,7 @@ describe("log_decision", () => {
       decision({
         alternatives: ["Build the whole file in memory"],
         origin: "dev_changed_ai",
+        origin_quote: "developer asked for this exact approach",
         pointer: { repo: "acme/demo", file_path: "src/export.ts", symbol: "exportOrders", line_hint: 42 },
       }),
     );
@@ -369,7 +372,7 @@ describe("log_decision", () => {
 describe("list_decisions", () => {
   it("lists a ticket's decisions across sessions with their explain-back counts", async () => {
     const first = await ok("log_decision", decision({ pointer: { repo: "team/demo", file_path: "src/export.ts", symbol: "exportOrders" } }));
-    await ok("log_decision", decision({ session_id: "s2", summary: "Limit one export to 10,000 rows", origin: "dev" }));
+    await ok("log_decision", decision({ session_id: "s2", summary: "Limit one export to 10,000 rows", origin: "dev", origin_quote: "developer asked for this exact approach" }));
     await ok("record_explain_back", { decision_id: first.decision_id, question: "Why?", answer: "To keep memory low", rating: "clear" });
 
     const out = await ok("list_decisions", { ticket_id: "SAMPLE-1" });
@@ -436,7 +439,7 @@ describe("save_observation", () => {
 
 describe("list_observations", () => {
   it("lists observations with what each piece of evidence is", async () => {
-    const { decision_id } = await ok("log_decision", decision({ origin: "dev_changed_ai" }));
+    const { decision_id } = await ok("log_decision", decision({ origin: "dev_changed_ai", origin_quote: "developer asked for this exact approach" }));
     const { explain_back_id } = await ok("record_explain_back", { decision_id, question: "Why?", answer: "Not sure", rating: "partial" });
     const { observation_id } = await ok("save_observation", {
       skill_tag: "performance",
@@ -639,5 +642,30 @@ describe("review fixes: proposed evidence must be the developer's lines", () => 
     saveAiLines(db, repoIdentitySync(repo)!.key, "pay.ts", "s1", ["  return compensateLater();"]);
     const out = await rejected("propose_evidence", { item_id: "BE.ERR.S1", commit: sha, file: "pay.ts", line_start: 1, line_end: 3, why: "Shows a design for partial failure" });
     expect(out).toMatch(/Claude wrote/);
+  });
+});
+
+describe("stage 2: decision origin must be quoted", () => {
+  it("keeps origin dev only when the quote is in a developer message of that session", async () => {
+    saveMessage(db, "s1", "No, use a queue for the retries instead of looping in the handler");
+    const real = await ok("log_decision", decision({ origin: "dev", origin_quote: "use a queue for the retries" }));
+    const fake = await ok("log_decision", decision({ origin: "dev", origin_quote: "I told you to build it this exact way" }));
+    const none = await ok("log_decision", decision({ origin: "dev_changed_ai" }));
+    const origin = (id: string) => (db.prepare("SELECT origin FROM decisions WHERE id = ?").get(id) as { origin: string }).origin;
+    expect(origin(real.decision_id)).toBe("dev");
+    expect(origin(fake.decision_id)).toBe("ai");
+    expect(fake.note).toMatch(/not in a message/);
+    expect(origin(none.decision_id)).toBe("ai");
+  });
+
+  it("makes decision evidence for an item, credited only when the developer decided", async () => {
+    saveMessage(db, "s1", "No, use a queue for the retries instead of looping in the handler");
+    await ok("log_decision", decision({ origin: "dev", origin_quote: "use a queue for the retries", item_id: "BE.ERR.M2" }));
+    await ok("log_decision", decision({ origin: "ai", item_id: "BE.ERR.M3" }));
+    const rows = db.prepare("SELECT item_id, kind, decided_by FROM skill_evidence ORDER BY item_id").all().map((r) => ({ ...r }));
+    expect(rows).toEqual([
+      { item_id: "BE.ERR.M2", kind: "decision", decided_by: "dev" },
+      { item_id: "BE.ERR.M3", kind: "decision", decided_by: "ai" },
+    ]);
   });
 });

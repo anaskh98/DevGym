@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { captureAnswer } from "../coach/questions.js";
 import { defaultDbPath, openDb } from "../db/connection.js";
 import { migrate } from "../db/migrations.js";
+import { pruneMessages, saveMessage } from "../coach/messages.js";
 import { containsBlockedName, loadDenylist } from "../privacy/denylist.js";
 import { findRuleHit } from "../privacy/rules.js";
 
@@ -33,6 +34,9 @@ async function main(): Promise<void> {
   const db = openDb();
   try {
     migrate(db);
+    // What the developer says is kept locally so "the developer chose this" can be checked against their words.
+    if (answerAllowed(input.prompt)) saveMessage(db, input.session_id, input.prompt);
+    pruneMessages(db, 120);
     const result = captureAnswer(db, input.session_id, input.prompt, new Date(), answerAllowed);
     if (!result.captured) {
       if (result.held_back) {
