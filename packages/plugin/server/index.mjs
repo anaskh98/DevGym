@@ -28895,6 +28895,28 @@ var migrations = [
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN item_id TEXT;
     `
+  },
+  {
+    id: 8,
+    name: "coach_exposure",
+    sql: `
+      -- A chance to use a skill in the developer's work (for example any call to an outside service), whether or not
+      -- the skill was used. Kept apart from evidence: exposure never gives credit and never counts as a fault.
+      CREATE TABLE skill_exposure (
+        id         TEXT PRIMARY KEY,
+        ladder_id  TEXT NOT NULL,
+        item_id    TEXT NOT NULL,
+        repo_root  TEXT,
+        commit_sha TEXT,
+        file_path  TEXT,
+        symbol     TEXT,
+        ticket     TEXT NOT NULL,
+        signal_id  TEXT NOT NULL,
+        at         TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_skill_exposure_item ON skill_exposure(ladder_id, item_id);
+    `
   }
 ];
 function migrate(db2, list = migrations) {
@@ -37261,7 +37283,8 @@ function saveGrowthPlan(db2, input2, checkItemArea2) {
         item_id: area.item_id,
         ladder_id: ladderId2,
         ...area.spot ? { spot: { file: area.spot.file, symbol: area.spot.symbol ?? null } } : {},
-        ...area.stack ? { stack: area.stack } : {}
+        ...area.stack ? { stack: area.stack } : {},
+        ...area.exercise_kind ? { exercise_kind: area.exercise_kind } : {}
       };
     }
     for (const evidenceId of evidence) {
@@ -42360,6 +42383,7 @@ var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
 var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
 var ITEM_ID = /^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/;
+var EXERCISE_KINDS = ["implement", "debug", "review", "design_tradeoff", "architecture", "explain"];
 var DEFAULT_THRESHOLDS = {
   proofs: 3,
   tickets: 2,
@@ -42370,7 +42394,11 @@ var DEFAULT_THRESHOLDS = {
   question_timeout_min: 30,
   max_questions: 3,
   hash_keep_days: 120,
-  catchup_max: 200
+  catchup_max: 200,
+  exposure_window_days: 90,
+  exposure_low: 1,
+  exposure_medium: 3,
+  exposure_high: 6
 };
 function passCount(drill) {
   return drill.pass ?? Math.ceil(2 / 3 * drill.key_points.length);
@@ -42399,6 +42427,9 @@ var itemSchema = external_exports.strictObject({
   explain_angles: external_exports.array(text).min(1).max(3),
   drills: external_exports.array(drillSchema).min(1).max(3),
   study: external_exports.array(text).min(2).max(4),
+  exposure_signals: external_exports.array(shortId).max(10).optional(),
+  why_it_matters: text.optional(),
+  exercise_kinds: external_exports.array(external_exports.enum(EXERCISE_KINDS)).min(1).max(6).optional(),
   stack_notes: external_exports.record(
     shortId,
     external_exports.strictObject({ note: text, link: external_exports.string().regex(/^https:\/\/\S+$/, "stack note links must start with https://") })
@@ -42602,6 +42633,67 @@ var SIGNALS = [
       hit: [tsx("<ErrorBoundary fallback={<Oops />}>"), tsx("componentDidCatch(error, info) {")],
       miss: [tsx("<Boundary>"), tsx('import { ErrorBoundary } from "react-error-boundary";')]
     }
+  },
+  // Exposure signals: they show the developer had the chance to use a skill, not that they used it well.
+  {
+    id: "io.outside-call",
+    meaning: "a call to an outside service",
+    pattern: /\bfetch\(|\baxios(\.\w+)?\(|\bgot\(|\bhttps?\.(request|get)\(|\brequests\.(get|post|put|patch|delete)\(|\b(RestTemplate|WebClient|HttpClient)\b|\bhttp\.(Get|Post|Do)\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const res = await fetch(url);"), ts("const r = await axios.get(url);"), py("r = requests.post(url, json=body)"), go("resp, err := http.Get(url)")],
+      miss: [ts("const fetched = true;"), ts("refetch();")]
+    }
+  },
+  {
+    id: "io.db-query",
+    meaning: "a database query",
+    pattern: /\.(query|execute|findOne|findUnique|findMany|findById|findAll|aggregate|insertOne|updateOne)\(|\bSELECT\s+.+\s+FROM\b/i,
+    extensions: CODE,
+    examples: {
+      hit: [ts('const rows = await db.query("SELECT 1");'), ts("const user = await prisma.user.findUnique({ where: { id } });"), ts("const u = await User.findById(id);")],
+      miss: [ts("const item = items.find((x) => x.id === id);"), ts("const q = query;")]
+    }
+  },
+  {
+    id: "err.try-catch",
+    meaning: "code that catches an error",
+    pattern: /\btry\s*\{|^\s*try\s*:?\s*$|\bcatch\s*(\(|\{)|^\s*except\b/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("  try {"), ts("} catch (e) {"), py("try:"), py("except ValueError:")],
+      miss: [ts("const tryAgain = 1;"), ts("retry();")]
+    }
+  },
+  {
+    id: "err.throw",
+    meaning: "code that raises an error",
+    pattern: /\bthrow\s+\w|\braise\s+\w|\bpanic\(|\berrors\.New\(|\bfmt\.Errorf\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts('throw new Error("bad input");'), py('raise ValueError("bad input")'), go('return fmt.Errorf("charge: %w", err)')],
+      miss: [ts("const thrown = false;"), ts("const throwaway = 1;")]
+    }
+  },
+  {
+    id: "api.request-body",
+    meaning: "code that reads input from a request",
+    pattern: /\breq\.(body|query|params)\b|@(RequestBody|RequestParam|PathVariable|Body|Query|Param)\(|\brequest\.(json|form|args)\b|\bc\.(Bind|ShouldBind)\w*\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const { name } = req.body;"), java("public User create(@RequestBody() UserDto dto) {"), py("data = request.json")],
+      miss: [ts('const body = "x";'), ts("request();")]
+    }
+  },
+  {
+    id: "fetch.request",
+    meaning: "a request for server data from the screen",
+    pattern: /\bfetch\(|\buse(Query|SWR|Mutation)\(|\baxios(\.\w+)?\(|\bthis\.http\.(get|post|put|delete)\b/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx('const res = await fetch("/api/orders");'), tsx('const { data } = useQuery({ queryKey: ["o"], queryFn });'), tsx('return this.http.get<Order[]>("/api/orders");')],
+      miss: [tsx("const fetched = 1;"), tsx("refetch();")]
+    }
   }
 ];
 var BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
@@ -42655,7 +42747,7 @@ function proposeQuestions(db2, results, max) {
   for (const { loaded, statuses } of results) {
     for (const status of statuses.values()) {
       if (out2.length >= max) break;
-      if (usedItems.has(status.item_id) || status.state !== "not_seen" && status.state !== "learning") continue;
+      if (usedItems.has(status.item_id) || status.state === "shown" || status.state === "proven") continue;
       const row = nextEvidence(loaded.ladder_id, status.item_id);
       if (!row) continue;
       const about = aboutEvidence(row);
@@ -42683,10 +42775,20 @@ function proposeQuestions(db2, results, max) {
   return out2;
 }
 function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
-  if (input2.question_id === void 0 === (input2.decision_id === void 0)) {
-    throw new StoreError("Give exactly one of question_id or decision_id");
+  if (input2.question_id !== void 0 && input2.decision_id !== void 0) {
+    throw new StoreError("Give question_id or decision_id, not both");
   }
   let id2 = input2.question_id;
+  if (input2.question_id === void 0 && input2.decision_id === void 0) {
+    if (!input2.item_id || !input2.ladder_id) throw new StoreError("Give question_id, decision_id, or item_id");
+    id2 = randomUUID3();
+    db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket) VALUES (?, 'why', ?, ?, ?, 'drill')").run(
+      id2,
+      input2.ladder_id,
+      input2.item_id,
+      `followup:${input2.item_id}`
+    );
+  }
   if (input2.decision_id !== void 0) {
     const d = db2.prepare("SELECT id, ticket_id, ladder_id, item_id, summary FROM decisions WHERE id = ?").get(input2.decision_id);
     if (!d) throw new StoreError(`Decision '${input2.decision_id}' does not exist`);
@@ -42788,6 +42890,23 @@ function factsForItem(db2, ladderId2, itemId2) {
   return { evidence, answers, drills };
 }
 
+// src/coach/exposure.ts
+function exposureFor(db2, ladderId2, itemId2, now, t) {
+  const since = now.getTime() - t.exposure_window_days * 864e5;
+  const rows2 = [
+    ...db2.prepare("SELECT file_path, symbol, at FROM skill_exposure WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2),
+    ...db2.prepare("SELECT file_path, symbol, at FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'rule'").all(ladderId2, itemId2)
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  for (const r of rows2) {
+    if (Date.parse(toIso(r.at)) < since) continue;
+    seen.add(`${r.file_path ?? ""}\0${r.symbol ?? ""}`);
+  }
+  const functions = seen.size;
+  const level = functions >= t.exposure_high ? "high" : functions >= t.exposure_medium ? "medium" : functions >= t.exposure_low ? "low" : "none";
+  return { level, functions };
+}
+
 // src/coach/state.ts
 var DAY = 864e5;
 var ms = (iso) => Date.parse(iso);
@@ -42846,16 +42965,49 @@ function itemStatus(input2, now, t) {
   const drops = [...faults.filter((f) => f.regresses).map((f) => f.at), ...input2.answers.filter((a) => a.rating === "not_yet").map((a) => a.at)];
   const regressedIso = drops.length > 0 ? drops.reduce((a, b) => ms(a) >= ms(b) ? a : b) : null;
   const regressedAt = regressedIso === null ? null : ms(regressedIso);
-  const current = snapshot(input2, credits, faults, regressedAt, now.getTime(), t);
-  const proven = input2.drills.filter((d) => d.passed && !d.void && (regressedAt === null || ms(d.at) > regressedAt)).sort((a, b) => ms(a.at) - ms(b.at)).find((d) => snapshot(input2, credits, faults, regressedAt, ms(d.at), t).shown);
+  const exposure = input2.exposure ?? { level: "none", functions: 0 };
+  const after = (iso) => regressedAt === null || ms(iso) > regressedAt;
+  const nowMs = now.getTime();
+  const current = snapshot(input2, credits, faults, regressedAt, nowMs, t);
+  const moments = [...new Set([...credits.map((e) => e.at), ...input2.answers.map((a) => a.at)].filter(after).map(ms))].filter((m) => m <= nowMs).sort((a, b) => a - b);
+  moments.push(nowMs);
+  const workShownMs = moments.find((m) => snapshot(input2, credits, faults, regressedAt, m, t).shown) ?? null;
+  const passed = input2.drills.filter((d) => d.passed && !d.void && after(d.at)).sort((a, b) => ms(a.at) - ms(b.at));
+  const firstClear = input2.answers.filter((a) => a.rating === "clear" && after(a.at)).sort((a, b) => ms(a.at) - ms(b.at))[0];
+  const distinct = [];
+  for (const d of passed) if (!distinct.some((x) => x.drill_id === d.drill_id)) distinct.push(d);
+  const drillShownMs = distinct.length >= 2 && firstClear ? Math.max(ms(distinct[1].at), ms(firstClear.at)) : null;
+  const proven = workShownMs === null ? void 0 : passed.find((d) => ms(d.at) >= workShownMs);
+  const openFault = faults.some((f) => f.fixed_at === null && after(f.at));
+  const rated = [...input2.answers].sort((a, b) => ms(a.at) - ms(b.at));
+  const latestAnswer = rated[rated.length - 1];
+  const tries = input2.drills.filter((d) => !d.void).sort((a, b) => ms(a.at) - ms(b.at));
+  const latestDrill = tries[tries.length - 1];
+  const gap = regressedAt !== null || openFault || latestAnswer !== void 0 && latestAnswer.rating !== "clear" || latestDrill !== void 0 && !latestDrill.passed;
+  const anything = credits.length > 0 || input2.answers.length > 0 || input2.drills.length > 0 || faults.length > 0 || exposure.functions > 0;
   let state;
-  if (proven) state = "proven";
-  else if (current.shown) state = "shown";
-  else if (credits.length > 0 || input2.answers.length > 0 || faults.length > 0 || regressedAt !== null) state = "learning";
+  let shownBy = null;
+  let shownMs = null;
+  if (proven) {
+    state = "proven";
+    shownBy = "work";
+    shownMs = workShownMs;
+  } else if (workShownMs !== null) {
+    state = "shown";
+    shownBy = "work";
+    shownMs = workShownMs;
+  } else if (drillShownMs !== null) {
+    state = "shown";
+    shownBy = "drill";
+    shownMs = drillShownMs;
+  } else if (gap) state = "learning";
+  else if (anything) state = "not_assessed";
   else state = "not_seen";
+  const lowExposure = exposure.level === "none" || exposure.level === "low";
   const needs = [];
-  if (state === "shown") needs.push("pass a drill");
+  if (state === "shown") needs.push(shownBy === "drill" ? "show it in your work, then pass a drill" : "pass a drill");
   else if (state !== "proven") {
+    if (lowExposure) needs.push("more chances in your work, or take a drill");
     if (current.proofs < t.proofs) needs.push(`${plural2(t.proofs - current.proofs, "more code proof", "more code proofs")}`);
     if (current.proofTickets < t.tickets) needs.push(`proof on ${plural2(t.tickets - current.proofTickets, "more ticket", "more tickets")}`);
     for (const file2 of new Set(current.openFaults.map((f) => f.file ?? "your code"))) needs.push(`fix the open fault in ${baseName(file2)}`);
@@ -42873,7 +43025,11 @@ function itemStatus(input2, now, t) {
     regressed_at: regressedIso,
     last_proof_at: current.lastProofAt,
     proven_at: proven?.at ?? null,
-    needs
+    needs,
+    exposure: exposure.level,
+    exposure_functions: exposure.functions,
+    shown_by: shownBy,
+    shown_at: shownMs === null ? null : new Date(shownMs).toISOString()
   };
 }
 function areaLevel(area, statuses) {
@@ -42891,8 +43047,13 @@ function areaLevel(area, statuses) {
 var DAY2 = 864e5;
 var DRILL_REF = "drill:";
 function drillGate(status, attempts, newProofsSinceLastFail, now, t) {
-  if (status.state !== "shown") {
-    return { allowed: false, reason: `A drill opens when the item is Shown. It is ${status.state.replace("_", " ")} now.` };
+  const lowExposure = status.exposure === "none" || status.exposure === "low";
+  if (status.state === "proven") return { allowed: false, reason: "This item is already Proven." };
+  if (status.state !== "shown" && !lowExposure) {
+    return {
+      allowed: false,
+      reason: `A drill opens when the item is Shown, or when your work gives little chance to show it. It is ${status.state.replace("_", " ")} now, and your work touches it often.`
+    };
   }
   const last = attempts.filter((a) => !a.void).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
   if (last && !last.passed) {
@@ -42912,7 +43073,8 @@ function pickDrill(item, attempts) {
 }
 function gateFor(db2, ctx, now) {
   const facts = factsForItem(db2, ctx.loaded.ladder_id, ctx.item.id);
-  const status = itemStatus({ item: ctx.item, ...facts }, now, ctx.loaded.thresholds);
+  const exposure = exposureFor(db2, ctx.loaded.ladder_id, ctx.item.id, now, ctx.loaded.thresholds);
+  const status = itemStatus({ item: ctx.item, ...facts, exposure }, now, ctx.loaded.thresholds);
   const lastFail = facts.drills.filter((d) => !d.void && !d.passed).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
   const newProofs = lastFail ? facts.evidence.filter((e) => e.polarity === "positive" && !e.disagreed && (e.author === "dev" || e.decided_by === "dev") && Date.parse(e.at) > Date.parse(lastFail.at)).length : 0;
   return { facts, gate: drillGate(status, facts.drills, newProofs, now, ctx.loaded.thresholds) };
@@ -43013,7 +43175,13 @@ var backend_default = {
             good_looks_like: [
               "Every caught error is handled, logged with context, or thrown again. Nothing is caught and silently dropped."
             ],
-            signals: [{ id: "err.empty-catch", polarity: "negative", regresses: true }],
+            signals: [
+              {
+                id: "err.empty-catch",
+                polarity: "negative",
+                regresses: true
+              }
+            ],
             explain_angles: [
               "What happens to the user when this error is caught here?",
               "Who finds out that this failed, and how?"
@@ -43023,29 +43191,79 @@ var backend_default = {
                 id: "d1",
                 prompt: "A teammate wraps a database save in try/catch with an empty catch block 'so the request never crashes'. What goes wrong, and what would you do instead?",
                 key_points: [
-                  { id: "k1", text: "The failure becomes invisible: data is lost and nobody knows" },
-                  { id: "k2", text: "The caller wrongly believes the save worked" },
-                  { id: "k3", text: "Either handle it on purpose, or log with context and let it fail to the caller" }
+                  {
+                    id: "k1",
+                    text: "The failure becomes invisible: data is lost and nobody knows"
+                  },
+                  {
+                    id: "k2",
+                    text: "The caller wrongly believes the save worked"
+                  },
+                  {
+                    id: "k3",
+                    text: "Either handle it on purpose, or log with context and let it fail to the caller"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says an empty catch is fine as long as nothing crashes" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says an empty catch is fine as long as nothing crashes"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "When is it right to catch an error and NOT throw it again? Give an example and say what you must still do.",
                 key_points: [
-                  { id: "k1", text: "When there is a real fallback or the failure does not matter to the result" },
-                  { id: "k2", text: "A concrete example such as an optional cache or a best-effort metric" },
-                  { id: "k3", text: "Still log or count it so the failure is visible" }
+                  {
+                    id: "k1",
+                    text: "When there is a real fallback or the failure does not matter to the result"
+                  },
+                  {
+                    id: "k2",
+                    text: "A concrete example such as an optional cache or a best-effort metric"
+                  },
+                  {
+                    id: "k3",
+                    text: "Still log or count it so the failure is visible"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says it is fine to catch any error and move on" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says it is fine to catch any error and move on"
+                  }
+                ]
               }
             ],
-            study: ["error handling basics in your language", "what 'fail loudly' means", "logging an error with context"],
+            study: [
+              "error handling basics in your language",
+              "what 'fail loudly' means",
+              "logging an error with context"
+            ],
             stack_notes: {
-              express: { note: "Pass errors to next(err) and keep one error-handling middleware; never end a request from an empty catch.", link: "https://expressjs.com/en/guide/error-handling.html" },
-              nestjs: { note: "Throw an HttpException or a custom one and let an exception filter shape the reply; do not swallow it in the service.", link: "https://docs.nestjs.com/exception-filters" },
-              spring: { note: "Let exceptions reach a @ControllerAdvice handler; do not catch and ignore them in the service.", link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html" }
-            }
+              express: {
+                note: "Pass errors to next(err) and keep one error-handling middleware; never end a request from an empty catch.",
+                link: "https://expressjs.com/en/guide/error-handling.html"
+              },
+              nestjs: {
+                note: "Throw an HttpException or a custom one and let an exception filter shape the reply; do not swallow it in the service.",
+                link: "https://docs.nestjs.com/exception-filters"
+              },
+              spring: {
+                note: "Let exceptions reach a @ControllerAdvice handler; do not catch and ignore them in the service.",
+                link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html"
+              }
+            },
+            exposure_signals: [
+              "err.try-catch"
+            ],
+            why_it_matters: "A hidden error turns into lost data or a wrong result that nobody notices until a user complains.",
+            exercise_kinds: [
+              "debug",
+              "review",
+              "implement"
+            ]
           },
           {
             id: "BE.ERR.J2",
@@ -43054,35 +43272,89 @@ var backend_default = {
               "Checks for missing rows, null results and failed status codes before using the result."
             ],
             signals: [],
-            explain_angles: ["What happens here if the call returns nothing?", "Why check it here and not later?"],
+            explain_angles: [
+              "What happens here if the call returns nothing?",
+              "Why check it here and not later?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "Your endpoint loads an order by id and then reads order.customer.email. What can go wrong, and how do you handle each case?",
                 key_points: [
-                  { id: "k1", text: "The order may not exist: return a clear 404" },
-                  { id: "k2", text: "The customer or email may be missing: decide what the caller gets" },
-                  { id: "k3", text: "Check before use instead of letting a null error become a 500" }
+                  {
+                    id: "k1",
+                    text: "The order may not exist: return a clear 404"
+                  },
+                  {
+                    id: "k2",
+                    text: "The customer or email may be missing: decide what the caller gets"
+                  },
+                  {
+                    id: "k3",
+                    text: "Check before use instead of letting a null error become a 500"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Lets a null reference error reach the user as a 500" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Lets a null reference error reach the user as a 500"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "An outside API returns HTTP 200 with a body like { ok: false, error: 'quota' }. How should your code treat it?",
                 key_points: [
-                  { id: "k1", text: "A 200 status does not mean success; read the body's own status" },
-                  { id: "k2", text: "Turn it into a real error in your code" },
-                  { id: "k3", text: "Decide whether it is worth retrying or should be shown to the caller" }
+                  {
+                    id: "k1",
+                    text: "A 200 status does not mean success; read the body's own status"
+                  },
+                  {
+                    id: "k2",
+                    text: "Turn it into a real error in your code"
+                  },
+                  {
+                    id: "k3",
+                    text: "Decide whether it is worth retrying or should be shown to the caller"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Treats any 200 as success" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Treats any 200 as success"
+                  }
+                ]
               }
             ],
-            study: ["null and undefined checks", "HTTP status codes 4xx vs 5xx", "guard clauses"],
+            study: [
+              "null and undefined checks",
+              "HTTP status codes 4xx vs 5xx",
+              "guard clauses"
+            ],
             stack_notes: {
-              express: { note: "Return 404 for a missing resource with a short JSON body; check results before using them.", link: "https://expressjs.com/en/guide/error-handling.html" },
-              nestjs: { note: "Throw NotFoundException when a lookup finds nothing.", link: "https://docs.nestjs.com/exception-filters" },
-              spring: { note: "Use Optional from repositories and orElseThrow a not-found exception.", link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html" }
-            }
+              express: {
+                note: "Return 404 for a missing resource with a short JSON body; check results before using them.",
+                link: "https://expressjs.com/en/guide/error-handling.html"
+              },
+              nestjs: {
+                note: "Throw NotFoundException when a lookup finds nothing.",
+                link: "https://docs.nestjs.com/exception-filters"
+              },
+              spring: {
+                note: "Use Optional from repositories and orElseThrow a not-found exception.",
+                link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html"
+              }
+            },
+            exposure_signals: [
+              "io.outside-call",
+              "io.db-query"
+            ],
+            why_it_matters: "A missing row or a failed call that is used as if it worked becomes a crash or a wrong answer far from the cause.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
           }
         ],
         mid: [
@@ -43093,35 +43365,88 @@ var backend_default = {
               "Checks request input once, where it enters the system, and rejects bad input with a clear 400 that says what is wrong."
             ],
             signals: [],
-            explain_angles: ["Why validate here and not deeper in the code?", "What does the caller see for bad input?"],
+            explain_angles: [
+              "Why validate here and not deeper in the code?",
+              "What does the caller see for bad input?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "A create-user endpoint takes name, email and age. Where and how do you validate them, and what does a client get back for bad input?",
                 key_points: [
-                  { id: "k1", text: "Validate at the entry point with a schema" },
-                  { id: "k2", text: "Return 400 with which fields are wrong and why" },
-                  { id: "k3", text: "Inner code can then trust its input instead of checking again everywhere" }
+                  {
+                    id: "k1",
+                    text: "Validate at the entry point with a schema"
+                  },
+                  {
+                    id: "k2",
+                    text: "Return 400 with which fields are wrong and why"
+                  },
+                  {
+                    id: "k3",
+                    text: "Inner code can then trust its input instead of checking again everywhere"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Relies on the frontend to validate" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Relies on the frontend to validate"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "Why is checking input only in the browser not enough? Give one attack or bug it lets through.",
                 key_points: [
-                  { id: "k1", text: "Anyone can call the API directly and skip the browser" },
-                  { id: "k2", text: "A concrete example: a negative quantity, a huge string, a wrong type" },
-                  { id: "k3", text: "The server is the only place the rule is enforced" }
+                  {
+                    id: "k1",
+                    text: "Anyone can call the API directly and skip the browser"
+                  },
+                  {
+                    id: "k2",
+                    text: "A concrete example: a negative quantity, a huge string, a wrong type"
+                  },
+                  {
+                    id: "k3",
+                    text: "The server is the only place the rule is enforced"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says browser checks are enough" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says browser checks are enough"
+                  }
+                ]
               }
             ],
-            study: ["schema validation (zod, class-validator, Bean Validation)", "trust boundaries", "400 vs 422 responses"],
+            study: [
+              "schema validation (zod, class-validator, Bean Validation)",
+              "trust boundaries",
+              "400 vs 422 responses"
+            ],
             stack_notes: {
-              express: { note: "Validate req.body with a schema library in a middleware and reply 400 with field errors.", link: "https://express-validator.github.io/docs/" },
-              nestjs: { note: "Use DTOs with class-validator and the global ValidationPipe.", link: "https://docs.nestjs.com/techniques/validation" },
-              spring: { note: "Use @Valid on request bodies with Bean Validation annotations.", link: "https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html" }
-            }
+              express: {
+                note: "Validate req.body with a schema library in a middleware and reply 400 with field errors.",
+                link: "https://express-validator.github.io/docs/"
+              },
+              nestjs: {
+                note: "Use DTOs with class-validator and the global ValidationPipe.",
+                link: "https://docs.nestjs.com/techniques/validation"
+              },
+              spring: {
+                note: "Use @Valid on request bodies with Bean Validation annotations.",
+                link: "https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html"
+              }
+            },
+            exposure_signals: [
+              "api.request-body"
+            ],
+            why_it_matters: "Bad input that gets past the edge spreads into every layer and into stored data; one check at the edge keeps the rest simple.",
+            exercise_kinds: [
+              "implement",
+              "review",
+              "design_tradeoff"
+            ]
           },
           {
             id: "BE.ERR.M2",
@@ -43131,9 +43456,19 @@ var backend_default = {
               "Retries only when it is safe, with backoff, and gives the caller a clear error when it still fails."
             ],
             signals: [
-              { id: "err.timeout-set", polarity: "positive" },
-              { id: "err.retry-backoff", polarity: "positive" },
-              { id: "err.empty-catch", polarity: "negative", regresses: true }
+              {
+                id: "err.timeout-set",
+                polarity: "positive"
+              },
+              {
+                id: "err.retry-backoff",
+                polarity: "positive"
+              },
+              {
+                id: "err.empty-catch",
+                polarity: "negative",
+                regresses: true
+              }
             ],
             explain_angles: [
               "Why this time limit, and what happens when it runs out?",
@@ -43145,33 +43480,89 @@ var backend_default = {
                 id: "d1",
                 prompt: "Your service calls a payment provider that sometimes takes 30 seconds to answer. How do you design the call? What can go wrong with retries?",
                 key_points: [
-                  { id: "k1", text: "Set a time limit shorter than your own caller's" },
-                  { id: "k2", text: "Retry only with an idempotency key, or not at all, so a charge is never made twice" },
-                  { id: "k3", text: "Backoff with jitter and a small retry cap" },
-                  { id: "k4", text: "A clear error or 'pending' state for the caller when it still fails" }
+                  {
+                    id: "k1",
+                    text: "Set a time limit shorter than your own caller's"
+                  },
+                  {
+                    id: "k2",
+                    text: "Retry only with an idempotency key, or not at all, so a charge is never made twice"
+                  },
+                  {
+                    id: "k3",
+                    text: "Backoff with jitter and a small retry cap"
+                  },
+                  {
+                    id: "k4",
+                    text: "A clear error or 'pending' state for the caller when it still fails"
+                  }
                 ],
                 red_flags: [
-                  { id: "r1", text: "Retries a payment with no idempotency key" },
-                  { id: "r2", text: "No time limit at all" }
+                  {
+                    id: "r1",
+                    text: "Retries a payment with no idempotency key"
+                  },
+                  {
+                    id: "r2",
+                    text: "No time limit at all"
+                  }
                 ]
               },
               {
                 id: "d2",
                 prompt: "A downstream service is down for 10 minutes. Your service retries every failed call 5 times right away. What happens, and what would you change?",
                 key_points: [
-                  { id: "k1", text: "Retries multiply the load and slow down your own service" },
-                  { id: "k2", text: "Use backoff with jitter and a retry cap" },
-                  { id: "k3", text: "Fail fast or use a circuit breaker while it is down" }
+                  {
+                    id: "k1",
+                    text: "Retries multiply the load and slow down your own service"
+                  },
+                  {
+                    id: "k2",
+                    text: "Use backoff with jitter and a retry cap"
+                  },
+                  {
+                    id: "k3",
+                    text: "Fail fast or use a circuit breaker while it is down"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says more retries fix it" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says more retries fix it"
+                  }
+                ]
               }
             ],
-            study: ["time limits on outside calls", "retry with backoff and jitter", "idempotency keys", "circuit breakers"],
+            study: [
+              "time limits on outside calls",
+              "retry with backoff and jitter",
+              "idempotency keys",
+              "circuit breakers"
+            ],
             stack_notes: {
-              express: { note: "Pass AbortSignal.timeout(ms) to fetch; retry only idempotent calls, with backoff.", link: "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static" },
-              nestjs: { note: "Set a timeout on HttpModule and use rxjs timeout and retry with a delay function.", link: "https://docs.nestjs.com/techniques/http-module" },
-              spring: { note: "Set connect and read timeouts on the client; use Resilience4j for retry and circuit breaker.", link: "https://resilience4j.readme.io/docs/getting-started" }
-            }
+              express: {
+                note: "Pass AbortSignal.timeout(ms) to fetch; retry only idempotent calls, with backoff.",
+                link: "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static"
+              },
+              nestjs: {
+                note: "Set a timeout on HttpModule and use rxjs timeout and retry with a delay function.",
+                link: "https://docs.nestjs.com/techniques/http-module"
+              },
+              spring: {
+                note: "Set connect and read timeouts on the client; use Resilience4j for retry and circuit breaker.",
+                link: "https://resilience4j.readme.io/docs/getting-started"
+              }
+            },
+            exposure_signals: [
+              "io.outside-call"
+            ],
+            why_it_matters: "Outside services are slow or down sometimes; without a time limit and a retry rule, one slow provider takes your service down or charges a card twice.",
+            exercise_kinds: [
+              "implement",
+              "design_tradeoff",
+              "review",
+              "explain"
+            ]
           },
           {
             id: "BE.ERR.M3",
@@ -43181,39 +43572,102 @@ var backend_default = {
               "The client gets a safe message; stack traces and internal details stay in the logs."
             ],
             signals: [
-              { id: "err.error-cause", polarity: "positive" },
-              { id: "err.rethrow-message-only", polarity: "negative" },
-              { id: "err.error-leak", polarity: "negative", regresses: true }
+              {
+                id: "err.error-cause",
+                polarity: "positive"
+              },
+              {
+                id: "err.rethrow-message-only",
+                polarity: "negative"
+              },
+              {
+                id: "err.error-leak",
+                polarity: "negative",
+                regresses: true
+              }
             ],
-            explain_angles: ["What will the person debugging this see in the logs?", "What does the client see, and why not more?"],
+            explain_angles: [
+              "What will the person debugging this see in the logs?",
+              "What does the client see, and why not more?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "A user reports 'it failed' and your log says only 'Error: undefined'. How should errors be written so this never happens again, and what should the user see?",
                 key_points: [
-                  { id: "k1", text: "Wrap errors with what was being done and keep the original cause" },
-                  { id: "k2", text: "Log with an id that links the request and the error" },
-                  { id: "k3", text: "The user gets a safe message plus the id, never the stack trace" }
+                  {
+                    id: "k1",
+                    text: "Wrap errors with what was being done and keep the original cause"
+                  },
+                  {
+                    id: "k2",
+                    text: "Log with an id that links the request and the error"
+                  },
+                  {
+                    id: "k3",
+                    text: "The user gets a safe message plus the id, never the stack trace"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Sends the stack trace to the client" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Sends the stack trace to the client"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "Why is res.status(500).json(err) a problem? What would you send instead?",
                 key_points: [
-                  { id: "k1", text: "It can leak internals: stack, SQL, file paths, secrets" },
-                  { id: "k2", text: "Send a stable error shape with a safe message and a code" },
-                  { id: "k3", text: "Keep full details in the server logs" }
+                  {
+                    id: "k1",
+                    text: "It can leak internals: stack, SQL, file paths, secrets"
+                  },
+                  {
+                    id: "k2",
+                    text: "Send a stable error shape with a safe message and a code"
+                  },
+                  {
+                    id: "k3",
+                    text: "Keep full details in the server logs"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says the raw error helps the client debug" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says the raw error helps the client debug"
+                  }
+                ]
               }
             ],
-            study: ["error cause chains", "correlation ids", "safe error responses (RFC 9457 problem details)"],
+            study: [
+              "error cause chains",
+              "correlation ids",
+              "safe error responses (RFC 9457 problem details)"
+            ],
             stack_notes: {
-              express: { note: "Throw new Error(msg, { cause }) and map errors to safe JSON in one error middleware.", link: "https://expressjs.com/en/guide/error-handling.html" },
-              nestjs: { note: "Use an exception filter to return a safe shape and log the full error.", link: "https://docs.nestjs.com/exception-filters" },
-              spring: { note: "Return ProblemDetail from @ExceptionHandler and keep the cause in the log.", link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html" }
-            }
+              express: {
+                note: "Throw new Error(msg, { cause }) and map errors to safe JSON in one error middleware.",
+                link: "https://expressjs.com/en/guide/error-handling.html"
+              },
+              nestjs: {
+                note: "Use an exception filter to return a safe shape and log the full error.",
+                link: "https://docs.nestjs.com/exception-filters"
+              },
+              spring: {
+                note: "Return ProblemDetail from @ExceptionHandler and keep the cause in the log.",
+                link: "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html"
+              }
+            },
+            exposure_signals: [
+              "err.throw"
+            ],
+            why_it_matters: "Errors without context make every incident slow to debug, and raw errors sent to users leak internals.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
           }
         ],
         senior: [
@@ -43224,36 +43678,93 @@ var backend_default = {
               "When one step of a multi-step change fails, the system ends in a known state: retried safely, compensated, or clearly marked for follow-up."
             ],
             signals: [],
-            explain_angles: ["What state is the data in if the second step fails?", "How does this recover without a person?"],
+            explain_angles: [
+              "What state is the data in if the second step fails?",
+              "How does this recover without a person?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "An order flow charges the card, then reserves stock, then sends an email. Stock reservation fails after the charge. How do you design this?",
                 key_points: [
-                  { id: "k1", text: "Name the bad state: money taken, no stock" },
-                  { id: "k2", text: "Compensate (refund) or retry the step, with idempotent steps" },
-                  { id: "k3", text: "Record progress so a crash mid-flow can resume (outbox, saga, or state machine)" },
-                  { id: "k4", text: "Side effects like email only after the important steps succeed" }
+                  {
+                    id: "k1",
+                    text: "Name the bad state: money taken, no stock"
+                  },
+                  {
+                    id: "k2",
+                    text: "Compensate (refund) or retry the step, with idempotent steps"
+                  },
+                  {
+                    id: "k3",
+                    text: "Record progress so a crash mid-flow can resume (outbox, saga, or state machine)"
+                  },
+                  {
+                    id: "k4",
+                    text: "Side effects like email only after the important steps succeed"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Assumes all steps succeed or fail together without a transaction that covers them" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Assumes all steps succeed or fail together without a transaction that covers them"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "You must save a row and publish an event about it. What can go wrong, and how do you make sure both happen?",
                 key_points: [
-                  { id: "k1", text: "The save can succeed and the publish fail, or the other way round" },
-                  { id: "k2", text: "Use a transactional outbox or similar" },
-                  { id: "k3", text: "Consumers must handle duplicates" }
+                  {
+                    id: "k1",
+                    text: "The save can succeed and the publish fail, or the other way round"
+                  },
+                  {
+                    id: "k2",
+                    text: "Use a transactional outbox or similar"
+                  },
+                  {
+                    id: "k3",
+                    text: "Consumers must handle duplicates"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Publishes before the save commits and calls it done" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Publishes before the save commits and calls it done"
+                  }
+                ]
               }
             ],
-            study: ["saga pattern", "transactional outbox", "idempotent consumers", "compensating actions"],
+            study: [
+              "saga pattern",
+              "transactional outbox",
+              "idempotent consumers",
+              "compensating actions"
+            ],
             stack_notes: {
-              express: { note: "Keep each step idempotent and record progress in the database before side effects.", link: "https://microservices.io/patterns/data/transactional-outbox.html" },
-              nestjs: { note: "Use a queue (for example BullMQ) for steps after the main transaction, with retries.", link: "https://docs.nestjs.com/techniques/queues" },
-              spring: { note: "Use @TransactionalEventListener or an outbox table to publish after commit.", link: "https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html" }
-            }
+              express: {
+                note: "Keep each step idempotent and record progress in the database before side effects.",
+                link: "https://microservices.io/patterns/data/transactional-outbox.html"
+              },
+              nestjs: {
+                note: "Use a queue (for example BullMQ) for steps after the main transaction, with retries.",
+                link: "https://docs.nestjs.com/techniques/queues"
+              },
+              spring: {
+                note: "Use @TransactionalEventListener or an outbox table to publish after commit.",
+                link: "https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html"
+              }
+            },
+            exposure_signals: [
+              "io.outside-call"
+            ],
+            why_it_matters: "In multi-step changes, one failed step can leave money, stock or data in a state nobody planned for.",
+            exercise_kinds: [
+              "design_tradeoff",
+              "architecture",
+              "explain"
+            ]
           },
           {
             id: "BE.ERR.S2",
@@ -43262,35 +43773,89 @@ var backend_default = {
               "Failures show up as structured logs, metrics and alerts that tell someone what broke, before users report it."
             ],
             signals: [],
-            explain_angles: ["How would you know this is failing in production?", "Who gets alerted, and on what?"],
+            explain_angles: [
+              "How would you know this is failing in production?",
+              "Who gets alerted, and on what?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "Your checkout fails for 2% of users and nobody noticed for a week. What would you add so this is caught in minutes?",
                 key_points: [
-                  { id: "k1", text: "An error-rate metric on the checkout path" },
-                  { id: "k2", text: "An alert on that rate with a sensible threshold" },
-                  { id: "k3", text: "Structured logs with a request id to find the cause" }
+                  {
+                    id: "k1",
+                    text: "An error-rate metric on the checkout path"
+                  },
+                  {
+                    id: "k2",
+                    text: "An alert on that rate with a sensible threshold"
+                  },
+                  {
+                    id: "k3",
+                    text: "Structured logs with a request id to find the cause"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Relies on users or support tickets to notice" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Relies on users or support tickets to notice"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "What makes a log line useful during an incident? Compare a good and a bad one.",
                 key_points: [
-                  { id: "k1", text: "Structured fields, not free text" },
-                  { id: "k2", text: "Request or trace id, and what was being done" },
-                  { id: "k3", text: "No secrets or personal data" }
+                  {
+                    id: "k1",
+                    text: "Structured fields, not free text"
+                  },
+                  {
+                    id: "k2",
+                    text: "Request or trace id, and what was being done"
+                  },
+                  {
+                    id: "k3",
+                    text: "No secrets or personal data"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Logs full request bodies with personal data" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Logs full request bodies with personal data"
+                  }
+                ]
               }
             ],
-            study: ["structured logging", "RED metrics (rate, errors, duration)", "alerting on symptoms", "distributed tracing"],
+            study: [
+              "structured logging",
+              "RED metrics (rate, errors, duration)",
+              "alerting on symptoms",
+              "distributed tracing"
+            ],
             stack_notes: {
-              express: { note: "Use a structured logger (for example pino) with a request id per request.", link: "https://expressjs.com/en/advanced/best-practice-performance.html" },
-              nestjs: { note: "Replace the default logger with a structured one and add an interceptor for request ids.", link: "https://docs.nestjs.com/techniques/logger" },
-              spring: { note: "Use Actuator and Micrometer for metrics, and MDC for request ids in logs.", link: "https://docs.spring.io/spring-boot/reference/actuator/index.html" }
-            }
+              express: {
+                note: "Use a structured logger (for example pino) with a request id per request.",
+                link: "https://expressjs.com/en/advanced/best-practice-performance.html"
+              },
+              nestjs: {
+                note: "Replace the default logger with a structured one and add an interceptor for request ids.",
+                link: "https://docs.nestjs.com/techniques/logger"
+              },
+              spring: {
+                note: "Use Actuator and Micrometer for metrics, and MDC for request ids in logs.",
+                link: "https://docs.spring.io/spring-boot/reference/actuator/index.html"
+              }
+            },
+            exposure_signals: [
+              "err.try-catch"
+            ],
+            why_it_matters: "Failures you cannot see are fixed late; good logs, metrics and alerts turn days of searching into minutes.",
+            exercise_kinds: [
+              "implement",
+              "design_tradeoff",
+              "debug"
+            ]
           }
         ],
         staff: [
@@ -43301,47 +43866,165 @@ var backend_default = {
               "Defines one error contract, retry and timeout rules, and error budgets that every team follows, and makes the easy path the right one."
             ],
             signals: [],
-            explain_angles: ["Why should every service follow this rule?", "How do you make the right way the easy way?"],
+            explain_angles: [
+              "Why should every service follow this rule?",
+              "How do you make the right way the easy way?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "Ten services each handle errors their own way, and incidents are hard to trace. What standard would you set, and how would you roll it out?",
                 key_points: [
-                  { id: "k1", text: "One error shape and code list across services" },
-                  { id: "k2", text: "Shared defaults for time limits, retries and tracing, in a library or template" },
-                  { id: "k3", text: "Roll out step by step with checks in CI or review" },
-                  { id: "k4", text: "Measure success with error budgets or incident data" }
+                  {
+                    id: "k1",
+                    text: "One error shape and code list across services"
+                  },
+                  {
+                    id: "k2",
+                    text: "Shared defaults for time limits, retries and tracing, in a library or template"
+                  },
+                  {
+                    id: "k3",
+                    text: "Roll out step by step with checks in CI or review"
+                  },
+                  {
+                    id: "k4",
+                    text: "Measure success with error budgets or incident data"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Only writes a document and expects people to follow it" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Only writes a document and expects people to follow it"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "How would you choose time limits and retry budgets across a chain of four services calling each other?",
                 key_points: [
-                  { id: "k1", text: "Time limits shrink down the chain so the caller's budget is respected" },
-                  { id: "k2", text: "Retry at one layer only to avoid retry storms" },
-                  { id: "k3", text: "Pass the deadline along with the request" }
+                  {
+                    id: "k1",
+                    text: "Time limits shrink down the chain so the caller's budget is respected"
+                  },
+                  {
+                    id: "k2",
+                    text: "Retry at one layer only to avoid retry storms"
+                  },
+                  {
+                    id: "k3",
+                    text: "Pass the deadline along with the request"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Every layer retries 3 times" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Every layer retries 3 times"
+                  }
+                ]
               }
             ],
-            study: ["error budgets and SLOs", "deadline propagation", "API error contracts", "paved-road libraries"],
+            study: [
+              "error budgets and SLOs",
+              "deadline propagation",
+              "API error contracts",
+              "paved-road libraries"
+            ],
             stack_notes: {
-              express: { note: "Ship a shared middleware package for errors, timeouts and request ids.", link: "https://expressjs.com/en/guide/writing-middleware.html" },
-              nestjs: { note: "Ship a shared module with a global filter, interceptor and HTTP client defaults.", link: "https://docs.nestjs.com/modules" },
-              spring: { note: "Ship a starter with ProblemDetail handling, Resilience4j defaults and tracing.", link: "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" }
-            }
+              express: {
+                note: "Ship a shared middleware package for errors, timeouts and request ids.",
+                link: "https://expressjs.com/en/guide/writing-middleware.html"
+              },
+              nestjs: {
+                note: "Ship a shared module with a global filter, interceptor and HTTP client defaults.",
+                link: "https://docs.nestjs.com/modules"
+              },
+              spring: {
+                note: "Ship a starter with ProblemDetail handling, Resilience4j defaults and tracing.",
+                link: "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html"
+              }
+            },
+            exposure_signals: [],
+            why_it_matters: "When every service handles errors its own way, incidents cross teams and nobody can trace them; one standard makes the whole system safer.",
+            exercise_kinds: [
+              "architecture",
+              "design_tradeoff",
+              "explain"
+            ]
           }
         ]
       }
     },
-    { id: "DATA", name: "Data and storage", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "API", name: "API design", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "SEC", name: "Security", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "PERF", name: "Performance", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "TEST", name: "Testing", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "STRUCT", name: "Code structure", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "REQ", name: "Requirements and scope", levels: { junior: [], mid: [], senior: [], staff: [] } }
+    {
+      id: "DATA",
+      name: "Data and storage",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "API",
+      name: "API design",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "SEC",
+      name: "Security",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "PERF",
+      name: "Performance",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "TEST",
+      name: "Testing",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "STRUCT",
+      name: "Code structure",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "REQ",
+      name: "Requirements and scope",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    }
   ]
 };
 
@@ -43360,37 +44043,97 @@ var frontend_default = {
             good_looks_like: [
               "Every screen that loads data shows a loading state, an error state with a way to retry, and an empty state."
             ],
-            signals: [{ id: "fetch.loading-state", polarity: "positive" }],
-            explain_angles: ["What does the user see while this loads?", "What does the user see if it fails?"],
+            signals: [
+              {
+                id: "fetch.loading-state",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "What does the user see while this loads?",
+              "What does the user see if it fails?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "A list page fetches orders. Describe every state the page can be in and what the user sees in each.",
                 key_points: [
-                  { id: "k1", text: "Loading: a spinner or skeleton" },
-                  { id: "k2", text: "Error: a message and a retry action" },
-                  { id: "k3", text: "Empty: a clear 'no orders yet' state" },
-                  { id: "k4", text: "Success: the list" }
+                  {
+                    id: "k1",
+                    text: "Loading: a spinner or skeleton"
+                  },
+                  {
+                    id: "k2",
+                    text: "Error: a message and a retry action"
+                  },
+                  {
+                    id: "k3",
+                    text: "Empty: a clear 'no orders yet' state"
+                  },
+                  {
+                    id: "k4",
+                    text: "Success: the list"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Only handles the success case" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Only handles the success case"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "Users say a page 'goes blank' on slow networks. What is probably missing, and how do you fix it?",
                 key_points: [
-                  { id: "k1", text: "No loading state while data is on its way" },
-                  { id: "k2", text: "Possibly no error state when the request fails" },
-                  { id: "k3", text: "Add explicit states and test with a slow network in dev tools" }
+                  {
+                    id: "k1",
+                    text: "No loading state while data is on its way"
+                  },
+                  {
+                    id: "k2",
+                    text: "Possibly no error state when the request fails"
+                  },
+                  {
+                    id: "k3",
+                    text: "Add explicit states and test with a slow network in dev tools"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Blames the network and changes nothing" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Blames the network and changes nothing"
+                  }
+                ]
               }
             ],
-            study: ["loading, error and empty states", "skeleton screens", "testing with network throttling"],
+            study: [
+              "loading, error and empty states",
+              "skeleton screens",
+              "testing with network throttling"
+            ],
             stack_notes: {
-              react: { note: "Model loading, error and data as explicit state, or use a data library that gives isLoading and error.", link: "https://react.dev/reference/react/Suspense" },
-              nextjs: { note: "Add loading.js and error.js next to the route for loading and error states.", link: "https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming" },
-              angular: { note: "Track loading and error in the component or a signal, and show them in the template.", link: "https://angular.dev/guide/http/making-requests" }
-            }
+              react: {
+                note: "Model loading, error and data as explicit state, or use a data library that gives isLoading and error.",
+                link: "https://react.dev/reference/react/Suspense"
+              },
+              nextjs: {
+                note: "Add loading.js and error.js next to the route for loading and error states.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming"
+              },
+              angular: {
+                note: "Track loading and error in the component or a signal, and show them in the template.",
+                link: "https://angular.dev/guide/http/making-requests"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Without loading and error states, users see a blank or frozen screen and think the app is broken.",
+            exercise_kinds: [
+              "implement",
+              "review"
+            ]
           },
           {
             id: "FE.FETCH.J2",
@@ -43399,38 +44142,98 @@ var frontend_default = {
               "A failed request is shown to the user or handled on purpose; it is never only logged to the console."
             ],
             signals: [
-              { id: "fetch.console-only", polarity: "negative", regresses: true },
-              { id: "err.empty-catch", polarity: "negative" }
+              {
+                id: "fetch.console-only",
+                polarity: "negative",
+                regresses: true
+              },
+              {
+                id: "err.empty-catch",
+                polarity: "negative"
+              }
             ],
-            explain_angles: ["What does the user see when this request fails?", "Why is a console message not enough here?"],
+            explain_angles: [
+              "What does the user see when this request fails?",
+              "Why is a console message not enough here?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "A save button calls the API with .catch(console.error). What does the user experience when the save fails, and what would you do?",
                 key_points: [
-                  { id: "k1", text: "The user thinks it saved; their change is silently lost" },
-                  { id: "k2", text: "Show an error and keep their input so they can retry" },
-                  { id: "k3", text: "Report the error to monitoring, not only the console" }
+                  {
+                    id: "k1",
+                    text: "The user thinks it saved; their change is silently lost"
+                  },
+                  {
+                    id: "k2",
+                    text: "Show an error and keep their input so they can retry"
+                  },
+                  {
+                    id: "k3",
+                    text: "Report the error to monitoring, not only the console"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says console.error is enough" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says console.error is enough"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "When is it fine to ignore a failed request in the UI? Give an example.",
                 key_points: [
-                  { id: "k1", text: "When the data is optional and the page works without it" },
-                  { id: "k2", text: "A concrete example such as a non-critical recommendation widget" },
-                  { id: "k3", text: "Still report it so the team knows it fails" }
+                  {
+                    id: "k1",
+                    text: "When the data is optional and the page works without it"
+                  },
+                  {
+                    id: "k2",
+                    text: "A concrete example such as a non-critical recommendation widget"
+                  },
+                  {
+                    id: "k3",
+                    text: "Still report it so the team knows it fails"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Any request can be ignored" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Any request can be ignored"
+                  }
+                ]
               }
             ],
-            study: ["promise error handling", "user feedback on failure", "frontend error monitoring"],
+            study: [
+              "promise error handling",
+              "user feedback on failure",
+              "frontend error monitoring"
+            ],
             stack_notes: {
-              react: { note: "Put the error in state and render it; do not end a promise chain with console.error.", link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects" },
-              nextjs: { note: "Let errors reach an error.js boundary or show them in the form state.", link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
-              angular: { note: "Handle errors in the subscribe error callback or catchError and show them to the user.", link: "https://angular.dev/guide/http/making-requests" }
-            }
+              react: {
+                note: "Put the error in state and render it; do not end a promise chain with console.error.",
+                link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects"
+              },
+              nextjs: {
+                note: "Let errors reach an error.js boundary or show them in the form state.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              angular: {
+                note: "Handle errors in the subscribe error callback or catchError and show them to the user.",
+                link: "https://angular.dev/guide/http/making-requests"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "A failed request that is only logged loses the user's work silently and leaves them confused.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
           }
         ],
         mid: [
@@ -43440,36 +44243,94 @@ var frontend_default = {
             good_looks_like: [
               "Checks the HTTP status before reading the body, and turns a failed status into a real error."
             ],
-            signals: [{ id: "fetch.res-ok-check", polarity: "positive" }],
-            explain_angles: ["What happens here if the server answers 500?", "Why check the status before reading the body?"],
+            signals: [
+              {
+                id: "fetch.res-ok-check",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "What happens here if the server answers 500?",
+              "Why check the status before reading the body?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "fetch() resolved, so the code calls res.json() and renders it. The server answered 500 with an HTML page. What happens, and how should the code be written?",
                 key_points: [
-                  { id: "k1", text: "fetch only rejects on network errors, not on 4xx or 5xx" },
-                  { id: "k2", text: "res.json() fails on HTML or the app renders an error body as data" },
-                  { id: "k3", text: "Check res.ok or the status first and throw a real error" }
+                  {
+                    id: "k1",
+                    text: "fetch only rejects on network errors, not on 4xx or 5xx"
+                  },
+                  {
+                    id: "k2",
+                    text: "res.json() fails on HTML or the app renders an error body as data"
+                  },
+                  {
+                    id: "k3",
+                    text: "Check res.ok or the status first and throw a real error"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Believes fetch rejects on HTTP errors" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Believes fetch rejects on HTTP errors"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "Where would you put response checking so every screen gets it, and what would it return?",
                 key_points: [
-                  { id: "k1", text: "In one shared API client or wrapper" },
-                  { id: "k2", text: "It throws a typed error with status and message" },
-                  { id: "k3", text: "Screens then handle one error shape" }
+                  {
+                    id: "k1",
+                    text: "In one shared API client or wrapper"
+                  },
+                  {
+                    id: "k2",
+                    text: "It throws a typed error with status and message"
+                  },
+                  {
+                    id: "k3",
+                    text: "Screens then handle one error shape"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Copies the check into every component" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Copies the check into every component"
+                  }
+                ]
               }
             ],
-            study: ["fetch vs axios error behaviour", "a typed API client", "HTTP status classes"],
+            study: [
+              "fetch vs axios error behaviour",
+              "a typed API client",
+              "HTTP status classes"
+            ],
             stack_notes: {
-              react: { note: "Wrap fetch in one client function that checks res.ok and throws a typed error.", link: "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok" },
-              nextjs: { note: "Check res.ok in server fetches too, and call notFound() or throw for error.js.", link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
-              angular: { note: "HttpClient errors on non-2xx; use an interceptor to map them to one error type.", link: "https://angular.dev/guide/http/interceptors" }
-            }
+              react: {
+                note: "Wrap fetch in one client function that checks res.ok and throws a typed error.",
+                link: "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok"
+              },
+              nextjs: {
+                note: "Check res.ok in server fetches too, and call notFound() or throw for error.js.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              angular: {
+                note: "HttpClient errors on non-2xx; use an interceptor to map them to one error type.",
+                link: "https://angular.dev/guide/http/interceptors"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "fetch does not fail on a server error; reading an error page as data breaks the screen in strange ways.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "review"
+            ]
           },
           {
             id: "FE.FETCH.M2",
@@ -43477,36 +44338,95 @@ var frontend_default = {
             good_looks_like: [
               "When the user moves on or types again, old requests are cancelled or ignored so a slow old answer never overwrites a new one."
             ],
-            signals: [{ id: "fetch.abort-controller", polarity: "positive" }],
-            explain_angles: ["What happens if the user types fast here?", "What happens if they leave the page before it loads?"],
+            signals: [
+              {
+                id: "fetch.abort-controller",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "What happens if the user types fast here?",
+              "What happens if they leave the page before it loads?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "A search box fetches results on each key press. Sometimes old results appear after new ones. Why, and how do you fix it?",
                 key_points: [
-                  { id: "k1", text: "Responses can arrive out of order: a race" },
-                  { id: "k2", text: "Cancel the previous request (AbortController, switchMap) or ignore stale answers" },
-                  { id: "k3", text: "Debounce the input to send fewer requests" }
+                  {
+                    id: "k1",
+                    text: "Responses can arrive out of order: a race"
+                  },
+                  {
+                    id: "k2",
+                    text: "Cancel the previous request (AbortController, switchMap) or ignore stale answers"
+                  },
+                  {
+                    id: "k3",
+                    text: "Debounce the input to send fewer requests"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says requests always come back in order" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says requests always come back in order"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "A component starts a fetch and the user navigates away before it finishes. What can go wrong, and what do you do?",
                 key_points: [
-                  { id: "k1", text: "State updates on a gone component, or wasted work" },
-                  { id: "k2", text: "Abort in the effect cleanup or unsubscribe on destroy" },
-                  { id: "k3", text: "Ignore AbortError so it is not shown as a failure" }
+                  {
+                    id: "k1",
+                    text: "State updates on a gone component, or wasted work"
+                  },
+                  {
+                    id: "k2",
+                    text: "Abort in the effect cleanup or unsubscribe on destroy"
+                  },
+                  {
+                    id: "k3",
+                    text: "Ignore AbortError so it is not shown as a failure"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Shows the abort as an error to the user" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Shows the abort as an error to the user"
+                  }
+                ]
               }
             ],
-            study: ["race conditions in UI fetching", "AbortController", "debouncing", "effect cleanup"],
+            study: [
+              "race conditions in UI fetching",
+              "AbortController",
+              "debouncing",
+              "effect cleanup"
+            ],
             stack_notes: {
-              react: { note: "Create an AbortController in the effect and abort it in the cleanup function.", link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects" },
-              nextjs: { note: "On the client, the same effect cleanup applies; prefer a data library that cancels for you.", link: "https://nextjs.org/docs/app/building-your-application/data-fetching" },
-              angular: { note: "Use switchMap so a new search cancels the old request.", link: "https://rxjs.dev/api/operators/switchMap" }
-            }
+              react: {
+                note: "Create an AbortController in the effect and abort it in the cleanup function.",
+                link: "https://react.dev/reference/react/useEffect#fetching-data-with-effects"
+              },
+              nextjs: {
+                note: "On the client, the same effect cleanup applies; prefer a data library that cancels for you.",
+                link: "https://nextjs.org/docs/app/building-your-application/data-fetching"
+              },
+              angular: {
+                note: "Use switchMap so a new search cancels the old request.",
+                link: "https://rxjs.dev/api/operators/switchMap"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Old answers arriving late overwrite new ones and show the wrong data, a bug that is hard to reproduce.",
+            exercise_kinds: [
+              "implement",
+              "debug",
+              "explain"
+            ]
           },
           {
             id: "FE.FETCH.M3",
@@ -43515,35 +44435,88 @@ var frontend_default = {
               "Chooses how long data can be stale, avoids fetching the same data twice, and refreshes it after a change."
             ],
             signals: [],
-            explain_angles: ["How fresh must this data be?", "When is this cache refreshed?"],
+            explain_angles: [
+              "How fresh must this data be?",
+              "When is this cache refreshed?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "Three components on one page each fetch the current user. What problems does that cause, and how do you fix it?",
                 key_points: [
-                  { id: "k1", text: "Three requests for the same data: waste and possible mismatch" },
-                  { id: "k2", text: "Share one cached query or lift the fetch up" },
-                  { id: "k3", text: "Decide when the cached user is refreshed" }
+                  {
+                    id: "k1",
+                    text: "Three requests for the same data: waste and possible mismatch"
+                  },
+                  {
+                    id: "k2",
+                    text: "Share one cached query or lift the fetch up"
+                  },
+                  {
+                    id: "k3",
+                    text: "Decide when the cached user is refreshed"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Caches forever with no way to refresh" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Caches forever with no way to refresh"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "After a user edits their profile, the header still shows the old name. Why, and what is the right fix?",
                 key_points: [
-                  { id: "k1", text: "A cache holds the old data" },
-                  { id: "k2", text: "Invalidate or update the cached data after the change" },
-                  { id: "k3", text: "Optionally update it right away and roll back on failure" }
+                  {
+                    id: "k1",
+                    text: "A cache holds the old data"
+                  },
+                  {
+                    id: "k2",
+                    text: "Invalidate or update the cached data after the change"
+                  },
+                  {
+                    id: "k3",
+                    text: "Optionally update it right away and roll back on failure"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Forces a full page reload" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Forces a full page reload"
+                  }
+                ]
               }
             ],
-            study: ["stale-while-revalidate", "query keys and invalidation", "request deduping"],
+            study: [
+              "stale-while-revalidate",
+              "query keys and invalidation",
+              "request deduping"
+            ],
             stack_notes: {
-              react: { note: "Use a server-state library (for example TanStack Query) with query keys and invalidation.", link: "https://tanstack.com/query/latest/docs/framework/react/overview" },
-              nextjs: { note: "Know the fetch cache and revalidate after a change with revalidatePath or revalidateTag.", link: "https://nextjs.org/docs/app/building-your-application/caching" },
-              angular: { note: "Share one observable with shareReplay or a store, and refresh it after writes.", link: "https://rxjs.dev/api/operators/shareReplay" }
-            }
+              react: {
+                note: "Use a server-state library (for example TanStack Query) with query keys and invalidation.",
+                link: "https://tanstack.com/query/latest/docs/framework/react/overview"
+              },
+              nextjs: {
+                note: "Know the fetch cache and revalidate after a change with revalidatePath or revalidateTag.",
+                link: "https://nextjs.org/docs/app/building-your-application/caching"
+              },
+              angular: {
+                note: "Share one observable with shareReplay or a store, and refresh it after writes.",
+                link: "https://rxjs.dev/api/operators/shareReplay"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Fetching the same data again and again wastes time, and stale data after a change confuses users.",
+            exercise_kinds: [
+              "design_tradeoff",
+              "implement",
+              "review"
+            ]
           }
         ],
         senior: [
@@ -43554,35 +44527,89 @@ var frontend_default = {
               "The app stays usable on slow or dropping connections: safe retries, optimistic updates with rollback, and clear offline states."
             ],
             signals: [],
-            explain_angles: ["What does this screen do on a train with a weak signal?", "What happens to the user's change if the request fails?"],
+            explain_angles: [
+              "What does this screen do on a train with a weak signal?",
+              "What happens to the user's change if the request fails?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "Users on mobile complain that 'liking' a post feels slow and sometimes gets lost. How would you redesign it?",
                 key_points: [
-                  { id: "k1", text: "Optimistic update: show the like at once" },
-                  { id: "k2", text: "Roll back and tell the user if the request finally fails" },
-                  { id: "k3", text: "Retry safely; the server action must be idempotent" }
+                  {
+                    id: "k1",
+                    text: "Optimistic update: show the like at once"
+                  },
+                  {
+                    id: "k2",
+                    text: "Roll back and tell the user if the request finally fails"
+                  },
+                  {
+                    id: "k3",
+                    text: "Retry safely; the server action must be idempotent"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Shows success with no rollback when it fails" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Shows success with no rollback when it fails"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "Which requests should the frontend retry automatically, and which never? Why?",
                 key_points: [
-                  { id: "k1", text: "Retry safe reads and idempotent writes" },
-                  { id: "k2", text: "Never auto-retry non-idempotent writes like a payment without a key" },
-                  { id: "k3", text: "Use backoff and a cap" }
+                  {
+                    id: "k1",
+                    text: "Retry safe reads and idempotent writes"
+                  },
+                  {
+                    id: "k2",
+                    text: "Never auto-retry non-idempotent writes like a payment without a key"
+                  },
+                  {
+                    id: "k3",
+                    text: "Use backoff and a cap"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Retries every failed request" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Retries every failed request"
+                  }
+                ]
               }
             ],
-            study: ["optimistic UI with rollback", "idempotent writes", "offline-first basics", "retry policies"],
+            study: [
+              "optimistic UI with rollback",
+              "idempotent writes",
+              "offline-first basics",
+              "retry policies"
+            ],
             stack_notes: {
-              react: { note: "Use optimistic updates with rollback (useOptimistic or your data library's onMutate).", link: "https://react.dev/reference/react/useOptimistic" },
-              nextjs: { note: "Combine server actions with useOptimistic and show pending state.", link: "https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations" },
-              angular: { note: "Use rxjs retry with a delay for safe calls, and update state optimistically with rollback.", link: "https://rxjs.dev/api/operators/retry" }
-            }
+              react: {
+                note: "Use optimistic updates with rollback (useOptimistic or your data library's onMutate).",
+                link: "https://react.dev/reference/react/useOptimistic"
+              },
+              nextjs: {
+                note: "Combine server actions with useOptimistic and show pending state.",
+                link: "https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations"
+              },
+              angular: {
+                note: "Use rxjs retry with a delay for safe calls, and update state optimistically with rollback.",
+                link: "https://rxjs.dev/api/operators/retry"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "Real users are on slow and flaky networks; an app that only works on fast Wi-Fi loses their actions and their trust.",
+            exercise_kinds: [
+              "design_tradeoff",
+              "architecture",
+              "implement"
+            ]
           },
           {
             id: "FE.FETCH.S2",
@@ -43590,36 +44617,94 @@ var frontend_default = {
             good_looks_like: [
               "A crash in one part of the screen is caught and replaced with a fallback, so the rest of the app keeps working, and the error is reported."
             ],
-            signals: [{ id: "fetch.error-boundary", polarity: "positive" }],
-            explain_angles: ["Why put the boundary here and not higher?", "What does the user see when this part breaks?"],
+            signals: [
+              {
+                id: "fetch.error-boundary",
+                polarity: "positive"
+              }
+            ],
+            explain_angles: [
+              "Why put the boundary here and not higher?",
+              "What does the user see when this part breaks?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "A bug in a sidebar widget makes the whole dashboard go white. How do you stop one widget from taking down the page?",
                 key_points: [
-                  { id: "k1", text: "Wrap the widget in its own error boundary" },
-                  { id: "k2", text: "Show a small fallback with a retry" },
-                  { id: "k3", text: "Report the error to monitoring" }
+                  {
+                    id: "k1",
+                    text: "Wrap the widget in its own error boundary"
+                  },
+                  {
+                    id: "k2",
+                    text: "Show a small fallback with a retry"
+                  },
+                  {
+                    id: "k3",
+                    text: "Report the error to monitoring"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "One boundary around the whole app only" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "One boundary around the whole app only"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "Which errors does an error boundary NOT catch, and how do you handle those?",
                 key_points: [
-                  { id: "k1", text: "Errors in event handlers and async code" },
-                  { id: "k2", text: "Handle them in the handler or put them in state so they render" },
-                  { id: "k3", text: "Global handlers for unhandled rejections, for reporting" }
+                  {
+                    id: "k1",
+                    text: "Errors in event handlers and async code"
+                  },
+                  {
+                    id: "k2",
+                    text: "Handle them in the handler or put them in state so they render"
+                  },
+                  {
+                    id: "k3",
+                    text: "Global handlers for unhandled rejections, for reporting"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Says a boundary catches every error" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Says a boundary catches every error"
+                  }
+                ]
               }
             ],
-            study: ["error boundaries", "fallback UI design", "frontend error reporting"],
+            study: [
+              "error boundaries",
+              "fallback UI design",
+              "frontend error reporting"
+            ],
             stack_notes: {
-              react: { note: "Place error boundaries around independent parts of the screen.", link: "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary" },
-              nextjs: { note: "Add error.js at route segments so one segment fails alone.", link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
-              angular: { note: "Provide a custom ErrorHandler for reporting and show fallbacks per component.", link: "https://angular.dev/api/core/ErrorHandler" }
-            }
+              react: {
+                note: "Place error boundaries around independent parts of the screen.",
+                link: "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary"
+              },
+              nextjs: {
+                note: "Add error.js at route segments so one segment fails alone.",
+                link: "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              angular: {
+                note: "Provide a custom ErrorHandler for reporting and show fallbacks per component.",
+                link: "https://angular.dev/api/core/ErrorHandler"
+              }
+            },
+            exposure_signals: [
+              "fetch.request"
+            ],
+            why_it_matters: "One broken widget should not blank the whole page; boundaries keep the rest of the app usable.",
+            exercise_kinds: [
+              "implement",
+              "architecture",
+              "debug"
+            ]
           }
         ],
         staff: [
@@ -43630,47 +44715,165 @@ var frontend_default = {
               "Chooses one data-fetching approach, one API client and one error shape for the whole app, and makes them easy to use right."
             ],
             signals: [],
-            explain_angles: ["Why should every screen fetch data this way?", "How do new screens get this right by default?"],
+            explain_angles: [
+              "Why should every screen fetch data this way?",
+              "How do new screens get this right by default?"
+            ],
             drills: [
               {
                 id: "d1",
                 prompt: "Your app mixes three ways of fetching data and bugs keep coming from stale data and missing errors. What standard would you set and how would you move the app to it?",
                 key_points: [
-                  { id: "k1", text: "Pick one server-state approach and one API client" },
-                  { id: "k2", text: "One error shape and shared loading and error components" },
-                  { id: "k3", text: "Migrate screen by screen, with lint rules or review checks" },
-                  { id: "k4", text: "Measure it, for example with error reports or bug counts" }
+                  {
+                    id: "k1",
+                    text: "Pick one server-state approach and one API client"
+                  },
+                  {
+                    id: "k2",
+                    text: "One error shape and shared loading and error components"
+                  },
+                  {
+                    id: "k3",
+                    text: "Migrate screen by screen, with lint rules or review checks"
+                  },
+                  {
+                    id: "k4",
+                    text: "Measure it, for example with error reports or bug counts"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Big-bang rewrite with no measures" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Big-bang rewrite with no measures"
+                  }
+                ]
               },
               {
                 id: "d2",
                 prompt: "How would you decide what data is fetched on the server and what on the client?",
                 key_points: [
-                  { id: "k1", text: "Server for first paint, SEO and secrets" },
-                  { id: "k2", text: "Client for user-specific, fast-changing or interactive data" },
-                  { id: "k3", text: "Consider caching and how fresh each kind must be" }
+                  {
+                    id: "k1",
+                    text: "Server for first paint, SEO and secrets"
+                  },
+                  {
+                    id: "k2",
+                    text: "Client for user-specific, fast-changing or interactive data"
+                  },
+                  {
+                    id: "k3",
+                    text: "Consider caching and how fresh each kind must be"
+                  }
                 ],
-                red_flags: [{ id: "r1", text: "Everything on the client by habit" }]
+                red_flags: [
+                  {
+                    id: "r1",
+                    text: "Everything on the client by habit"
+                  }
+                ]
               }
             ],
-            study: ["server-state vs client-state", "API client design", "migration strategies", "lint rules as guard rails"],
+            study: [
+              "server-state vs client-state",
+              "API client design",
+              "migration strategies",
+              "lint rules as guard rails"
+            ],
             stack_notes: {
-              react: { note: "Standardise on one server-state library and a typed API client.", link: "https://react.dev/learn/synchronizing-with-effects#fetching-data" },
-              nextjs: { note: "Decide server vs client fetching per route and document caching rules.", link: "https://nextjs.org/docs/app/building-your-application/data-fetching" },
-              angular: { note: "Use one HttpClient wrapper with interceptors and one state approach.", link: "https://angular.dev/guide/http" }
-            }
+              react: {
+                note: "Standardise on one server-state library and a typed API client.",
+                link: "https://react.dev/learn/synchronizing-with-effects#fetching-data"
+              },
+              nextjs: {
+                note: "Decide server vs client fetching per route and document caching rules.",
+                link: "https://nextjs.org/docs/app/building-your-application/data-fetching"
+              },
+              angular: {
+                note: "Use one HttpClient wrapper with interceptors and one state approach.",
+                link: "https://angular.dev/guide/http"
+              }
+            },
+            exposure_signals: [],
+            why_it_matters: "Three ways of fetching data in one app means three kinds of bugs; one standard makes every new screen right by default.",
+            exercise_kinds: [
+              "architecture",
+              "design_tradeoff",
+              "explain"
+            ]
           }
         ]
       }
     },
-    { id: "STATE", name: "State and data flow", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "COMP", name: "Components and structure", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "RENDER", name: "Rendering performance", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "A11Y", name: "Accessibility", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "SEC", name: "Security", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "TEST", name: "Testing", levels: { junior: [], mid: [], senior: [], staff: [] } },
-    { id: "REQ", name: "Requirements and scope", levels: { junior: [], mid: [], senior: [], staff: [] } }
+    {
+      id: "STATE",
+      name: "State and data flow",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "COMP",
+      name: "Components and structure",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "RENDER",
+      name: "Rendering performance",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "A11Y",
+      name: "Accessibility",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "SEC",
+      name: "Security",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "TEST",
+      name: "Testing",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    },
+    {
+      id: "REQ",
+      name: "Requirements and scope",
+      levels: {
+        junior: [],
+        mid: [],
+        senior: [],
+        staff: []
+      }
+    }
   ]
 };
 
@@ -43688,7 +44891,12 @@ function withThresholds(ladder) {
 function unknownSignals(ladder) {
   const missing = /* @__PURE__ */ new Set();
   for (const area of ladder.areas) {
-    for (const level of LEVELS) for (const item of area.levels[level]) for (const s of item.signals) if (!signalById(s.id)) missing.add(s.id);
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        for (const s of item.signals) if (!signalById(s.id)) missing.add(s.id);
+        for (const id2 of item.exposure_signals ?? []) if (!signalById(id2)) missing.add(id2);
+      }
+    }
   }
   return [...missing];
 }
@@ -43845,7 +45053,8 @@ function stackForPath(stacks, filePath, track) {
 function priority(status, faults) {
   if (faults.has(status.item_id)) return 0;
   if (status.state === "shown") return 1;
-  return 2;
+  if (status.state === "learning") return 2;
+  return 3;
 }
 function pickFocus(results, ctx, max = 3) {
   const byArea = [];
@@ -43856,7 +45065,7 @@ function pickFocus(results, ctx, max = 3) {
       if (working_toward === null) continue;
       const next = LEVELS[LEVELS.indexOf(working_toward) + 1];
       const allowed = /* @__PURE__ */ new Set([working_toward, ...next ? [next] : []]);
-      const candidates = LEVELS.filter((l) => allowed.has(l)).flatMap((l) => area.levels[l]).map((item) => statuses.get(item.id)).filter((s) => s.state === "learning" || s.state === "shown").map((status) => ({ loaded, status }));
+      const candidates = LEVELS.filter((l) => allowed.has(l)).flatMap((l) => area.levels[l]).map((item) => statuses.get(item.id)).filter((s) => s.state === "learning" || s.state === "shown" || s.state === "not_assessed" && s.proofs > 0).map((status) => ({ loaded, status }));
       if (candidates.length > 0) byArea.push(candidates);
     }
   }
@@ -43902,9 +45111,11 @@ function buildFrame(db2, status, ctx) {
     needs: status.needs,
     stack,
     stack_note: stackNote,
-    study: item.study,
+    study: status.state === "learning" ? item.study : [],
     spot,
-    evidence_ids: ids.slice(0, 20)
+    evidence_ids: ids.slice(0, 20),
+    why_it_matters: item.why_it_matters ?? "",
+    exercise_kinds: item.exercise_kinds ?? [...EXERCISE_KINDS]
   };
 }
 function saveStackNote(db2, loaded, input2) {
@@ -43921,7 +45132,12 @@ function saveStackNote(db2, loaded, input2) {
   );
   return { saved: true };
 }
-function checkItemArea(db2, area) {
+var THINKING_KINDS = ["design_tradeoff", "architecture", "explain"];
+function checkItemArea(db2, area, allowedKinds = EXERCISE_KINDS) {
+  if (area.exercise_kind === void 0) throw new StoreError(`Choose an exercise_kind: one of ${allowedKinds.join(", ")}`);
+  if (!allowedKinds.includes(area.exercise_kind)) {
+    throw new StoreError(`${area.item_id} does not suit a '${area.exercise_kind}' exercise. Use one of: ${allowedKinds.join(", ")}`);
+  }
   const ofItem = [
     db2.prepare("SELECT 1 FROM skill_evidence WHERE id = ? AND ladder_id = ? AND item_id = ?"),
     db2.prepare("SELECT 1 FROM pending_questions WHERE id = ? AND ladder_id = ? AND item_id = ? AND rating IS NOT NULL"),
@@ -43933,7 +45149,7 @@ function checkItemArea(db2, area) {
   if (area.spot) {
     const base = area.spot.file.replaceAll("\\", "/").split("/").pop() ?? area.spot.file;
     if (!area.exercise.toLowerCase().includes(base.toLowerCase())) throw new StoreError(`The exercise must name the spot's file (${base}), so it is about the developer's own code`);
-  } else if (!/\bticket\b/i.test(area.exercise)) {
+  } else if (!THINKING_KINDS.includes(area.exercise_kind) && !/\bticket\b/i.test(area.exercise)) {
     throw new StoreError("Give the exercise a real spot in the developer's code, or tie it to their next ticket");
   }
 }
@@ -44181,6 +45397,23 @@ function targetsBySignal(ladders) {
   }
   return map2;
 }
+function exposureBySignal(ladders) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const l of ladders) {
+    for (const area of l.ladder.areas) {
+      for (const level of LEVELS) {
+        for (const item of area.levels[level]) {
+          for (const id2 of item.exposure_signals ?? []) {
+            const list = map2.get(id2) ?? [];
+            list.push({ ladder_id: l.ladder_id, item_id: item.id });
+            map2.set(id2, list);
+          }
+        }
+      }
+    }
+  }
+  return map2;
+}
 async function symbolsFor(path, source, lines) {
   const out2 = /* @__PURE__ */ new Map();
   for (const line of lines) {
@@ -44188,19 +45421,30 @@ async function symbolsFor(path, source, lines) {
   }
   return out2;
 }
-async function readCommit(db2, top, repoKey, sha, diff, targets, exec) {
+async function readCommit(db2, top, repoKey, sha, diff, targets, exposureTargets, exec) {
   const rows2 = /* @__PURE__ */ new Map();
   const fixes = /* @__PURE__ */ new Map();
+  const exposure = /* @__PURE__ */ new Map();
   for (const file2 of diff) {
     if (file2.binary || isGeneratedPath(file2.path) || file2.added.length > MAX_ADDED_LINES) continue;
     const hits = [];
+    const chances = [];
     for (const added of file2.added) {
-      for (const rule of matchLine(SIGNALS, file2.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+      for (const rule of matchLine(SIGNALS, file2.path, added.text)) {
+        if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+        if (exposureTargets.has(rule.id)) chances.push({ line: added.line, signal: rule.id });
+      }
+    }
+    const symbols = hits.length > 0 || chances.length > 0 ? await symbolsFor(file2.path, await showFile(top, sha, file2.path, exec), [...new Set([...hits, ...chances].map((h) => h.line))]) : /* @__PURE__ */ new Map();
+    for (const chance of chances) {
+      const symbol2 = symbols.get(chance.line) ?? null;
+      for (const t of exposureTargets.get(chance.signal) ?? []) {
+        const key = [t.ladder_id, t.item_id, chance.signal, file2.path, symbol2 ?? ""].join("\0");
+        if (!exposure.has(key)) exposure.set(key, { ...t, file_path: file2.path, symbol: symbol2, signal_id: chance.signal });
+      }
     }
     if (hits.length > 0) {
       const ai = aiHashesFor(db2, repoKey, file2.path);
-      const source = await showFile(top, sha, file2.path, exec);
-      const symbols = await symbolsFor(file2.path, source, [...new Set(hits.map((h) => h.line))]);
       for (const hit of hits) {
         const normalized = normalizeLine(hit.text);
         const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
@@ -44231,14 +45475,14 @@ async function readCommit(db2, top, repoKey, sha, diff, targets, exec) {
     if (removedHits.length > 0) {
       const oldPath = file2.oldPath ?? file2.path;
       const source = await showFile(top, `${sha}^`, oldPath, exec);
-      const symbols = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
+      const symbols2 = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
       for (const hit of removedHits) {
-        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols.get(hit.line) ?? null };
+        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols2.get(hit.line) ?? null };
         fixes.set([fix.signal_id, fix.file_path, fix.symbol ?? ""].join("\0"), fix);
       }
     }
   }
-  return { rows: [...rows2.values()], fixes: [...fixes.values()] };
+  return { rows: [...rows2.values()], fixes: [...fixes.values()], exposure: [...exposure.values()] };
 }
 function captureStart(db2, repoKey) {
   const key = `capture_start:${repoKey}`;
@@ -44275,6 +45519,10 @@ async function catchUp(db2, opts) {
   const onDefault = await defaultBranchCommits(top, exec);
   const branch = await currentBranch(top, exec);
   const targets = targetsBySignal(opts.ladders);
+  const exposureTargets = exposureBySignal(opts.ladders);
+  const insertExposure = db2.prepare(
+    "INSERT INTO skill_exposure (id, ladder_id, item_id, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  );
   const sameChange = db2.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
   const markSeen = db2.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
   const insert = db2.prepare(`
@@ -44301,17 +45549,18 @@ async function catchUp(db2, opts) {
     const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
     let found;
     try {
-      found = await readCommit(db2, top, key, c.sha, diff, targets, exec);
+      found = await readCommit(db2, top, key, c.sha, diff, targets, exposureTargets, exec);
     } catch {
       markSeen.run(key, c.sha, id2);
       continue;
     }
-    const { rows: rows2, fixes } = found;
+    const { rows: rows2, fixes, exposure } = found;
     transaction(db2, () => {
       for (const r of rows2) {
         insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
         evidenceAdded++;
       }
+      for (const x of exposure) insertExposure.run(randomUUID5(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
       markSeen.run(key, c.sha, id2);
     });
@@ -44330,7 +45579,8 @@ function computeStatuses(db2, loaded, now) {
   for (const area of loaded.ladder.areas) {
     for (const level of LEVELS) {
       for (const item of area.levels[level]) {
-        statuses.set(item.id, itemStatus({ item, ...factsForItem(db2, loaded.ladder_id, item.id) }, now, loaded.thresholds));
+        const exposure = exposureFor(db2, loaded.ladder_id, item.id, now, loaded.thresholds);
+        statuses.set(item.id, itemStatus({ item, ...factsForItem(db2, loaded.ladder_id, item.id), exposure }, now, loaded.thresholds));
       }
     }
   }
@@ -44341,9 +45591,11 @@ function reasonFor(s) {
     case "proven":
       return "passed a drill while shown";
     case "shown":
-      return `${s.proofs} code proofs on ${s.proof_tickets} tickets and ${s.clear_answers} clear answers`;
+      return s.shown_by === "drill" ? "passed 2 drills and gave a clear answer, with little chance in the work" : `${s.proofs} code proofs on ${s.proof_tickets} tickets and ${s.clear_answers} clear answers`;
     case "learning":
-      return s.regressed_at !== null ? "dropped back after a serious fault or a 'not yet' answer" : "first evidence seen";
+      return s.regressed_at !== null ? "dropped back after a serious fault or a 'not yet' answer" : "a gap: an open fault, a weak answer or a failed drill";
+    case "not_assessed":
+      return "some evidence, not enough to judge yet";
     default:
       return "its evidence was removed";
   }
@@ -44369,7 +45621,9 @@ function detail(s, proofsNeeded) {
     case "proven":
       return s.proven_at ? `drill passed ${shortDate(s.proven_at)}` : "drill passed";
     case "shown":
-      return `ready for a drill \u2192 /coach drill ${s.item_id}`;
+      return s.shown_by === "drill" ? "shown by drills \xB7 show it in your work to reach Proven" : `ready for a drill \u2192 /coach drill ${s.item_id}`;
+    case "not_assessed":
+      return s.exposure === "none" || s.exposure === "low" ? `little chance in your work \xB7 drill available \u2192 /coach drill ${s.item_id}` : `${s.proofs} of ${proofsNeeded} code proofs \xB7 not enough to judge yet`;
     case "learning": {
       const parts2 = [`${s.proofs} of ${proofsNeeded} code proofs`];
       if (s.open_faults > 0) parts2.push(`${s.open_faults} open fault${s.open_faults === 1 ? "" : "s"}`);
@@ -44391,15 +45645,21 @@ function areaViews(results) {
         continue;
       }
       const { level, working_toward } = areaLevel(area, statuses);
+      const order = ["none", "low", "medium", "high"];
+      const exposure = items.reduce((best, { item }) => {
+        const e = statuses.get(item.id).exposure;
+        return order.indexOf(e) > order.indexOf(best) ? e : best;
+      }, "none");
       areas.push({
         ladder_id: loaded.ladder_id,
         area_id: area.id,
         name: area.name,
+        exposure,
         level,
         working_toward,
         items: items.map(({ item, level: itemLevel }) => {
           const s = statuses.get(item.id);
-          return { item_id: item.id, title: item.title, level: itemLevel, state: s.state, detail: detail(s, loaded.thresholds.proofs) };
+          return { item_id: item.id, title: item.title, level: itemLevel, state: s.state, exposure: s.exposure, detail: detail(s, loaded.thresholds.proofs) };
         })
       });
     }
@@ -44412,14 +45672,14 @@ function renderProgress(s) {
   for (const area of s.areas) {
     const track = area.ladder_id.endsWith("/frontend") ? "Frontend" : "Backend";
     const levelText = area.level ? capital(area.level) : "Starting";
-    lines.push(`${track} \xB7 ${area.name}        Level: ${levelText}${area.working_toward ? `  \xB7  working toward ${capital(area.working_toward)}` : ""}`);
+    lines.push(`${track} \xB7 ${area.name}        Level: ${levelText}${area.working_toward ? `  \xB7  working toward ${capital(area.working_toward)}` : ""}  \xB7  exposure: ${area.exposure}`);
     const shownLevel = area.working_toward ?? area.level;
     const nextLevel = shownLevel ? LEVELS[LEVELS.indexOf(shownLevel) + 1] : void 0;
     const width = Math.max(...area.items.map((i2) => `${i2.item_id} ${i2.title}`.length));
     const visible = area.items.filter((i2) => i2.level === shownLevel || i2.state !== "not_seen");
     for (const item of visible) {
       const label = `${item.item_id} ${item.title}`.padEnd(width + 2);
-      lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(10)}${item.detail}`);
+      lines.push(`  ${label}${item.state.toUpperCase().replace("_", " ").padEnd(14)}${item.detail}`);
     }
     const next = nextLevel ? area.items.find((i2) => i2.level === nextLevel) : void 0;
     if (next) lines.push(`  Next for ${capital(nextLevel)}: ${next.item_id} ${next.title}    ${next.state.toUpperCase().replace("_", " ")}`);
@@ -44500,7 +45760,8 @@ function ladderForItem(root, itemId2, opts = {}) {
 }
 function itemDetail(db2, loaded, item, now = /* @__PURE__ */ new Date()) {
   const facts = factsForItem(db2, loaded.ladder_id, item.id);
-  const status = itemStatus({ item, ...facts }, now, loaded.thresholds);
+  const exposure = exposureFor(db2, loaded.ladder_id, item.id, now, loaded.thresholds);
+  const status = itemStatus({ item, ...facts, exposure }, now, loaded.thresholds);
   const evidence = db2.prepare(
     "SELECT id, kind, polarity, author, decided_by, file_path, symbol, ticket, signal_id, note, at, fixed_at, fixed_ticket, disagreed_at, disagree_reason FROM skill_evidence WHERE ladder_id = ? AND item_id = ? ORDER BY at"
   ).all(loaded.ladder_id, item.id).map((r) => ({ ...r }));
@@ -44972,7 +46233,8 @@ var saveGrowthPlanInput = external_exports.strictObject({
       item_id: itemId.optional().describe("The focus frame's ladder item"),
       ladder_id: external_exports.string().trim().min(1).max(200).optional(),
       spot: external_exports.strictObject({ file: external_exports.string().trim().min(1).max(500), symbol: external_exports.string().trim().min(1).max(200).nullable().optional() }).optional().describe("The focus frame's spot in the developer's code"),
-      stack: external_exports.string().trim().min(1).max(50).optional().describe("The focus frame's stack")
+      stack: external_exports.string().trim().min(1).max(50).optional().describe("The focus frame's stack"),
+      exercise_kind: external_exports.enum(["implement", "debug", "review", "design_tradeoff", "architecture", "explain"]).optional().describe("Required with item_id: one of the focus frame's exercise_kinds")
     })
   ).min(1).max(3)
 });
@@ -45006,9 +46268,11 @@ var askQuestionInput = external_exports.strictObject({
   session_id: id.describe("The Claude Code session id"),
   question_id: id.optional().describe("A pending question from coach_status"),
   decision_id: id.optional().describe("Or: a decision to ask an explain-back about"),
-  item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none"),
+  item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none. Alone: a follow-up question on that item"),
   text: shortText.describe("The question exactly as you will ask it. It must not give the answer away")
-}).refine((i2) => i2.question_id === void 0 !== (i2.decision_id === void 0), { message: "Give exactly one of question_id or decision_id" });
+}).refine((i2) => !(i2.question_id !== void 0 && i2.decision_id !== void 0), { message: "Give question_id or decision_id, not both" }).refine((i2) => i2.question_id !== void 0 || i2.decision_id !== void 0 || i2.item_id !== void 0, {
+  message: "Give question_id, decision_id, or item_id (a follow-up question on an item)"
+});
 var releaseAnswerInput = external_exports.strictObject({
   question_id: id
 });
@@ -45213,8 +46477,8 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => write2(
       input2,
       (i2) => saveGrowthPlan(db2, i2, (area) => {
-        const { loaded } = ladderForItem(coachRoot, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
-        checkItemArea(db2, { ...area, ladder_id: loaded.ladder_id });
+        const { loaded, item } = ladderForItem(coachRoot, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
+        checkItemArea(db2, { ...area, ladder_id: loaded.ladder_id }, item.exercise_kinds);
         return loaded.ladder_id;
       })
     )
@@ -45291,7 +46555,9 @@ function createServer2(db2, tickets2, options = {}) {
     },
     (input2) => write2(input2, (i2) => {
       let ladderId2;
-      if (i2.decision_id !== void 0) {
+      if (i2.question_id === void 0 && i2.decision_id === void 0 && i2.item_id !== void 0) {
+        ladderId2 = ladderForItem(coachRoot, i2.item_id, home).loaded.ladder_id;
+      } else if (i2.decision_id !== void 0) {
         const decision = db2.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i2.decision_id);
         const item = i2.item_id ?? decision?.item_id ?? void 0;
         if (item) ladderId2 = ladderForItem(coachRoot, item, home).loaded.ladder_id;

@@ -19731,6 +19731,7 @@ var TRACKS = ["backend", "frontend"];
 var LEVELS = ["junior", "mid", "senior", "staff"];
 var LEVEL_LETTER = { junior: "J", mid: "M", senior: "S", staff: "X" };
 var ITEM_ID = /^(BE|FE)\.[A-Z][A-Z0-9]{1,7}\.[JMSX]\d{1,2}$/;
+var EXERCISE_KINDS = ["implement", "debug", "review", "design_tradeoff", "architecture", "explain"];
 var DEFAULT_THRESHOLDS = {
   proofs: 3,
   tickets: 2,
@@ -19741,7 +19742,11 @@ var DEFAULT_THRESHOLDS = {
   question_timeout_min: 30,
   max_questions: 3,
   hash_keep_days: 120,
-  catchup_max: 200
+  catchup_max: 200,
+  exposure_window_days: 90,
+  exposure_low: 1,
+  exposure_medium: 3,
+  exposure_high: 6
 };
 var text = external_exports.string().trim().min(1).max(600);
 var shortId = external_exports.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/, "ids are lowercase letters, digits, dots and dashes");
@@ -19767,6 +19772,9 @@ var itemSchema = external_exports.strictObject({
   explain_angles: external_exports.array(text).min(1).max(3),
   drills: external_exports.array(drillSchema).min(1).max(3),
   study: external_exports.array(text).min(2).max(4),
+  exposure_signals: external_exports.array(shortId).max(10).optional(),
+  why_it_matters: text.optional(),
+  exercise_kinds: external_exports.array(external_exports.enum(EXERCISE_KINDS)).min(1).max(6).optional(),
   stack_notes: external_exports.record(
     shortId,
     external_exports.strictObject({ note: text, link: external_exports.string().regex(/^https:\/\/\S+$/, "stack note links must start with https://") })
@@ -19938,6 +19946,67 @@ var SIGNALS = [
     examples: {
       hit: [tsx("<ErrorBoundary fallback={<Oops />}>"), tsx("componentDidCatch(error, info) {")],
       miss: [tsx("<Boundary>"), tsx('import { ErrorBoundary } from "react-error-boundary";')]
+    }
+  },
+  // Exposure signals: they show the developer had the chance to use a skill, not that they used it well.
+  {
+    id: "io.outside-call",
+    meaning: "a call to an outside service",
+    pattern: /\bfetch\(|\baxios(\.\w+)?\(|\bgot\(|\bhttps?\.(request|get)\(|\brequests\.(get|post|put|patch|delete)\(|\b(RestTemplate|WebClient|HttpClient)\b|\bhttp\.(Get|Post|Do)\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const res = await fetch(url);"), ts("const r = await axios.get(url);"), py("r = requests.post(url, json=body)"), go("resp, err := http.Get(url)")],
+      miss: [ts("const fetched = true;"), ts("refetch();")]
+    }
+  },
+  {
+    id: "io.db-query",
+    meaning: "a database query",
+    pattern: /\.(query|execute|findOne|findUnique|findMany|findById|findAll|aggregate|insertOne|updateOne)\(|\bSELECT\s+.+\s+FROM\b/i,
+    extensions: CODE,
+    examples: {
+      hit: [ts('const rows = await db.query("SELECT 1");'), ts("const user = await prisma.user.findUnique({ where: { id } });"), ts("const u = await User.findById(id);")],
+      miss: [ts("const item = items.find((x) => x.id === id);"), ts("const q = query;")]
+    }
+  },
+  {
+    id: "err.try-catch",
+    meaning: "code that catches an error",
+    pattern: /\btry\s*\{|^\s*try\s*:?\s*$|\bcatch\s*(\(|\{)|^\s*except\b/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("  try {"), ts("} catch (e) {"), py("try:"), py("except ValueError:")],
+      miss: [ts("const tryAgain = 1;"), ts("retry();")]
+    }
+  },
+  {
+    id: "err.throw",
+    meaning: "code that raises an error",
+    pattern: /\bthrow\s+\w|\braise\s+\w|\bpanic\(|\berrors\.New\(|\bfmt\.Errorf\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts('throw new Error("bad input");'), py('raise ValueError("bad input")'), go('return fmt.Errorf("charge: %w", err)')],
+      miss: [ts("const thrown = false;"), ts("const throwaway = 1;")]
+    }
+  },
+  {
+    id: "api.request-body",
+    meaning: "code that reads input from a request",
+    pattern: /\breq\.(body|query|params)\b|@(RequestBody|RequestParam|PathVariable|Body|Query|Param)\(|\brequest\.(json|form|args)\b|\bc\.(Bind|ShouldBind)\w*\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const { name } = req.body;"), java("public User create(@RequestBody() UserDto dto) {"), py("data = request.json")],
+      miss: [ts('const body = "x";'), ts("request();")]
+    }
+  },
+  {
+    id: "fetch.request",
+    meaning: "a request for server data from the screen",
+    pattern: /\bfetch\(|\buse(Query|SWR|Mutation)\(|\baxios(\.\w+)?\(|\bthis\.http\.(get|post|put|delete)\b/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx('const res = await fetch("/api/orders");'), tsx('const { data } = useQuery({ queryKey: ["o"], queryFn });'), tsx('return this.http.get<Order[]>("/api/orders");')],
+      miss: [tsx("const fetched = 1;"), tsx("refetch();")]
     }
   }
 ];
@@ -20249,6 +20318,28 @@ var migrations = [
       ALTER TABLE decisions ADD COLUMN item_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN item_id TEXT;
+    `
+  },
+  {
+    id: 8,
+    name: "coach_exposure",
+    sql: `
+      -- A chance to use a skill in the developer's work (for example any call to an outside service), whether or not
+      -- the skill was used. Kept apart from evidence: exposure never gives credit and never counts as a fault.
+      CREATE TABLE skill_exposure (
+        id         TEXT PRIMARY KEY,
+        ladder_id  TEXT NOT NULL,
+        item_id    TEXT NOT NULL,
+        repo_root  TEXT,
+        commit_sha TEXT,
+        file_path  TEXT,
+        symbol     TEXT,
+        ticket     TEXT NOT NULL,
+        signal_id  TEXT NOT NULL,
+        at         TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_skill_exposure_item ON skill_exposure(ladder_id, item_id);
     `
   }
 ];

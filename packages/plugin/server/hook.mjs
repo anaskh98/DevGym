@@ -351,6 +351,28 @@ var migrations = [
       ALTER TABLE explain_backs ADD COLUMN question_id TEXT;
       ALTER TABLE explain_backs ADD COLUMN item_id TEXT;
     `
+  },
+  {
+    id: 8,
+    name: "coach_exposure",
+    sql: `
+      -- A chance to use a skill in the developer's work (for example any call to an outside service), whether or not
+      -- the skill was used. Kept apart from evidence: exposure never gives credit and never counts as a fault.
+      CREATE TABLE skill_exposure (
+        id         TEXT PRIMARY KEY,
+        ladder_id  TEXT NOT NULL,
+        item_id    TEXT NOT NULL,
+        repo_root  TEXT,
+        commit_sha TEXT,
+        file_path  TEXT,
+        symbol     TEXT,
+        ticket     TEXT NOT NULL,
+        signal_id  TEXT NOT NULL,
+        at         TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_skill_exposure_item ON skill_exposure(ladder_id, item_id);
+    `
   }
 ];
 function migrate(db, list = migrations) {

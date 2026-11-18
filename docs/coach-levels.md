@@ -30,14 +30,33 @@ style and a trailing comma or semicolon, so a formatter does not turn Claude's l
 Coach reads your commits (by your `git config user.email`) quietly each time it runs, starting from Claude's first
 edit in the repo. No git hook is installed. Lockfiles, build output and generated files are skipped.
 
-## The four states of an item
+## Proficiency and exposure
+
+Coach keeps two things apart for every item:
+
+- **Proficiency**: the item's state (below). What your work and answers have shown you can do.
+- **Exposure**: none, low, medium or high. How much your work gave you a chance to use the skill, used well or not.
+  For example, any call to an outside service is a chance to handle its failure. Counted as distinct functions in the
+  last 90 days (low from 1, medium from 3, high from 6).
+
+Low exposure is never read as low skill. You are never pulled back for working on things that do not need a skill.
+
+## The five states of an item
 
 | State | What it takes |
 |---|---|
-| **Not seen** | Nothing yet. |
-| **Learning** | Any proof in your code, any answer, or any fault. |
+| **Not seen** | Nothing yet: no evidence and no exposure. |
+| **Not assessed** | Some evidence or exposure, but not enough to judge, and no sign of a gap. |
+| **Learning** | A sign of a real gap: an open fault, a weak latest answer, a failed latest drill, or a drop back. |
 | **Shown** | **Both:** 3 code proofs in your own lines, across 2 or more tickets, in the last 60 days, with no open fault on the item; **and** 2 answers rated "clear" on different tickets, at least one naming the trade-off. |
-| **Proven** | Shown, **plus a passed drill**. A drill is an interview question about a new situation. |
+| **Proven** | Shown in your work, **plus a passed drill**. A drill is an interview question about a new situation. |
+
+**Once Shown, an item stays Shown** until a serious fault or a "not yet" answer. Not using a skill for a while never
+lowers it.
+
+**When your work gives little chance** (exposure none or low), you can take drills instead: 2 passed drills on
+different prompts plus 1 clear answer make the item **Shown (by drill)**. It becomes Proven only once the skill also
+shows in your work.
 
 Details, all decided by plain code:
 

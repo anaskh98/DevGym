@@ -12,6 +12,15 @@ It is coaching, not a performance review, and it never leaves this machine.
 
 **Plain code decides every state and level. You never set one, and never say a level the server did not return.**
 
+Two things are kept apart, and you must keep them apart when you talk about them:
+
+- **Proficiency**, the item's state: **Not seen** (nothing yet), **Not assessed** (some evidence, not enough to judge,
+  and no sign of a gap), **Learning** (a real gap: an open fault, a weak answer or a failed drill), **Shown**, **Proven**.
+- **Exposure** (none, low, medium, high): how much their work gave them a chance to use the skill.
+
+Low exposure is **never** a weakness. Never call a Not assessed item a gap. A Shown item does not fall back because the
+developer worked on other things.
+
 All tools below are on the `fork-trail-coach` MCP server.
 
 Argument: `$ARGUMENTS`
@@ -41,19 +50,24 @@ For each frame in `focus` (at most 3):
    stack (1 to 3 plain lines, from the item's meaning and the stack's official docs, with one `https://` link to
    those docs) and save it with `save_stack_note`. Then use it.
 2. Write the claim: one or two sentences on what the evidence shows and what the frame's `needs` says is missing.
-   Describe the work, not the person.
-3. Write one exercise the developer can finish in under an hour:
+   Describe the work, not the person. Then say why it matters, using the frame's `why_it_matters`.
+3. Pick one `exercise_kind` from the frame's `exercise_kinds` that fits the gap. Not every exercise changes code:
+   `implement`, `debug`, `review` (review a piece of their own code), `design_tradeoff` (write down a choice and its
+   costs), `architecture`, `explain`.
+4. Write one exercise of that kind the developer can finish in under an hour:
    - If the frame has a `spot`, the exercise is about that spot and **names its file**:
      "In `pay.ts`, `charge` has no rule for when to retry. Decide it, write it down, and be ready to explain why."
-   - If there is no spot, tie it to **the next ticket**: "On your next ticket, set a time limit on every outside call."
-   - Use the stack note and the study topics so it fits their stack.
+   - If there is no spot: for `design_tradeoff`, `architecture` or `explain`, a thinking exercise is fine; for the other
+     kinds, tie it to **the next ticket**.
+   - Use the stack note so it fits their stack. Use `study` topics only when the frame gives them (only for a gap).
 
 Save all of them with one `save_growth_plan` call. Each focus area has `claim`, `evidence_ids` (the frame's
-`evidence_ids`), `exercise`, `item_id`, `ladder_id`, and `spot` and `stack` when the frame has them.
+`evidence_ids`), `exercise`, `exercise_kind`, `item_id`, `ladder_id`, and `spot` and `stack` when the frame has them.
 If the server refuses an area, read the reason and fix that part. Never pad evidence or make the exercise vague.
 
-Then show, for each focus item: the item id and title, the claim, the exercise, the stack note with its link, and
-the study topics. If the server marked a claim tentative, say it rests on one piece of evidence.
+Then show, for each focus item: the item id and title, the claim, why it matters, the exercise and its kind, the stack
+note with its link, and the study topics if there are any. If the server marked a claim tentative, say it rests on one
+piece of evidence.
 
 Say in one line that the plan is saved on this machine only.
 
@@ -64,6 +78,9 @@ Ask them as in **Asking a question** below.
 
 If `drills_ready` is not empty, say which items are ready for a drill and how to start one:
 `/fork-trail-coach:coach drill <item-id>`.
+
+Items that say "little chance in your work · drill available" can be assessed by a drill instead. Mention this once,
+as an option, never as a gap.
 
 ## Asking a question
 
@@ -96,7 +113,13 @@ One question at a time:
 5. Call `score_drill`. For each key point and red flag the answer really shows, give its id and the **exact words**
    from the answer. Do not stretch: a point the answer does not make is missed.
 6. Show the result: passed or not; each key point as hit or missed, using the key's own wording; any red flag; then
-   the study topics for the missed points. If passed, say the item is now Proven.
+   the study topics for the missed points.
+7. Then call `coach_item` and say the item's real state. Do not guess it:
+   - Shown in the work + passed drill → Proven.
+   - Little chance in the work → two passed drills on different prompts plus one clear answer make it **Shown (by
+     drill)**. If the item still needs that clear answer after a pass, ask **one** follow-up question: call
+     `ask_question` with only `item_id` and the question text (why or how, about the drill topic), then rate it as
+     usual. Shown by drill never becomes Proven until the skill shows in their work.
 
 ## `why <item-id>`
 
