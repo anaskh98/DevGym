@@ -17,8 +17,12 @@ export function pruneMessages(db: Db, keepDays: number, now: Date = new Date()):
 }
 
 /** Is the quote (12+ characters) really in a message the developer sent in this session? */
-export function quoteInSession(db: Db, sessionId: string, quote: string): boolean {
-  const rows = db.prepare("SELECT message FROM developer_messages WHERE session_id = ?").all(sessionId) as { message: string }[];
+export function quoteInSession(db: Db, sessionId: string, quote: string, since?: string): boolean {
+  const rows = (
+    since === undefined
+      ? db.prepare("SELECT message FROM developer_messages WHERE session_id = ?").all(sessionId)
+      : db.prepare("SELECT message FROM developer_messages WHERE session_id = ? AND created_at >= ?").all(sessionId, since)
+  ) as { message: string }[];
   return rows.some((r) => quoteIn(r.message, quote));
 }
 

@@ -4321,6 +4321,35 @@ function transaction(db, fn) {
   }
 }
 
+// src/coach/facts.ts
+function toIso(value) {
+  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+}
+function factsForItem(db, ladderId, itemId) {
+  const evidence = db.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map(
+    (r) => ({
+      id: r.id,
+      kind: r.kind,
+      polarity: r.polarity,
+      author: r.author,
+      decided_by: r.decided_by,
+      history: r.history === 1,
+      regresses: r.regresses === 1,
+      signal_id: r.signal_id,
+      file: r.file_path,
+      symbol: r.symbol,
+      ticket: r.ticket,
+      at: toIso(r.at),
+      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
+      fixed_ticket: r.fixed_ticket,
+      disagreed: r.disagreed_at !== null
+    })
+  );
+  const answers = db.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId, itemId).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
+  const drills = db.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
+  return { evidence, answers, drills };
+}
+
 // src/git/identity.ts
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
@@ -24532,9 +24561,9 @@ function captureStart(db, repoKey) {
   return first;
 }
 async function closeReviewFaults(db, top, key, sha, diff, ticket, at, exec) {
-  const open2 = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL AND at < ?");
+  const open2 = db.prepare("SELECT id, file_path, symbol, at FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL");
   const close = db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
-  const faults = open2.all(key, at);
+  const faults = open2.all(key).filter((f) => Date.parse(toIso(f.at)) < Date.parse(at));
   for (const file2 of diff) {
     const mine = faults.filter((f) => f.file_path === file2.path || f.file_path === file2.oldPath);
     if (mine.length === 0 || file2.removed.length === 0) continue;
@@ -24616,13 +24645,13 @@ async function catchUp(db, opts) {
     } catch {
     }
     transaction(db, () => {
+      if (Number(markSeen.run(key, c.sha, id).changes) === 0) return;
       for (const r of rows) {
         insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
         evidenceAdded++;
       }
       for (const x of exposure) insertExposure.run(randomUUID(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(key, c.sha, id);
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
@@ -24630,35 +24659,6 @@ async function catchUp(db, opts) {
 
 // src/coach/bugs.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
-
-// src/coach/facts.ts
-function toIso(value) {
-  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
-}
-function factsForItem(db, ladderId, itemId) {
-  const evidence = db.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map(
-    (r) => ({
-      id: r.id,
-      kind: r.kind,
-      polarity: r.polarity,
-      author: r.author,
-      decided_by: r.decided_by,
-      history: r.history === 1,
-      regresses: r.regresses === 1,
-      signal_id: r.signal_id,
-      file: r.file_path,
-      symbol: r.symbol,
-      ticket: r.ticket,
-      at: toIso(r.at),
-      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
-      fixed_ticket: r.fixed_ticket,
-      disagreed: r.disagreed_at !== null
-    })
-  );
-  const answers = db.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId, itemId).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
-  const drills = db.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
-  return { evidence, answers, drills };
-}
 
 // src/coach/settings.ts
 function read(db, key, fallback) {
@@ -27834,7 +27834,7 @@ var migrations = [
         line_start   INTEGER,
         line_end     INTEGER,
         why          TEXT NOT NULL,
-        evidence_id  TEXT NOT NULL,
+        evidence_id  TEXT,
         choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
         reason_quote TEXT,
         decided_at   TEXT,

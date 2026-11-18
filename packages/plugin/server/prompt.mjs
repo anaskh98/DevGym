@@ -20392,7 +20392,7 @@ var migrations = [
         line_start   INTEGER,
         line_end     INTEGER,
         why          TEXT NOT NULL,
-        evidence_id  TEXT NOT NULL,
+        evidence_id  TEXT,
         choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
         reason_quote TEXT,
         decided_at   TEXT,
@@ -20591,7 +20591,8 @@ async function main() {
   const db = openDb();
   try {
     migrate(db);
-    if (answerAllowed(input2.prompt)) saveMessage(db, input2.session_id, input2.prompt);
+    const tracks = db.prepare("SELECT value FROM coach_settings WHERE key = 'tracks'").get()?.value;
+    if (tracks !== void 0 && JSON.parse(tracks).length > 0 && answerAllowed(input2.prompt)) saveMessage(db, input2.session_id, input2.prompt);
     pruneMessages(db, 120);
     const result = captureAnswer(db, input2.session_id, input2.prompt, /* @__PURE__ */ new Date(), answerAllowed);
     if (!result.captured) {

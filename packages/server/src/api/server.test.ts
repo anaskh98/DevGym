@@ -336,3 +336,14 @@ describe("GET /api/coach", () => {
     expect(parsed.success).toBe(true);
   });
 });
+
+describe("delete everything also deletes the Coach tables (I8)", () => {
+  it("removes developer messages, evidence and questions too", async () => {
+    db.prepare("INSERT INTO developer_messages (id, session_id, message) VALUES ('m', 's', 'something I typed here')").run();
+    db.prepare("INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, at) VALUES ('e', 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', 'T', '2026-11-01')").run();
+    const res = await call("DELETE", "/api/data", { body: { confirm: "delete-all" } });
+    expect(res.status).toBe(200);
+    expect(db.prepare("SELECT count(*) AS n FROM developer_messages").get()).toEqual({ n: 0 });
+    expect(db.prepare("SELECT count(*) AS n FROM skill_evidence").get()).toEqual({ n: 0 });
+  });
+});

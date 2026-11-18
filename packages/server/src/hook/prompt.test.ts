@@ -81,3 +81,24 @@ describe.skipIf(!built)("prompt hook", () => {
     expect(result.stdout.trim()).toBe("");
   });
 });
+
+describe.skipIf(!built)("prompt hook: developer messages are kept only when Coach is set up", () => {
+  const count = () => {
+    const db = openDb(dbPath);
+    try {
+      return (db.prepare("SELECT count(*) AS n FROM developer_messages").get() as { n: number }).n;
+    } finally {
+      db.close();
+    }
+  };
+  it("saves nothing before tracks are chosen, and saves after", () => {
+    openQuestionFor("other");
+    runPrompt("s9", "Please do it this way for the whole module");
+    expect(count()).toBe(0);
+    const db = openDb(dbPath);
+    db.prepare("INSERT INTO coach_settings (key, value) VALUES ('tracks', '[\"backend\"]')").run();
+    db.close();
+    runPrompt("s9", "Please do it this way for the whole module");
+    expect(count()).toBe(1);
+  });
+});

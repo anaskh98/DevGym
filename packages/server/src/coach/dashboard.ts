@@ -95,10 +95,12 @@ export function coachDashboard(db: Db, opts: { root: string; home?: string; now?
     };
   });
 
-  const allItems = dashboardAreas.flatMap((a) => a.items.map((i) => ({ ...i, area: a.name })));
+  const windowDays = new Map(ladders.map((l) => [l.ladder_id, l.thresholds.window_days]));
+  const allItems = dashboardAreas.flatMap((a) => a.items.map((i) => ({ ...i, area: a.name, window_days: windowDays.get(a.ladder_id) ?? 60 })));
   const open_faults = allItems.flatMap((i) =>
     i.evidence
-      .filter((e) => e.polarity === "negative" && !e.fixed)
+      // The same rule the state engine uses: not fixed, and inside the window.
+      .filter((e) => e.polarity === "negative" && !e.fixed && Date.parse(e.at) >= now.getTime() - i.window_days * 86_400_000)
       .map((e) => ({ item_id: i.item_id, title: i.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note })),
   );
   const ready = new Set(drillsReady(db, results, now));

@@ -3,6 +3,7 @@
 // Only paths, function names, rule ids and commit ids are stored, never code.
 import { randomUUID } from "node:crypto";
 import { transaction, type Db } from "../db/connection.js";
+import { toIso } from "./facts.js";
 import { changeId, commitDiff, type FileDiff } from "../git/diff.js";
 import { repoIdentity } from "../git/identity.js";
 import { currentBranch, defaultBranchCommits, developerEmails, listCommits, type CommitInfo } from "../git/log.js";
@@ -248,9 +249,10 @@ function captureStart(db: Db, repoKey: string): string | null {
 
 /** A review fault has no signal to match, so it is closed when a later commit removes lines from the same function. */
 async function closeReviewFaults(db: Db, top: string, key: string, sha: string, diff: FileDiff[], ticket: string, at: string, exec: Run): Promise<void> {
-  const open = db.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL AND at < ?");
+  const open = db.prepare("SELECT id, file_path, symbol, at FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL");
   const close = db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
-  const faults = open.all(key, at) as { id: string; file_path: string; symbol: string | null }[];
+  // Times come in two formats (UTC "Z" and a local offset), so they are compared as moments, never as text.
+  const faults = (open.all(key) as { id: string; file_path: string; symbol: string | null; at: string }[]).filter((f) => Date.parse(toIso(f.at)) < Date.parse(at));
   for (const file of diff) {
     const mine = faults.filter((f) => f.file_path === file.path || f.file_path === file.oldPath);
     if (mine.length === 0 || file.removed.length === 0) continue;
@@ -342,13 +344,14 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
       // Closing faults is best effort: the commit's own evidence is still saved.
     }
     transaction(db, () => {
+      // Claim the commit first: another run (the background worker and /coach can overlap) may have read it already.
+      if (Number(markSeen.run(key, c.sha, id).changes) === 0) return;
       for (const r of rows) {
         insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
         evidenceAdded++;
       }
       for (const x of exposure) insertExposure.run(randomUUID(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(key, c.sha, id);
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };

@@ -351,3 +351,25 @@ describe("stage 2: a later change closes a review fault", () => {
     expect(db.prepare("SELECT fixed_ticket FROM skill_evidence WHERE id = 'rf'").get()).toEqual({ fixed_ticket: "PAY-2" });
   });
 });
+
+describe("stage 2 to 4 review fixes: capture", () => {
+  it("does not read a commit twice when two catch-ups run at the same time (C2)", async () => {
+    startCapture();
+    commit({ "src/pay.ts": PAY(TIMEOUT_LINE) }, "PAY-1 add a time limit");
+    await Promise.all([catchUp(db, { root: repo, ladders, now: NOW }), catchUp(db, { root: repo, ladders, now: NOW })]);
+    expect(evidence().filter((e) => e.signal_id === "err.timeout-set")).toHaveLength(1);
+    // No chance is stored twice.
+    expect(db.prepare("SELECT count(*) AS n FROM (SELECT 1 FROM skill_exposure GROUP BY item_id, signal_id, file_path, symbol HAVING count(*) > 1)").get()).toEqual({ n: 0 });
+  });
+
+  it("compares a commit date with a local offset to a fault's UTC time as moments, not text (I6)", async () => {
+    startCapture();
+    commit({ "src/pay.ts": PAY("  const res = await fetch(url);") }, "PAY-1 charge", "2026-11-10T10:00:00Z");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    // A review fault raised at 10:30 UTC. A later commit at 11:00+02:00 is 09:00 UTC: BEFORE the fault, so it cannot fix it.
+    db.prepare("INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, ticket, file_path, symbol, at) VALUES ('rf2', 'builtin/backend', 'BE.ERR.M2', 'review', 'negative', 'ai', 1, ?, 'PAY-1', 'src/pay.ts', 'charge', '2026-11-10T10:30:00.000Z')").run(top);
+    commit({ "src/pay.ts": PAY(TIMEOUT_LINE) }, "PAY-2 add a time limit", "2026-11-10T11:00:00+02:00");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(db.prepare("SELECT fixed_ticket FROM skill_evidence WHERE id = 'rf2'").get()).toEqual({ fixed_ticket: null });
+  });
+});

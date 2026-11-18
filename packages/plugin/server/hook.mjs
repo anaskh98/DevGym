@@ -424,7 +424,7 @@ var migrations = [
         line_start   INTEGER,
         line_end     INTEGER,
         why          TEXT NOT NULL,
-        evidence_id  TEXT NOT NULL,
+        evidence_id  TEXT,
         choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
         reason_quote TEXT,
         decided_at   TEXT,

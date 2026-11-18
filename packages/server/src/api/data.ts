@@ -214,6 +214,21 @@ const DATA_TABLES = [
   "assumptions",
   "tickets",
 ] as const;
+/** Everything Coach stores about the developer. "Delete everything" must remove all of it. */
+const COACH_TABLES = [
+  "developer_messages",
+  "ticket_findings",
+  "shipped_bugs",
+  "skill_evidence",
+  "skill_exposure",
+  "drill_attempts",
+  "pending_questions",
+  "item_state_history",
+  "stack_notes_local",
+  "commits_seen",
+  "ai_line_hashes",
+  "coach_settings",
+] as const;
 const JSON_COLUMNS = new Set(["alternatives", "related_files", "evidence_ids", "focus_areas"]);
 
 export function countAll(db: Db): Record<string, number> {
@@ -240,6 +255,7 @@ export function exportAll(db: Db) {
 export function deleteAll(db: Db): Record<string, number> {
   const deleted = countAll(db);
   transaction(db, () => {
+    for (const table of COACH_TABLES) db.exec(`DELETE FROM ${table}`);
     for (const table of DATA_TABLES) db.exec(`DELETE FROM ${table}`);
   });
   return deleted;

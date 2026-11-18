@@ -63,3 +63,13 @@ describe("coachDashboard", () => {
     expect(d.recent_changes[0]).toMatchObject({ item_id: "BE.ERR.M2", direction: "up" });
   });
 });
+
+describe("stage 2 to 4 review fixes: dashboard (I7)", () => {
+  it("lists only faults the state engine counts: inside the window, not fixed", () => {
+    setTracks(db, ["backend"]);
+    const add = db.prepare("INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES (lower(hex(randomblob(8))), 'builtin/backend', 'BE.ERR.J1', 'rule', 'negative', 'dev', ?, 'err.empty-catch', 'a.ts', ?, ?)");
+    add.run("T-1", "old", "2026-03-01T10:00:00Z");
+    add.run("T-2", "recent", "2026-11-10T10:00:00Z");
+    expect(dash().open_faults.map((f) => f.symbol)).toEqual(["recent"]);
+  });
+});

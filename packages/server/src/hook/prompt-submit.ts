@@ -35,7 +35,9 @@ async function main(): Promise<void> {
   try {
     migrate(db);
     // What the developer says is kept locally so "the developer chose this" can be checked against their words.
-    if (answerAllowed(input.prompt)) saveMessage(db, input.session_id, input.prompt);
+    // Only once the developer has set Coach up (chosen tracks), so nothing is kept for someone who never opted in.
+    const tracks = (db.prepare("SELECT value FROM coach_settings WHERE key = 'tracks'").get() as { value: string } | undefined)?.value;
+    if (tracks !== undefined && JSON.parse(tracks).length > 0 && answerAllowed(input.prompt)) saveMessage(db, input.session_id, input.prompt);
     pruneMessages(db, 120);
     const result = captureAnswer(db, input.session_id, input.prompt, new Date(), answerAllowed);
     if (!result.captured) {

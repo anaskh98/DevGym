@@ -363,7 +363,7 @@ var migrations = [
         line_start   INTEGER,
         line_end     INTEGER,
         why          TEXT NOT NULL,
-        evidence_id  TEXT NOT NULL,
+        evidence_id  TEXT,
         choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
         reason_quote TEXT,
         decided_at   TEXT,
@@ -20484,6 +20484,35 @@ function normalizeRepoPath(path) {
   return process.platform === "win32" ? p.toLowerCase() : p;
 }
 
+// src/coach/facts.ts
+function toIso(value) {
+  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+}
+function factsForItem(db2, ladderId, itemId) {
+  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map(
+    (r) => ({
+      id: r.id,
+      kind: r.kind,
+      polarity: r.polarity,
+      author: r.author,
+      decided_by: r.decided_by,
+      history: r.history === 1,
+      regresses: r.regresses === 1,
+      signal_id: r.signal_id,
+      file: r.file_path,
+      symbol: r.symbol,
+      ticket: r.ticket,
+      at: toIso(r.at),
+      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
+      fixed_ticket: r.fixed_ticket,
+      disagreed: r.disagreed_at !== null
+    })
+  );
+  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId, itemId).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
+  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
+  return { evidence, answers, drills };
+}
+
 // ../../node_modules/.pnpm/web-tree-sitter@0.27.2/node_modules/web-tree-sitter/web-tree-sitter.js
 var __defProp2 = Object.defineProperty;
 var __name = (target, value) => __defProp2(target, "name", { value, configurable: true });
@@ -24791,35 +24820,6 @@ function signalById(id) {
   return BY_ID.get(id);
 }
 
-// src/coach/facts.ts
-function toIso(value) {
-  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
-}
-function factsForItem(db2, ladderId, itemId) {
-  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map(
-    (r) => ({
-      id: r.id,
-      kind: r.kind,
-      polarity: r.polarity,
-      author: r.author,
-      decided_by: r.decided_by,
-      history: r.history === 1,
-      regresses: r.regresses === 1,
-      signal_id: r.signal_id,
-      file: r.file_path,
-      symbol: r.symbol,
-      ticket: r.ticket,
-      at: toIso(r.at),
-      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
-      fixed_ticket: r.fixed_ticket,
-      disagreed: r.disagreed_at !== null
-    })
-  );
-  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId, itemId).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
-  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId, itemId).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
-  return { evidence, answers, drills };
-}
-
 // src/coach/settings.ts
 function read(db2, key, fallback) {
   const row = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
@@ -27302,9 +27302,10 @@ function coachDashboard(db2, opts) {
       })
     };
   });
-  const allItems = dashboardAreas.flatMap((a) => a.items.map((i2) => ({ ...i2, area: a.name })));
+  const windowDays = new Map(ladders.map((l) => [l.ladder_id, l.thresholds.window_days]));
+  const allItems = dashboardAreas.flatMap((a) => a.items.map((i2) => ({ ...i2, area: a.name, window_days: windowDays.get(a.ladder_id) ?? 60 })));
   const open_faults = allItems.flatMap(
-    (i2) => i2.evidence.filter((e) => e.polarity === "negative" && !e.fixed).map((e) => ({ item_id: i2.item_id, title: i2.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note }))
+    (i2) => i2.evidence.filter((e) => e.polarity === "negative" && !e.fixed && Date.parse(e.at) >= now.getTime() - i2.window_days * 864e5).map((e) => ({ item_id: i2.item_id, title: i2.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note }))
   );
   const ready = new Set(drillsReady(db2, results, now));
   const ready_for_assessment = allItems.filter((i2) => ready.has(i2.item_id) || i2.state === "not_assessed" && (i2.exposure === "none" || i2.exposure === "low")).map((i2) => i2.item_id);
@@ -27540,6 +27541,20 @@ var DATA_TABLES = [
   "assumptions",
   "tickets"
 ];
+var COACH_TABLES = [
+  "developer_messages",
+  "ticket_findings",
+  "shipped_bugs",
+  "skill_evidence",
+  "skill_exposure",
+  "drill_attempts",
+  "pending_questions",
+  "item_state_history",
+  "stack_notes_local",
+  "commits_seen",
+  "ai_line_hashes",
+  "coach_settings"
+];
 var JSON_COLUMNS = /* @__PURE__ */ new Set(["alternatives", "related_files", "evidence_ids", "focus_areas"]);
 function countAll(db2) {
   const counts = {};
@@ -27561,6 +27576,7 @@ function exportAll(db2) {
 function deleteAll(db2) {
   const deleted = countAll(db2);
   transaction(db2, () => {
+    for (const table of COACH_TABLES) db2.exec(`DELETE FROM ${table}`);
     for (const table of DATA_TABLES) db2.exec(`DELETE FROM ${table}`);
   });
   return deleted;

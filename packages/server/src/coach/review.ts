@@ -33,6 +33,22 @@ async function mergeBase(top: string, exec: Run): Promise<string | null> {
   return null;
 }
 
+/**
+ * The base of the pull request. The server works it out (the merge base with the default branch). A base the AI passes is
+ * accepted only if it lies on this branch, between where it started and HEAD: the AI must not widen the change to code
+ * that is years old or someone else's.
+ */
+async function pullRequestBase(top: string, given: string | undefined, exec: Run): Promise<string> {
+  const mb = await mergeBase(top, exec);
+  if (mb === null) throw new StoreError("Could not find where this branch started, so the pull request's change cannot be checked");
+  if (given === undefined) return mb;
+  const isAncestor = async (a: string, b: string) => (await exec("git", ["merge-base", "--is-ancestor", a, b], top)).code === 0;
+  if (!(await isAncestor(mb, given)) || !(await isAncestor(given, "HEAD"))) {
+    throw new StoreError("That base is not on this branch between where it started and HEAD. Leave base out: the server finds it");
+  }
+  return given;
+}
+
 /** The added lines of a file between the pull request's base and HEAD, limited to a line range. Throws when none. */
 export async function addedLinesInChange(
   top: string,
@@ -43,8 +59,7 @@ export async function addedLinesInChange(
   exec: Run,
 ): Promise<{ path: string; lines: { line: number; text: string }[]; head: string | null }> {
   if (lineEnd < lineStart) throw new StoreError("line_end must not be before line_start");
-  const from = base ?? (await mergeBase(top, exec));
-  if (from === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
+  const from = await pullRequestBase(top, base, exec);
   const path = filePath.replaceAll("\\", "/");
   const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${from}...HEAD`, "--", path], top);
   if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
@@ -68,14 +83,9 @@ export async function proposeFault(
   const { loaded } = ladderForItem(top, input.item_id, { ...(home ? { home } : {}), ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
   if (input.line_end < input.line_start) throw new StoreError("line_end must not be before line_start");
 
-  const base = input.base ?? (await mergeBase(top, exec));
-  if (base === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
-  const path = input.file.replaceAll("\\", "/");
-  const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${base}...HEAD`, "--", path], top);
-  if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
-  const file = parseUnifiedDiff(diff.stdout).find((f) => f.path === path);
-  const lines = (file?.added ?? []).filter((l) => l.line >= input.line_start && l.line <= input.line_end);
-  if (lines.length === 0) throw new StoreError(`Lines ${input.line_start}-${input.line_end} of ${input.file} were not added in this change (${base.slice(0, 7)}...HEAD)`);
+  const found = await addedLinesInChange(top, input.base, input.file, input.line_start, input.line_end, exec);
+  const path = found.path;
+  const lines = found.lines;
 
   const ai = aiHashesFor(db, key, path);
   const aiWritten = lines.some((l) => {

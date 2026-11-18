@@ -261,3 +261,33 @@ them traceable, not complete.
 
 **Covered by automated tests only (not in a real run):** the background worker and the daily nudge (tests run the built
 hook and worker), the history scan, shipped bugs and repeats, `propose_fault`, quote-checked decision origins.
+
+## What the review of stages 2 to 4 found and fixed
+
+Each fix has a test that failed first.
+
+- The AI could pass an old commit as the pull request's base, so any line (even years old, or a teammate's) looked
+  "added in this change". The server now finds the base itself, and accepts a given one only if it lies on the branch.
+- Two catch-ups running at once (the background worker and `/coach`) could read the same commit twice and double its
+  evidence. A commit is now claimed first, inside the same transaction.
+- A company ladder without the new Requirements and scope items broke saving Fork's assumptions. The ticket check now
+  skips the skill quietly when the ladder lacks it.
+- An older message ("please check the ticket") could be reused to decide a finding. Only words sent after the finding
+  was raised count.
+- Review faults compared times as text (UTC against a local offset), so a commit could close a fault it came before.
+- The dashboard listed old faults the state engine ignores. It now uses the same rule (inside the window, not fixed).
+- Developer messages were saved for everyone, and "delete everything" left all Coach data (including stage 1 tables).
+  Messages are saved only once you choose tracks, and delete-all now removes every Coach table.
+
+**Rulings and deferred, not fixed:**
+
+- **A kept finding counts as a decision, not a fault**, once you give a reason in your own words. The spec said a kept
+  finding "with no good reason" is negative, but there is no rating of reasons yet. Cost if wrong: a poor reason clears
+  a finding. Needs your call.
+- A bug added and fixed inside the same branch can count as "reached main" in merge-commit workflows.
+- Faults in a shared pull-request branch are blamed on the developer even for a teammate's lines.
+- History credit does not check old commit messages for an AI trailer.
+- Ticket credit (`needs`, `answered_by_po`) rests on the AI's word, with no cap for items without rule signals.
+- A fault is closed by any later change to the same function, which is loose.
+- The "Export my data" page still does not include the Coach tables; delete-all does remove them.
+- The nudge ignores "a drill is ready", and the background throttle is per folder, not per repo.

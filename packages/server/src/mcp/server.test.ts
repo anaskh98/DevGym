@@ -6,7 +6,7 @@ import { migrate } from "../db/migrations.js";
 import { defaultTicketsDir } from "../db/seed.js";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrivacyGuard } from "../privacy/guard.js";
@@ -771,7 +771,8 @@ describe("stage 4: the ticket check", () => {
     const out = await ok("propose_ticket_finding", finding());
     const ev = db.prepare("SELECT kind, polarity, author, owned, item_id, fixed_at FROM skill_evidence WHERE id = ?").get(out.evidence_id);
     expect(ev).toMatchObject({ kind: "ticket_check", polarity: "negative", author: "ai", owned: 1, item_id: "BE.REQ.J1", fixed_at: null });
-    // The developer decides, in their own words. A made-up reason is refused.
+    // The developer decides, in their own words, after the finding was raised. A made-up reason is refused.
+    saveMessage(db, "s1", "Keep it: the developer asked for this exact approach, so it stays");
     expect(await rejected("decide_ticket_finding", { finding_id: out.finding_id, session_id: "s1", choice: "kept", reason_quote: "I told you to keep it for a good reason" })).toMatch(/not in a message/);
     await ok("decide_ticket_finding", { finding_id: out.finding_id, session_id: "s1", choice: "kept", reason_quote: "developer asked for this exact approach" });
     expect(db.prepare("SELECT choice FROM ticket_findings WHERE id = ?").get(out.finding_id)).toEqual({ choice: "kept" });
@@ -799,5 +800,61 @@ describe("stage 4: the ticket check", () => {
     expect(db.prepare("SELECT item_id, author FROM skill_evidence WHERE kind = 'ticket_check'").get()).toMatchObject({ item_id: "BE.REQ.M1", author: "dev" });
     await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes, marked as cancelled" }] });
     expect(db.prepare("SELECT count(*) AS n FROM skill_evidence WHERE kind = 'ticket_check'").get()).toEqual({ n: 1 });
+  });
+});
+
+describe("stage 2 to 4 review fixes", () => {
+  const gitIn = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  function branchWithChange() {
+    gitIn(["init", "-q", "-b", "main"]);
+    gitIn(["config", "user.email", "dev@example.com"]);
+    gitIn(["config", "user.name", "Dev"]);
+    gitIn(["config", "commit.gpgsign", "false"]);
+    writeFileSync(join(repo, "old.ts"), "export async function oldCall(url: string) {\n  const res = await fetch(url);\n  return res.json();\n}\n");
+    gitIn(["add", "-A"]);
+    gitIn(["commit", "-q", "-m", "teammate code long ago"]);
+    const root = gitIn(["rev-parse", "HEAD"]);
+    writeFileSync(join(repo, "other.txt"), "x\n");
+    gitIn(["add", "-A"]);
+    gitIn(["commit", "-q", "-m", "second"]);
+    gitIn(["checkout", "-q", "-b", "PAY-6-feature"]);
+    writeFileSync(join(repo, "new.ts"), "export function n() {\n  return 1;\n}\n");
+    gitIn(["add", "-A"]);
+    gitIn(["commit", "-q", "-m", "PAY-6 new"]);
+    return root;
+  }
+
+  it("does not let the AI pick a base older than the pull request (C1)", async () => {
+    const root = branchWithChange();
+    const out = await rejected("propose_fault", { item_id: "BE.ERR.M2", file: "old.ts", line_start: 2, line_end: 2, base: root, why: "The outside call has no time limit at all" });
+    expect(out).toMatch(/base/i);
+    expect(await rejected("propose_fault", { item_id: "BE.ERR.M2", file: "old.ts", line_start: 2, line_end: 2, why: "The outside call has no time limit at all" })).toMatch(/not added in this change/);
+  });
+
+  it("keeps a saved assumption list working with a company ladder that has no requirements area (C3)", async () => {
+    const { BUILTIN_LADDERS } = await import("../coach/ladder/builtin.js");
+    const company = structuredClone(BUILTIN_LADDERS.backend);
+    company.areas = company.areas.filter((a) => a.id === "ERR");
+    mkdirSync(join(repo, ".fork-trail-coach"), { recursive: true });
+    writeFileSync(join(repo, ".fork-trail-coach", "ladder.json"), JSON.stringify(company));
+    await ok("set_coach_tracks", { tracks: ["backend"] });
+    const out = await ok("save_assumptions", { ticket_id: "SAMPLE-1", assumptions: [{ text: "Does export include cancelled orders?", status: "answered_by_po", answer: "Yes" }] });
+    expect(out.assumption_ids).toHaveLength(1);
+    expect(await ok("finish_ticket_check", { ticket_id: "SAMPLE-1", needs: 4 })).toMatchObject({ credited: false });
+  });
+
+  it("only accepts developer words sent after the finding was raised (I4)", async () => {
+    gitIn(["init", "-q", "-b", "main"]);
+    gitIn(["config", "user.email", "dev@example.com"]);
+    gitIn(["config", "user.name", "Dev"]);
+    gitIn(["config", "commit.gpgsign", "false"]);
+    gitIn(["add", "-A"]);
+    gitIn(["commit", "-q", "-m", "base"]);
+    const out = await ok("propose_ticket_finding", { ticket_id: "SAMPLE-1", kind: "missing", ticket_quote: "Only the right people can export.", why: "No check of who may export" });
+    // The only saved message is older than the finding.
+    db.prepare("UPDATE developer_messages SET created_at = '2000-01-01 00:00:00'").run();
+    expect(await rejected("decide_ticket_finding", { finding_id: out.finding_id, session_id: "s1", choice: "kept", reason_quote: "developer asked for this exact approach" })).toMatch(/not in a message/);
+    saveMessage(db, "s1", "Keep it: the developer asked for this exact approach, so it stays");
+    await ok("decide_ticket_finding", { finding_id: out.finding_id, session_id: "s1", choice: "kept", reason_quote: "developer asked for this exact approach" });
   });
 });

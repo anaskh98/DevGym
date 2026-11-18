@@ -28968,7 +28968,7 @@ var migrations = [
         line_start   INTEGER,
         line_end     INTEGER,
         why          TEXT NOT NULL,
-        evidence_id  TEXT NOT NULL,
+        evidence_id  TEXT,
         choice       TEXT CHECK (choice IS NULL OR choice IN ('fixed', 'kept')),
         reason_quote TEXT,
         decided_at   TEXT,
@@ -37376,6 +37376,35 @@ function matchLine(rules, filePath, line) {
 // src/coach/capture.ts
 import { randomUUID } from "node:crypto";
 
+// src/coach/facts.ts
+function toIso(value) {
+  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
+}
+function factsForItem(db2, ladderId2, itemId2) {
+  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map(
+    (r) => ({
+      id: r.id,
+      kind: r.kind,
+      polarity: r.polarity,
+      author: r.author,
+      decided_by: r.decided_by,
+      history: r.history === 1,
+      regresses: r.regresses === 1,
+      signal_id: r.signal_id,
+      file: r.file_path,
+      symbol: r.symbol,
+      ticket: r.ticket,
+      at: toIso(r.at),
+      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
+      fixed_ticket: r.fixed_ticket,
+      disagreed: r.disagreed_at !== null
+    })
+  );
+  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId2, itemId2).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
+  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
+  return { evidence, answers, drills };
+}
+
 // src/pointers/symbols.ts
 import { existsSync } from "node:fs";
 import { dirname as dirname2, extname, join as join3 } from "node:path";
@@ -41965,9 +41994,9 @@ function captureStart(db2, repoKey) {
   return first;
 }
 async function closeReviewFaults(db2, top, key, sha, diff, ticket, at, exec) {
-  const open2 = db2.prepare("SELECT id, file_path, symbol FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL AND at < ?");
+  const open2 = db2.prepare("SELECT id, file_path, symbol, at FROM skill_evidence WHERE repo_root = ? AND kind IN ('review', 'ticket_check') AND signal_id IS NULL AND polarity = 'negative' AND file_path IS NOT NULL AND fixed_at IS NULL");
   const close = db2.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?");
-  const faults = open2.all(key, at);
+  const faults = open2.all(key).filter((f) => Date.parse(toIso(f.at)) < Date.parse(at));
   for (const file2 of diff) {
     const mine = faults.filter((f) => f.file_path === file2.path || f.file_path === file2.oldPath);
     if (mine.length === 0 || file2.removed.length === 0) continue;
@@ -42049,45 +42078,16 @@ async function catchUp(db2, opts) {
     } catch {
     }
     transaction(db2, () => {
+      if (Number(markSeen.run(key, c.sha, id2).changes) === 0) return;
       for (const r of rows2) {
         insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate, history ? 1 : 0);
         evidenceAdded++;
       }
       for (const x of exposure) insertExposure.run(randomUUID(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(key, c.sha, id2);
     });
   }
   return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length, remaining: unseen.length - batch.length };
-}
-
-// src/coach/facts.ts
-function toIso(value) {
-  return /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
-}
-function factsForItem(db2, ladderId2, itemId2) {
-  const evidence = db2.prepare("SELECT * FROM skill_evidence WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map(
-    (r) => ({
-      id: r.id,
-      kind: r.kind,
-      polarity: r.polarity,
-      author: r.author,
-      decided_by: r.decided_by,
-      history: r.history === 1,
-      regresses: r.regresses === 1,
-      signal_id: r.signal_id,
-      file: r.file_path,
-      symbol: r.symbol,
-      ticket: r.ticket,
-      at: toIso(r.at),
-      fixed_at: r.fixed_at === null ? null : toIso(r.fixed_at),
-      fixed_ticket: r.fixed_ticket,
-      disagreed: r.disagreed_at !== null
-    })
-  );
-  const answers = db2.prepare("SELECT id, rating, ticket, names_tradeoff, answered_at FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL AND answered_at IS NOT NULL").all(ladderId2, itemId2).map((r) => ({ id: r.id, rating: r.rating, ticket: r.ticket, names_tradeoff: r.names_tradeoff === 1, at: toIso(r.answered_at) }));
-  const drills = db2.prepare("SELECT id, drill_id, passed, void, created_at FROM drill_attempts WHERE ladder_id = ? AND item_id = ?").all(ladderId2, itemId2).map((r) => ({ id: r.id, drill_id: r.drill_id, passed: r.passed === 1, void: r.void === 1, at: toIso(r.created_at) }));
-  return { evidence, answers, drills };
 }
 
 // src/coach/settings.ts
@@ -45286,9 +45286,10 @@ function coachDashboard(db2, opts) {
       })
     };
   });
-  const allItems = dashboardAreas.flatMap((a) => a.items.map((i2) => ({ ...i2, area: a.name })));
+  const windowDays = new Map(ladders.map((l) => [l.ladder_id, l.thresholds.window_days]));
+  const allItems = dashboardAreas.flatMap((a) => a.items.map((i2) => ({ ...i2, area: a.name, window_days: windowDays.get(a.ladder_id) ?? 60 })));
   const open_faults = allItems.flatMap(
-    (i2) => i2.evidence.filter((e) => e.polarity === "negative" && !e.fixed).map((e) => ({ item_id: i2.item_id, title: i2.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note }))
+    (i2) => i2.evidence.filter((e) => e.polarity === "negative" && !e.fixed && Date.parse(e.at) >= now.getTime() - i2.window_days * 864e5).map((e) => ({ item_id: i2.item_id, title: i2.title, file: e.file, symbol: e.symbol, ticket: e.ticket, owned: e.owned, author: e.author, at: e.at, note: e.note }))
   );
   const ready2 = new Set(drillsReady(db2, results, now));
   const ready_for_assessment = allItems.filter((i2) => ready2.has(i2.item_id) || i2.state === "not_assessed" && (i2.exposure === "none" || i2.exposure === "low")).map((i2) => i2.item_id);
@@ -45714,6 +45715,20 @@ var DATA_TABLES = [
   "assumptions",
   "tickets"
 ];
+var COACH_TABLES = [
+  "developer_messages",
+  "ticket_findings",
+  "shipped_bugs",
+  "skill_evidence",
+  "skill_exposure",
+  "drill_attempts",
+  "pending_questions",
+  "item_state_history",
+  "stack_notes_local",
+  "commits_seen",
+  "ai_line_hashes",
+  "coach_settings"
+];
 var JSON_COLUMNS = /* @__PURE__ */ new Set(["alternatives", "related_files", "evidence_ids", "focus_areas"]);
 function countAll(db2) {
   const counts = {};
@@ -45735,6 +45750,7 @@ function exportAll(db2) {
 function deleteAll(db2) {
   const deleted = countAll(db2);
   transaction(db2, () => {
+    for (const table of COACH_TABLES) db2.exec(`DELETE FROM ${table}`);
     for (const table of DATA_TABLES) db2.exec(`DELETE FROM ${table}`);
   });
   return deleted;
@@ -46432,10 +46448,19 @@ async function mergeBase(top, exec) {
   }
   return null;
 }
+async function pullRequestBase(top, given, exec) {
+  const mb = await mergeBase(top, exec);
+  if (mb === null) throw new StoreError("Could not find where this branch started, so the pull request's change cannot be checked");
+  if (given === void 0) return mb;
+  const isAncestor = async (a, b) => (await exec("git", ["merge-base", "--is-ancestor", a, b], top)).code === 0;
+  if (!await isAncestor(mb, given) || !await isAncestor(given, "HEAD")) {
+    throw new StoreError("That base is not on this branch between where it started and HEAD. Leave base out: the server finds it");
+  }
+  return given;
+}
 async function addedLinesInChange(top, base, filePath, lineStart, lineEnd, exec) {
   if (lineEnd < lineStart) throw new StoreError("line_end must not be before line_start");
-  const from = base ?? await mergeBase(top, exec);
-  if (from === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
+  const from = await pullRequestBase(top, base, exec);
   const path = filePath.replaceAll("\\", "/");
   const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${from}...HEAD`, "--", path], top);
   if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
@@ -46451,14 +46476,9 @@ async function proposeFault(db2, root, input2, exec = run2, home) {
   const { top, key } = identity;
   const { loaded } = ladderForItem(top, input2.item_id, { ...home ? { home } : {}, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
   if (input2.line_end < input2.line_start) throw new StoreError("line_end must not be before line_start");
-  const base = input2.base ?? await mergeBase(top, exec);
-  if (base === null) throw new StoreError("Could not find where this branch started. Pass base with the pull request's base commit");
-  const path = input2.file.replaceAll("\\", "/");
-  const diff = await exec("git", ["diff", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", `${base}...HEAD`, "--", path], top);
-  if (diff.code !== 0) throw new StoreError(`git diff failed: ${diff.stderr.trim()}`);
-  const file2 = parseUnifiedDiff(diff.stdout).find((f) => f.path === path);
-  const lines = (file2?.added ?? []).filter((l) => l.line >= input2.line_start && l.line <= input2.line_end);
-  if (lines.length === 0) throw new StoreError(`Lines ${input2.line_start}-${input2.line_end} of ${input2.file} were not added in this change (${base.slice(0, 7)}...HEAD)`);
+  const found = await addedLinesInChange(top, input2.base, input2.file, input2.line_start, input2.line_end, exec);
+  const path = found.path;
+  const lines = found.lines;
   const ai = aiHashesFor(db2, key, path);
   const aiWritten = lines.some((l) => {
     const n = normalizeLine(l.text);
@@ -46485,8 +46505,8 @@ import { randomUUID as randomUUID10 } from "node:crypto";
 
 // src/coach/messages.ts
 import { randomUUID as randomUUID9 } from "node:crypto";
-function quoteInSession(db2, sessionId, quote) {
-  const rows2 = db2.prepare("SELECT message FROM developer_messages WHERE session_id = ?").all(sessionId);
+function quoteInSession(db2, sessionId, quote, since) {
+  const rows2 = since === void 0 ? db2.prepare("SELECT message FROM developer_messages WHERE session_id = ?").all(sessionId) : db2.prepare("SELECT message FROM developer_messages WHERE session_id = ? AND created_at >= ?").all(sessionId, since);
   return rows2.some((r) => quoteIn(r.message, quote));
 }
 function resolveOrigin(db2, sessionId, origin, quote) {
@@ -46508,6 +46528,13 @@ function reqItem(file2, tracks, level) {
   const web = file2 !== null && /\.(tsx|jsx|vue|svelte|css|html)$/i.test(file2);
   const frontend = web || tracks.length === 1 && tracks[0] === "frontend";
   return `${frontend ? "FE" : "BE"}.REQ.${level}`;
+}
+function reqItemIn(root, itemId2, home) {
+  try {
+    return { ladder_id: ladderForItem(root, itemId2, home ? { home } : {}).loaded.ladder_id };
+  } catch {
+    return null;
+  }
 }
 function ticketCorpus(db2, ticket, ticketId) {
   const rows2 = db2.prepare("SELECT text, answer FROM assumptions WHERE ticket_id = ?").all(ticketId);
@@ -46540,13 +46567,16 @@ async function proposeFinding(db2, root, ticket, input2, exec = run2, home) {
     symbol2 = source.code === 0 && isSupported(found.path) ? (await symbolAtLine(found.path, source.stdout, found.lines[0].line))?.name ?? null : null;
   }
   const itemId2 = reqItem(file2 ?? input2.file ?? null, getTracks(db2), "J1");
-  const { loaded } = ladderForItem(identity?.top ?? root, itemId2, home ? { home } : {});
-  const evidenceId = randomUUID10();
+  const ladder = reqItemIn(identity?.top ?? root, itemId2, home);
   const owned = author === "ai";
-  db2.prepare(
-    `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, commit_sha, file_path, symbol, ticket, note, at)
-     VALUES (?, ?, ?, 'ticket_check', 'negative', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(evidenceId, loaded.ladder_id, itemId2, author, owned ? 1 : 0, identity?.key ?? null, commit, file2, symbol2, input2.ticket_id, `${input2.kind}: ${input2.why}`, (/* @__PURE__ */ new Date()).toISOString());
+  let evidenceId = null;
+  if (ladder !== null) {
+    evidenceId = randomUUID10();
+    db2.prepare(
+      `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, commit_sha, file_path, symbol, ticket, note, at)
+       VALUES (?, ?, ?, 'ticket_check', 'negative', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(evidenceId, ladder.ladder_id, itemId2, author, owned ? 1 : 0, identity?.key ?? null, commit, file2, symbol2, input2.ticket_id, `${input2.kind}: ${input2.why}`, (/* @__PURE__ */ new Date()).toISOString());
+  }
   const findingId = randomUUID10();
   db2.prepare(
     "INSERT INTO ticket_findings (id, ticket_id, kind, ticket_quote, file_path, line_start, line_end, why, evidence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -46554,25 +46584,26 @@ async function proposeFinding(db2, root, ticket, input2, exec = run2, home) {
   return { finding_id: findingId, evidence_id: evidenceId, owned };
 }
 function decideFinding(db2, input2) {
-  const row = db2.prepare("SELECT ticket_id, choice, evidence_id FROM ticket_findings WHERE id = ?").get(input2.finding_id);
+  const row = db2.prepare("SELECT ticket_id, choice, evidence_id, created_at FROM ticket_findings WHERE id = ?").get(input2.finding_id);
   if (!row) throw new StoreError(`Finding '${input2.finding_id}' does not exist`);
   if (row.choice !== null) throw new StoreError("This finding was already decided");
-  if (!quoteInSession(db2, input2.session_id, input2.reason_quote)) {
+  if (!quoteInSession(db2, input2.session_id, input2.reason_quote, row.created_at)) {
     throw new StoreError("Those words are not in a message the developer sent in this session. Ask them to say what they decide and why, then copy their words");
   }
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db2.prepare("UPDATE ticket_findings SET choice = ?, reason_quote = ?, decided_at = ? WHERE id = ?").run(input2.choice, input2.reason_quote, now, input2.finding_id);
-  db2.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?").run(now, row.ticket_id, row.evidence_id);
+  if (row.evidence_id !== null) db2.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?").run(now, row.ticket_id, row.evidence_id);
   return { decided: true };
 }
 function finishTicketCheck(db2, root, input2, home) {
   const findings = Number(db2.prepare("SELECT count(*) AS n FROM ticket_findings WHERE ticket_id = ?").get(input2.ticket_id).n);
   if (findings > 0 || input2.needs < 3) return { credited: false, findings };
   const itemId2 = reqItem(null, getTracks(db2), "J1");
-  const { loaded } = ladderForItem(root, itemId2, home ? { home } : {});
-  const exists2 = db2.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(loaded.ladder_id, itemId2, input2.ticket_id);
+  const ladder = reqItemIn(root, itemId2, home);
+  if (ladder === null) return { credited: false, findings };
+  const exists2 = db2.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(ladder.ladder_id, itemId2, input2.ticket_id);
   if (exists2) return { credited: false, findings };
-  insertTicketCredit(db2, loaded.ladder_id, itemId2, input2.ticket_id);
+  insertTicketCredit(db2, ladder.ladder_id, itemId2, input2.ticket_id);
   return { credited: true, findings };
 }
 function insertTicketCredit(db2, ladderId2, itemId2, ticketId) {
@@ -46584,9 +46615,10 @@ function insertTicketCredit(db2, ladderId2, itemId2, ticketId) {
 function creditSpottedNeeds(db2, root, ticketId, askedPo, home) {
   if (!askedPo || getTracks(db2).length === 0) return;
   const itemId2 = reqItem(null, getTracks(db2), "M1");
-  const { loaded } = ladderForItem(root, itemId2, home ? { home } : {});
-  const exists2 = db2.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(loaded.ladder_id, itemId2, ticketId);
-  if (!exists2) insertTicketCredit(db2, loaded.ladder_id, itemId2, ticketId);
+  const ladder = reqItemIn(root, itemId2, home);
+  if (ladder === null) return;
+  const exists2 = db2.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(ladder.ladder_id, itemId2, ticketId);
+  if (!exists2) insertTicketCredit(db2, ladder.ladder_id, itemId2, ticketId);
 }
 
 // src/privacy/denylist.ts
@@ -47170,7 +47202,10 @@ function createServer2(db2, tickets2, options = {}) {
     (input2) => write2(input2, async (i2) => {
       await ticket(i2.ticket_id);
       const saved = saveAssumptions(db2, i2);
-      creditSpottedNeeds(db2, coachRoot, i2.ticket_id, i2.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+      try {
+        creditSpottedNeeds(db2, coachRoot, i2.ticket_id, i2.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+      } catch {
+      }
       return saved;
     })
   );

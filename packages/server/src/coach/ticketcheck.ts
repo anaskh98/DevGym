@@ -36,6 +36,15 @@ export function reqItem(file: string | null, tracks: Track[], level: "J1" | "M1"
   return `${frontend ? "FE" : "BE"}.REQ.${level}`;
 }
 
+/** The requirements-and-scope item in the active ladder, or null: a company ladder may not have these items. */
+function reqItemIn(root: string, itemId: string, home: string | undefined): { ladder_id: string } | null {
+  try {
+    return { ladder_id: ladderForItem(root, itemId, home ? { home } : {}).loaded.ladder_id };
+  } catch {
+    return null;
+  }
+}
+
 /** The words a quote may come from: the ticket, and the Fork assumptions with their answers. */
 function ticketCorpus(db: Db, ticket: { title: string; body: string }, ticketId: string): string {
   const rows = db.prepare("SELECT text, answer FROM assumptions WHERE ticket_id = ?").all(ticketId) as { text: string; answer: string | null }[];
@@ -49,7 +58,7 @@ export async function proposeFinding(
   input: ProposeFindingInput,
   exec: Run = run,
   home?: string,
-): Promise<{ finding_id: string; evidence_id: string; owned: boolean }> {
+): Promise<{ finding_id: string; evidence_id: string | null; owned: boolean }> {
   if (!quoteIn(ticketCorpus(db, ticket, input.ticket_id), input.ticket_quote)) {
     throw new StoreError("The ticket_quote is not in the ticket or its assumptions. Copy the words exactly");
   }
@@ -80,13 +89,17 @@ export async function proposeFinding(
   }
 
   const itemId = reqItem(file ?? input.file ?? null, getTracks(db), "J1");
-  const { loaded } = ladderForItem(identity?.top ?? root, itemId, home ? { home } : {});
-  const evidenceId = randomUUID();
+  const ladder = reqItemIn(identity?.top ?? root, itemId, home);
   const owned = author === "ai";
-  db.prepare(
-    `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, commit_sha, file_path, symbol, ticket, note, at)
-     VALUES (?, ?, ?, 'ticket_check', 'negative', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(evidenceId, loaded.ladder_id, itemId, author, owned ? 1 : 0, identity?.key ?? null, commit, file, symbol, input.ticket_id, `${input.kind}: ${input.why}`, new Date().toISOString());
+  // A company ladder without this item still gets the finding; it just has no skill to count it against.
+  let evidenceId: string | null = null;
+  if (ladder !== null) {
+    evidenceId = randomUUID();
+    db.prepare(
+      `INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, owned, repo_root, commit_sha, file_path, symbol, ticket, note, at)
+       VALUES (?, ?, ?, 'ticket_check', 'negative', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(evidenceId, ladder.ladder_id, itemId, author, owned ? 1 : 0, identity?.key ?? null, commit, file, symbol, input.ticket_id, `${input.kind}: ${input.why}`, new Date().toISOString());
+  }
   const findingId = randomUUID();
   db.prepare(
     "INSERT INTO ticket_findings (id, ticket_id, kind, ticket_quote, file_path, line_start, line_end, why, evidence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -99,18 +112,19 @@ export async function proposeFinding(
  * they sent in this session. A finding they decided on, before the pull request, is not counted as a fault.
  */
 export function decideFinding(db: Db, input: { finding_id: string; session_id: string; choice: "fixed" | "kept"; reason_quote: string }): { decided: true } {
-  const row = db.prepare("SELECT ticket_id, choice, evidence_id FROM ticket_findings WHERE id = ?").get(input.finding_id) as
-    | { ticket_id: string; choice: string | null; evidence_id: string }
+  const row = db.prepare("SELECT ticket_id, choice, evidence_id, created_at FROM ticket_findings WHERE id = ?").get(input.finding_id) as
+    | { ticket_id: string; choice: string | null; evidence_id: string | null; created_at: string }
     | undefined;
   if (!row) throw new StoreError(`Finding '${input.finding_id}' does not exist`);
   if (row.choice !== null) throw new StoreError("This finding was already decided");
-  if (!quoteInSession(db, input.session_id, input.reason_quote)) {
+  // Only words sent after the finding was raised: an older message cannot be reused to settle it.
+  if (!quoteInSession(db, input.session_id, input.reason_quote, row.created_at)) {
     throw new StoreError("Those words are not in a message the developer sent in this session. Ask them to say what they decide and why, then copy their words");
   }
   const now = new Date().toISOString();
   db.prepare("UPDATE ticket_findings SET choice = ?, reason_quote = ?, decided_at = ? WHERE id = ?").run(input.choice, input.reason_quote, now, input.finding_id);
   // Decided in the same ticket, before it shipped: not counted as a fault (the engine skips a fault fixed in its own ticket).
-  db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?").run(now, row.ticket_id, row.evidence_id);
+  if (row.evidence_id !== null) db.prepare("UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ? WHERE id = ?").run(now, row.ticket_id, row.evidence_id);
   return { decided: true };
 }
 
@@ -119,10 +133,11 @@ export function finishTicketCheck(db: Db, root: string, input: { ticket_id: stri
   const findings = Number((db.prepare("SELECT count(*) AS n FROM ticket_findings WHERE ticket_id = ?").get(input.ticket_id) as { n: number }).n);
   if (findings > 0 || input.needs < 3) return { credited: false, findings };
   const itemId = reqItem(null, getTracks(db), "J1");
-  const { loaded } = ladderForItem(root, itemId, home ? { home } : {});
-  const exists = db.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(loaded.ladder_id, itemId, input.ticket_id);
+  const ladder = reqItemIn(root, itemId, home);
+  if (ladder === null) return { credited: false, findings };
+  const exists = db.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(ladder.ladder_id, itemId, input.ticket_id);
   if (exists) return { credited: false, findings };
-  insertTicketCredit(db, loaded.ladder_id, itemId, input.ticket_id);
+  insertTicketCredit(db, ladder.ladder_id, itemId, input.ticket_id);
   return { credited: true, findings };
 }
 
@@ -138,7 +153,8 @@ export function insertTicketCredit(db: Db, ladderId: string, itemId: string, tic
 export function creditSpottedNeeds(db: Db, root: string, ticketId: string, askedPo: boolean, home?: string): void {
   if (!askedPo || getTracks(db).length === 0) return;
   const itemId = reqItem(null, getTracks(db), "M1");
-  const { loaded } = ladderForItem(root, itemId, home ? { home } : {});
-  const exists = db.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(loaded.ladder_id, itemId, ticketId);
-  if (!exists) insertTicketCredit(db, loaded.ladder_id, itemId, ticketId);
+  const ladder = reqItemIn(root, itemId, home);
+  if (ladder === null) return;
+  const exists = db.prepare("SELECT 1 FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND kind = 'ticket_check' AND polarity = 'positive' AND symbol = ?").get(ladder.ladder_id, itemId, ticketId);
+  if (!exists) insertTicketCredit(db, ladder.ladder_id, itemId, ticketId);
 }

@@ -137,7 +137,11 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
         await ticket(i.ticket_id);
         const saved = store.saveAssumptions(db, i);
         // Asking the product owner before coding is spotting unclear needs: a sign for the requirements-and-scope skill.
-        creditSpottedNeeds(db, coachRoot, i.ticket_id, i.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+        try {
+          creditSpottedNeeds(db, coachRoot, i.ticket_id, i.assumptions.some((a) => a.status === "answered_by_po"), options.coachHome);
+        } catch {
+          // A credit side effect must never fail a save that already worked.
+        }
         return saved;
       }),
   );
