@@ -591,7 +591,13 @@ This reverses stage 1 ruling "any proof or answer makes an item Learning".
 3. **Background hooks** add two more hook runs per session (11.2 E). Each must stay quiet and fast.
 4. **The dashboard** is in the teammate's web app (11.2 H). The API comes first, so the backend never waits for the UI.
 
-### 11.4 Open questions for the user
+### 11.4 Decisions (answered by the user on 18 Nov)
+
+- **Drill-only path: (a).** With exposure None or Low, 2 passed drills on different prompts plus 1 clear answer make the item **Shown (by drill)**, marked as such. Proven still needs work evidence.
+- **Dashboard: built here**, the API and the web app's Coach page.
+
+The questions as asked:
+
 
 1. **Drill-only path (11.2 D).** When exposure is None or Low, may a passed drill move the item?
    - (a) *Recommended:* 2 passed drills on different prompts, plus 1 clear answer, make it **Shown (by drill)**, marked
