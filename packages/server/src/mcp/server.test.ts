@@ -582,3 +582,40 @@ describe("personal growth plans", () => {
     expect((await ok("save_stack_note", { item_id: "BE.ERR.M2", stack_id: "fastify", note: "Set a request timeout on the client.", link: "https://fastify.dev/docs/latest/" })).saved).toBe(true);
   });
 });
+
+describe("start_drill reads new commits first", () => {
+  it("unlocks a failed drill when a new proof was just committed", async () => {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+    git(["init", "-q"]);
+    git(["config", "user.email", "dev@example.com"]);
+    git(["config", "user.name", "Dev"]);
+    git(["config", "commit.gpgsign", "false"]);
+    const top = git(["rev-parse", "--show-toplevel"]);
+    db.prepare("INSERT INTO ai_line_hashes (repo_root, file_path, hash, session_id, created_at) VALUES (?, 'x', 'seed', 's0', datetime('now', '-1 day'))").run(top);
+    await ok("set_coach_tracks", { tracks: ["backend"] });
+    // Shown: 3 proofs on 2 tickets and 2 clear answers, then a failed drill just now.
+    const proof = db.prepare(
+      "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES (?, 'builtin/backend', 'BE.ERR.M2', 'rule', 'positive', 'dev', ?, 'err.timeout-set', 'a.ts', ?, ?)",
+    );
+    const earlier = new Date(Date.now() - 3_600_000).toISOString();
+    proof.run(randomUUID(), "T-1", "a", earlier);
+    proof.run(randomUUID(), "T-1", "b", earlier);
+    proof.run(randomUUID(), "T-2", "c", earlier);
+    const answer = db.prepare(
+      "INSERT INTO pending_questions (id, kind, ladder_id, item_id, ticket, answer, answered_at, closed_reason, rating, names_tradeoff) VALUES (?, 'why', 'builtin/backend', 'BE.ERR.M2', ?, 'a', ?, 'answered', 'clear', ?)",
+    );
+    answer.run(randomUUID(), "T-1", earlier, 1);
+    answer.run(randomUUID(), "T-2", earlier, 0);
+    const q = randomUUID();
+    const failedAt = new Date(Date.now() - 60_000).toISOString();
+    db.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, ticket, answer, answered_at, closed_reason) VALUES (?, 'drill', 'builtin/backend', 'BE.ERR.M2', 'drill:d1', 'drill', 'x', ?, 'answered')").run(q, failedAt);
+    db.prepare("INSERT INTO drill_attempts (id, ladder_id, item_id, drill_id, question_id, passed, created_at) VALUES (?, 'builtin/backend', 'BE.ERR.M2', 'd1', ?, 0, ?)").run(randomUUID(), q, failedAt);
+    expect(await rejected("start_drill", { item_id: "BE.ERR.M2", session_id: "s1" })).toMatch(/new code proof/);
+
+    writeFileSync(join(repo, "quote.ts"), "export async function quote(url: string) {\n  return fetch(url, { signal: AbortSignal.timeout(3000) });\n}\n");
+    git(["add", "quote.ts"]);
+    git(["commit", "-q", "-m", "PAY-3 time limit on quote"]);
+    const started = await ok("start_drill", { item_id: "BE.ERR.M2", session_id: "s1" });
+    expect(started.drill_id).toBe("d2");
+  });
+});

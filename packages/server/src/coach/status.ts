@@ -239,6 +239,15 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
   return { ...status, text: renderProgress(status) };
 }
 
+/** Reads the developer's new commits for the chosen tracks. Every Coach command that judges a state runs this first. */
+export async function catchUpHere(db: Db, opts: StatusOptions): Promise<CatchUpResult | null> {
+  const tracks = getTracks(db);
+  if (tracks.length === 0) return null;
+  const top = (await repoTopLevel(opts.root, opts.exec ?? run)) ?? opts.root;
+  const ladders = loadActiveLadders(tracks, { repoRoot: top, ...(opts.home ? { home: opts.home } : {}) });
+  return catchUp(db, { root: opts.root, ladders, extraEmails: getExtraEmails(db), ...(opts.now ? { now: opts.now } : {}), ...(opts.exec ? { exec: opts.exec } : {}) });
+}
+
 /** The active ladder for an item's track, or the one named. Throws when the item is not in it. */
 export function ladderForItem(root: string, itemId: string, opts: { ladderId?: string; home?: string } = {}): { loaded: LoadedLadder; item: LadderItem } {
   const loaded = loadLadder(trackOfItem(itemId), { repoRoot: root, ...(opts.home ? { home: opts.home } : {}) });

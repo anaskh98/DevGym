@@ -197,3 +197,18 @@ describe("isGeneratedPath", () => {
     expect(isGeneratedPath("src/pay.ts")).toBe(false);
   });
 });
+
+describe("capture after old hashes are cleaned up", () => {
+  it("keeps reading new commits when every hash is older than 120 days", async () => {
+    startCapture();
+    commit({ "src/pay.ts": PAY(TIMEOUT_LINE) }, "PAY-1 add a time limit", "2026-11-10T10:00:00Z");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    // Months later: Claude was not used, so the cleanup removes every hash.
+    const later = new Date("2027-06-01T12:00:00Z");
+    commit({ "src/refund.ts": PAY(TIMEOUT_LINE) }, "PAY-2 add a time limit", "2027-05-30T10:00:00Z");
+    const result = await catchUp(db, { root: repo, ladders, now: later });
+    expect(db.prepare("SELECT count(*) AS n FROM ai_line_hashes").get()).toEqual({ n: 0 });
+    expect(result).toMatchObject({ started: true, commits_read: 1 });
+    expect(evidence().some((e) => e.file_path === "src/refund.ts")).toBe(true);
+  });
+});

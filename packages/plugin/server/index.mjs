@@ -44175,6 +44175,14 @@ async function readCommit(db2, top, sha, diff, targets, exec) {
   }
   return { rows: [...rows2.values()], fixes: [...fixes.values()] };
 }
+function captureStart(db2, top) {
+  const key = `capture_start:${top}`;
+  const saved = db2.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key);
+  if (saved) return JSON.parse(saved.value);
+  const first = firstHashAt(db2, top);
+  if (first !== null) db2.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?)").run(key, JSON.stringify(first));
+  return first;
+}
 async function catchUp(db2, opts) {
   const exec = opts.exec ?? run2;
   const now = opts.now ?? /* @__PURE__ */ new Date();
@@ -44187,12 +44195,12 @@ async function catchUp(db2, opts) {
     faults_fixed: 0,
     more_left: false
   });
-  pruneAiLines(db2, t.hash_keep_days, now);
   const top = await repoTopLevel(opts.root, exec);
   if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
   const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
   if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
-  const since = firstHashAt(db2, top);
+  const since = captureStart(db2, top);
+  pruneAiLines(db2, t.hash_keep_days, now);
   if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
   const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top).map((r) => r.sha));
   const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
@@ -44394,6 +44402,13 @@ async function coachStatus(db2, opts) {
     drills_ready: drillsReady(db2, results, now)
   };
   return { ...status, text: renderProgress(status) };
+}
+async function catchUpHere(db2, opts) {
+  const tracks = getTracks(db2);
+  if (tracks.length === 0) return null;
+  const top = await repoTopLevel(opts.root, opts.exec ?? run2) ?? opts.root;
+  const ladders = loadActiveLadders(tracks, { repoRoot: top, ...opts.home ? { home: opts.home } : {} });
+  return catchUp(db2, { root: opts.root, ladders, extraEmails: getExtraEmails(db2), ...opts.now ? { now: opts.now } : {}, ...opts.exec ? { exec: opts.exec } : {} });
 }
 function ladderForItem(root, itemId2, opts = {}) {
   const loaded = loadLadder(trackOfItem(itemId2), { repoRoot: root, ...opts.home ? { home: opts.home } : {} });
@@ -45210,7 +45225,8 @@ function createServer2(db2, tickets2, options = {}) {
       description: "Start an interview drill for a Shown ladder item: a question about a new situation, from the ladder's fixed list. Returns the prompt to ask as it is. The developer's next message is saved as the answer by a hook.",
       inputSchema: startDrillInput
     },
-    (input2) => reply(() => {
+    (input2) => reply(async () => {
+      await catchUpHere(db2, { root, ...home });
       const ctx = ladderForItem(root, input2.item_id, { ...home, ...input2.ladder_id ? { ladderId: input2.ladder_id } : {} });
       return startDrill(db2, ctx, { session_id: input2.session_id });
     })

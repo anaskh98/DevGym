@@ -9,7 +9,7 @@ import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer } from "../coach/questions.js";
 import { scoreDrill, startDrill } from "../coach/drills.js";
 import { checkItemArea, saveStackNote } from "../coach/plan.js";
-import { coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
+import { catchUpHere, coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
@@ -390,7 +390,9 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: startDrillInput,
     },
     (input) =>
-      reply(() => {
+      reply(async () => {
+        // A proof committed since the last failed drill may be what unlocks it, so read new commits first.
+        await catchUpHere(db, { root, ...home });
         const ctx = ladderForItem(root, input.item_id, { ...home, ...(input.ladder_id ? { ladderId: input.ladder_id } : {}) });
         return startDrill(db, ctx, { session_id: input.session_id });
       }),

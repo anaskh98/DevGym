@@ -182,6 +182,16 @@ async function readCommit(
   return { rows: [...rows.values()], fixes: [...fixes.values()] };
 }
 
+/** The moment capture starts in a repo: Claude's first edit there, saved once. Null before any edit. */
+function captureStart(db: Db, top: string): string | null {
+  const key = `capture_start:${top}`;
+  const saved = db.prepare("SELECT value FROM coach_settings WHERE key = ?").get(key) as { value: string } | undefined;
+  if (saved) return JSON.parse(saved.value) as string;
+  const first = firstHashAt(db, top);
+  if (first !== null) db.prepare("INSERT INTO coach_settings (key, value) VALUES (?, ?)").run(key, JSON.stringify(first));
+  return first;
+}
+
 export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResult> {
   const exec = opts.exec ?? run;
   const now = opts.now ?? new Date();
@@ -195,12 +205,13 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
     more_left: false,
   });
 
-  pruneAiLines(db, t.hash_keep_days, now);
   const top = await repoTopLevel(opts.root, exec);
   if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
   const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
   if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
-  const since = firstHashAt(db, top);
+  // Where capture starts in this repo is remembered, so cleaning up old hashes never stops it.
+  const since = captureStart(db, top);
+  pruneAiLines(db, t.hash_keep_days, now);
   if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
 
   const seen = new Set((db.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top) as { sha: string }[]).map((r) => r.sha));
