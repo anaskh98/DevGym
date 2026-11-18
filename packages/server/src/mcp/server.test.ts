@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { PrivacyGuard } from "../privacy/guard.js";
 import { recordFileEdit } from "../store.js";
 import { MarkdownTicketAdapter } from "../tickets/markdown.js";
+import { latestGrowthPlan } from "../api/data.js";
 import { createServer } from "./server.js";
 
 let db: Db;
@@ -99,6 +100,7 @@ describe("tool list", () => {
       "save_assumptions",
       "save_growth_plan",
       "save_observation",
+      "save_stack_note",
       "score_drill",
       "set_coach_tracks",
       "start_drill",
@@ -541,5 +543,42 @@ describe("coach tools", () => {
     expect(await rejected("propose_evidence", { ...base, line_start: 50, line_end: 60 })).toMatch(/were not added/);
     const out = await ok("propose_evidence", { ...base, line_start: 1, line_end: 3 });
     expect(db.prepare("SELECT kind, author, symbol, ticket FROM skill_evidence WHERE id = ?").get(out.evidence_id)).toEqual({ kind: "judge", author: "dev", symbol: "charge", ticket: "PAY-1" });
+  });
+});
+
+describe("personal growth plans", () => {
+  const proof = (itemId = "BE.ERR.M2") => {
+    const id = randomUUID();
+    db.prepare(
+      "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, ticket, signal_id, file_path, symbol, at) VALUES (?, 'builtin/backend', ?, 'rule', 'positive', 'dev', 'T-1', 'err.timeout-set', 'api/pay.ts', 'charge', '2026-11-10T10:00:00Z')",
+    ).run(id, itemId);
+    return id;
+  };
+  const area = (evidence: string[], exercise: string) => ({
+    claim: "One call to the provider had a time limit; the retry rule is not clear yet.",
+    evidence_ids: evidence,
+    exercise,
+    item_id: "BE.ERR.M2",
+    spot: { file: "api/pay.ts", symbol: "charge" },
+    stack: "express",
+  });
+
+  it("refuses an exercise that does not name the spot file", async () => {
+    expect(await rejected("save_growth_plan", { focus_areas: [area([proof()], "Study how timeouts work.")] })).toMatch(/pay\.ts/);
+  });
+
+  it("refuses evidence of another item", async () => {
+    expect(await rejected("save_growth_plan", { focus_areas: [area([proof("BE.ERR.M3")], "In pay.ts, decide when to retry.")] })).toMatch(/not evidence for BE\.ERR\.M2/);
+  });
+
+  it("saves a personal plan item and returns it from the report data", async () => {
+    await ok("save_growth_plan", { focus_areas: [area([proof()], "In pay.ts, decide when charge may retry and write it down.")] });
+    const plan = latestGrowthPlan(db)!;
+    expect(plan.focus_areas[0]).toMatchObject({ item_id: "BE.ERR.M2", spot: { file: "api/pay.ts", symbol: "charge" }, stack: "express" });
+  });
+
+  it("saves a stack note only for a stack the ladder lacks", async () => {
+    expect(await rejected("save_stack_note", { item_id: "BE.ERR.M2", stack_id: "express", note: "Use AbortSignal.timeout.", link: "https://nodejs.org" })).toMatch(/already has a note/);
+    expect((await ok("save_stack_note", { item_id: "BE.ERR.M2", stack_id: "fastify", note: "Set a request timeout on the client.", link: "https://fastify.dev/docs/latest/" })).saved).toBe(true);
   });
 });

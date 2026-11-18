@@ -31,7 +31,7 @@ it.skipIf(!existsSync(entry))("serves tools over stdio from the built file", asy
         stderr: "ignore",
       }),
     );
-    expect((await client.listTools()).tools).toHaveLength(24);
+    expect((await client.listTools()).tools).toHaveLength(25);
     const ticket = await client.callTool({ name: "get_ticket", arguments: { ticket_id: "SAMPLE-1" } });
     expect(ticket.isError).toBeFalsy();
     expect(text(ticket)).toContain("SAMPLE-1");

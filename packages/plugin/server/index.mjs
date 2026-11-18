@@ -37244,11 +37244,26 @@ function listObservations(db2, developerId = localDeveloperId()) {
   }));
   return { developer_id: developerId, observations };
 }
-function saveGrowthPlan(db2, input2) {
+function saveGrowthPlan(db2, input2, checkItemArea2) {
   const developerId = input2.developer_id ?? localDeveloperId();
   const ownsObservation = db2.prepare("SELECT 1 FROM observations WHERE id = ? AND developer_id = ?");
   const focusAreas = input2.focus_areas.map((area) => {
     const evidence = [...new Set(area.evidence_ids)];
+    if (area.item_id !== void 0) {
+      if (!checkItemArea2) throw new StoreError("A focus area with a ladder item cannot be checked here");
+      const ladderId2 = checkItemArea2({ ...area, item_id: area.item_id, evidence_ids: evidence });
+      return {
+        id: randomUUID(),
+        claim: area.claim,
+        evidence_ids: evidence,
+        tentative: evidence.length < 2,
+        exercise: area.exercise,
+        item_id: area.item_id,
+        ladder_id: ladderId2,
+        ...area.spot ? { spot: { file: area.spot.file, symbol: area.spot.symbol ?? null } } : {},
+        ...area.stack ? { stack: area.stack } : {}
+      };
+    }
     for (const evidenceId of evidence) {
       if (!ownsObservation.get(evidenceId, developerId)) {
         throw new StoreError(`Evidence '${evidenceId}' is not an observation of developer '${developerId}'`);
@@ -37362,6 +37377,9 @@ function latestGrowthPlan(db2, developerId = localDeveloperId()) {
         claim: area.claim,
         tentative: area.tentative,
         exercise: area.exercise,
+        ...area.item_id ? { item_id: area.item_id } : {},
+        ...area.spot ? { spot: area.spot } : {},
+        ...area.stack ? { stack: area.stack } : {},
         evidence: area.evidence_ids.map((e) => observations.get(e)).filter((o) => o !== void 0),
         annotations: annotationsFor(db2, id2)
       };
@@ -42922,349 +42940,8 @@ function drillsReady(db2, results, now = /* @__PURE__ */ new Date()) {
   return ready2;
 }
 
-// src/coach/status.ts
-import { randomUUID as randomUUID6 } from "node:crypto";
-
-// src/git/diff.ts
-import { createHash } from "node:crypto";
-function cleanPath(raw) {
-  let path = raw.trim();
-  if (path === "/dev/null") return null;
-  if (path.startsWith('"') && path.endsWith('"')) {
-    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
-  }
-  return path.replace(/^[ab]\//, "");
-}
-var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-function parseUnifiedDiff(text2) {
-  const files = [];
-  let file2 = null;
-  let inHunk = false;
-  let oldLine = 0;
-  let newLine = 0;
-  for (const rawLine of text2.split("\n")) {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-    if (line.startsWith("diff --git ")) {
-      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
-      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
-      files.push(file2);
-      inHunk = false;
-      continue;
-    }
-    if (!file2) continue;
-    if (!inHunk) {
-      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
-      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
-      else if (line.startsWith("--- ")) {
-        const old = cleanPath(line.slice(4));
-        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
-        if (old) file2.path = file2.path || old;
-      } else if (line.startsWith("+++ ")) {
-        const next = cleanPath(line.slice(4));
-        if (next) file2.path = next;
-        else if (file2.oldPath === null) {
-        }
-      } else if (line.startsWith("Binary files ")) file2.binary = true;
-    }
-    const hunk = HUNK.exec(line);
-    if (hunk) {
-      inHunk = true;
-      oldLine = Number(hunk[1]);
-      newLine = Number(hunk[2]);
-      continue;
-    }
-    if (!inHunk) continue;
-    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
-    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
-    else if (line.startsWith(" ")) {
-      oldLine++;
-      newLine++;
-    }
-  }
-  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
-  return files;
-}
-async function commitDiff(root, sha, exec = run2) {
-  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
-  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
-  return parseUnifiedDiff(result.stdout);
-}
-function changeId(diff) {
-  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
-+${f.added.map((l) => l.text).join("\n")}
--${f.removed.map((l) => l.text).join("\n")}`);
-  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
-}
-
-// src/git/log.ts
-var SEP = "";
-async function repoTopLevel(cwd, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
-  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
-}
-async function currentBranch(root, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
-  const name2 = result.stdout.trim();
-  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
-}
-async function developerEmails(root, extra, exec = run2) {
-  const result = await exec("git", ["config", "user.email"], root);
-  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
-  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
-}
-async function listCommits(root, opts) {
-  const exec = opts.exec ?? run2;
-  const args2 = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
-  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
-  const result = await exec("git", args2, root);
-  if (result.code !== 0) return [];
-  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
-  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
-    const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
-    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
-  }).filter((c) => emails.has(c.authorEmail)).reverse();
-}
-async function defaultBranchCommits(root, exec = run2) {
-  for (const ref of ["origin/HEAD", "main", "master"]) {
-    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
-    if (found.code !== 0) continue;
-    const list = await exec("git", ["rev-list", ref], root);
-    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
-  }
-  return /* @__PURE__ */ new Set();
-}
-
-// src/coach/attribution.ts
-import { createHash as createHash2 } from "node:crypto";
-function normalizeLine(line) {
-  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
-  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
-  return s.length >= 4 ? s : null;
-}
-function lineHash(normalized) {
-  return createHash2("sha256").update(normalized).digest("hex").slice(0, 16);
-}
-function aiHashesFor(db2, repoRoot, filePath) {
-  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
-  return new Set(rows2.map((r) => r.hash));
-}
-function firstHashAt(db2, repoRoot) {
-  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
-  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
-}
-function sqliteTime(date5) {
-  return date5.toISOString().replace("T", " ").slice(0, 19);
-}
-function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
-  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
-  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
-}
-
-// src/coach/capture.ts
-import { randomUUID as randomUUID5 } from "node:crypto";
-
-// src/rules/engine.ts
-var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
-var IMPORT_LINES = [
-  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
-  /^\s*using\s+[\w.]+\s*;\s*$/,
-  /^\s*package\s+[\w.]+\s*;?\s*$/,
-  /^\s*from\s+[\w.]+\s+import\s.+$/,
-  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
-];
-function isCodeLine(line) {
-  if (line.trim() === "") return false;
-  if (COMMENT.test(line)) return false;
-  return !IMPORT_LINES.some((re) => re.test(line));
-}
-function extensionOf(filePath) {
-  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
-  const dot = name2.lastIndexOf(".");
-  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
-}
-function checkFlags(rule) {
-  for (const re of [rule.pattern, rule.unless]) {
-    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
-  }
-}
-function ruleMatches(rule, filePath, line) {
-  checkFlags(rule);
-  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
-  if (!isCodeLine(line)) return false;
-  if (!rule.pattern.test(line)) return false;
-  return !(rule.unless && rule.unless.test(line));
-}
-function matchLine(rules, filePath, line) {
-  return rules.filter((rule) => ruleMatches(rule, filePath, line));
-}
-
-// src/coach/capture.ts
-function isGeneratedPath(path) {
-  const p = path.replaceAll("\\", "/").toLowerCase();
-  const name2 = p.split("/").pop() ?? "";
-  if (["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "npm-shrinkwrap.json"].includes(name2) || name2.endsWith(".lock")) return true;
-  if (/(^|\/)(dist|build|vendor|node_modules|__generated__)\//.test(p)) return true;
-  return /\.min\.[a-z0-9]+$/.test(name2) || /\.generated\.[a-z0-9]+$/.test(name2);
-}
-var MAX_ADDED_LINES = 3e3;
-function isoWeek(isoDate) {
-  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
-  const date5 = new Date(Date.UTC(y, m - 1, d));
-  const day = (date5.getUTCDay() + 6) % 7;
-  date5.setUTCDate(date5.getUTCDate() - day + 3);
-  const year = date5.getUTCFullYear();
-  const firstThursday = new Date(Date.UTC(year, 0, 4));
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - (firstThursday.getUTCDay() + 6) % 7 + 3);
-  const week = 1 + Math.round((date5.getTime() - firstThursday.getTime()) / (7 * 864e5));
-  return `${year}-W${String(week).padStart(2, "0")}`;
-}
-function ticketForCommit(c, ctx) {
-  const key = /\b[A-Z][A-Z0-9]+-\d+\b/.exec(c.subject);
-  if (key) return key[0];
-  if (!ctx.onDefault && ctx.branch) return ctx.branch;
-  return `week:${isoWeek(c.authorDate)}`;
-}
-async function showFile(root, rev, path, exec) {
-  const result = await exec("git", ["show", `${rev}:${path}`], root);
-  return result.code === 0 ? result.stdout : null;
-}
-function targetsBySignal(ladders) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const l of ladders) {
-    for (const area of l.ladder.areas) {
-      for (const level of LEVELS) {
-        for (const item of area.levels[level]) {
-          for (const ref of item.signals) {
-            const list = map2.get(ref.id) ?? [];
-            list.push({ ladder_id: l.ladder_id, item_id: item.id, ref });
-            map2.set(ref.id, list);
-          }
-        }
-      }
-    }
-  }
-  return map2;
-}
-async function symbolsFor(path, source, lines) {
-  const out2 = /* @__PURE__ */ new Map();
-  for (const line of lines) {
-    out2.set(line, source !== null && isSupported(path) ? (await symbolAtLine(path, source, line))?.name ?? null : null);
-  }
-  return out2;
-}
-async function readCommit(db2, top, sha, diff, targets, exec) {
-  const rows2 = /* @__PURE__ */ new Map();
-  const fixes = /* @__PURE__ */ new Map();
-  for (const file2 of diff) {
-    if (file2.binary || isGeneratedPath(file2.path) || file2.added.length > MAX_ADDED_LINES) continue;
-    const hits = [];
-    for (const added of file2.added) {
-      for (const rule of matchLine(SIGNALS, file2.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
-    }
-    if (hits.length > 0) {
-      const ai = aiHashesFor(db2, top, file2.path);
-      const source = await showFile(top, sha, file2.path, exec);
-      const symbols = await symbolsFor(file2.path, source, [...new Set(hits.map((h) => h.line))]);
-      for (const hit of hits) {
-        const normalized = normalizeLine(hit.text);
-        const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
-        const symbol2 = symbols.get(hit.line) ?? null;
-        for (const t of targets.get(hit.signal) ?? []) {
-          const key = [t.ladder_id, t.item_id, hit.signal, file2.path, symbol2 ?? "", author].join("\0");
-          if (!rows2.has(key)) {
-            rows2.set(key, {
-              ladder_id: t.ladder_id,
-              item_id: t.item_id,
-              polarity: t.ref.polarity,
-              author,
-              regresses: t.ref.regresses === true,
-              file_path: file2.path,
-              symbol: symbol2,
-              signal_id: hit.signal
-            });
-          }
-        }
-      }
-    }
-    const removedHits = [];
-    for (const removed of file2.removed) {
-      for (const rule of matchLine(SIGNALS, file2.path, removed.text)) {
-        if ((targets.get(rule.id) ?? []).some((t) => t.ref.polarity === "negative")) removedHits.push({ line: removed.line, signal: rule.id });
-      }
-    }
-    if (removedHits.length > 0) {
-      const oldPath = file2.oldPath ?? file2.path;
-      const source = await showFile(top, `${sha}^`, oldPath, exec);
-      const symbols = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
-      for (const hit of removedHits) {
-        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols.get(hit.line) ?? null };
-        fixes.set([fix.signal_id, fix.file_path, fix.symbol ?? ""].join("\0"), fix);
-      }
-    }
-  }
-  return { rows: [...rows2.values()], fixes: [...fixes.values()] };
-}
-async function catchUp(db2, opts) {
-  const exec = opts.exec ?? run2;
-  const now = opts.now ?? /* @__PURE__ */ new Date();
-  const t = opts.ladders[0]?.thresholds ?? DEFAULT_THRESHOLDS;
-  const nothing = (note) => ({
-    started: note === void 0,
-    ...note === void 0 ? {} : { note },
-    commits_read: 0,
-    evidence_added: 0,
-    faults_fixed: 0,
-    more_left: false
-  });
-  pruneAiLines(db2, t.hash_keep_days, now);
-  const top = await repoTopLevel(opts.root, exec);
-  if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
-  const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
-  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
-  const since = firstHashAt(db2, top);
-  if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
-  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top).map((r) => r.sha));
-  const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
-  const batch = unseen.slice(0, t.catchup_max);
-  if (batch.length === 0) return nothing();
-  const onDefault = await defaultBranchCommits(top, exec);
-  const branch = await currentBranch(top, exec);
-  const targets = targetsBySignal(opts.ladders);
-  const sameChange = db2.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
-  const markSeen = db2.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
-  const insert = db2.prepare(`
-    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at)
-    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const fix = db2.prepare(`
-    UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ?
-    WHERE repo_root = ? AND polarity = 'negative' AND fixed_at IS NULL AND signal_id = ? AND file_path = ? AND symbol IS ? AND at < ?`);
-  let evidenceAdded = 0;
-  let faultsFixed = 0;
-  for (const c of batch) {
-    const diff = await commitDiff(top, c.sha, exec);
-    const id2 = changeId(diff);
-    if (sameChange.get(top, id2)) {
-      markSeen.run(top, c.sha, id2);
-      continue;
-    }
-    const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
-    const { rows: rows2, fixes } = await readCommit(db2, top, c.sha, diff, targets, exec);
-    transaction(db2, () => {
-      for (const r of rows2) {
-        insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
-        evidenceAdded++;
-      }
-      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
-      markSeen.run(top, c.sha, id2);
-    });
-  }
-  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
-}
-
 // src/coach/ladder/load.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash } from "node:crypto";
 import { existsSync as existsSync3, readFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join7 } from "node:path";
@@ -43984,7 +43661,7 @@ function loadLadder(track, opts) {
   const home = opts.home ?? homedir2();
   const builtin = BUILTIN_LADDERS[track];
   const tries = [
-    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash3("sha256").update(opts.repoRoot).digest("hex").slice(0, 8)}/${track}` },
+    { source: "repo", path: join7(opts.repoRoot, FILE), id: `repo:${createHash("sha256").update(opts.repoRoot).digest("hex").slice(0, 8)}/${track}` },
     { source: "home", path: join7(home, FILE), id: `home/${track}` }
   ];
   for (const t of tries) {
@@ -44100,6 +43777,454 @@ function detectStacks(root) {
   walk(root, "", 0);
   return hits;
 }
+function stackForPath(stacks, filePath, track) {
+  const path = filePath.replaceAll("\\", "/");
+  let best = null;
+  for (const hit of stacks) {
+    if (hit.track !== track) continue;
+    const inside = hit.folder === "" || path === hit.folder || path.startsWith(`${hit.folder}/`);
+    if (inside && (best === null || hit.folder.length > best.folder.length)) best = hit;
+  }
+  return best?.stack_id ?? null;
+}
+
+// src/coach/plan.ts
+function priority(status, faults) {
+  if (faults.has(status.item_id)) return 0;
+  if (status.state === "shown") return 1;
+  return 2;
+}
+function pickFocus(results, ctx, max = 3) {
+  const byArea = [];
+  for (const { loaded, statuses } of results) {
+    for (const area of loaded.ladder.areas) {
+      if (!ctx.workedAreas.has(`${loaded.ladder_id}:${area.id}`)) continue;
+      const { working_toward } = areaLevel(area, statuses);
+      if (working_toward === null) continue;
+      const next = LEVELS[LEVELS.indexOf(working_toward) + 1];
+      const allowed = /* @__PURE__ */ new Set([working_toward, ...next ? [next] : []]);
+      const candidates = LEVELS.filter((l) => allowed.has(l)).flatMap((l) => area.levels[l]).map((item) => statuses.get(item.id)).filter((s) => s.state === "learning" || s.state === "shown").map((status) => ({ loaded, status }));
+      if (candidates.length > 0) byArea.push(candidates);
+    }
+  }
+  const order = (a, b) => priority(a.status, ctx.recentFaultItems) - priority(b.status, ctx.recentFaultItems) || b.status.proofs - a.status.proofs;
+  for (const list of byArea) list.sort(order);
+  const firsts = byArea.map((list) => list[0]).sort(order);
+  const picked = firsts.slice(0, max);
+  if (picked.length < max) picked.push(...byArea.flatMap((list) => list.slice(1)).sort(order).slice(0, max - picked.length));
+  return picked.sort(order);
+}
+function buildFrame(db2, status, ctx) {
+  const found = findItem(ctx.ladder.ladder, status.item_id);
+  if (!found) throw new StoreError(`Unknown ladder item '${status.item_id}'`);
+  const item = found.item;
+  const ladderId2 = ctx.ladder.ladder_id;
+  const spotRow = db2.prepare(
+    `SELECT file_path, symbol FROM skill_evidence
+       WHERE ladder_id = ? AND item_id = ? AND disagreed_at IS NULL AND file_path IS NOT NULL
+         AND ((polarity = 'negative' AND fixed_at IS NULL) OR (polarity = 'positive' AND (author = 'dev' OR decided_by = 'dev')))
+       ORDER BY CASE WHEN polarity = 'negative' THEN 0 ELSE 1 END, at DESC LIMIT 1`
+  ).get(ladderId2, item.id) ?? null;
+  const spot = spotRow ? { file: spotRow.file_path, symbol: spotRow.symbol } : null;
+  const stack = (spot ? stackForPath(ctx.stacks, spot.file, ctx.ladder.track) : null) ?? ctx.stacks.find((s) => s.track === ctx.ladder.track)?.stack_id ?? null;
+  let stackNote = null;
+  if (stack !== null) {
+    const fromLadder = item.stack_notes[stack];
+    if (fromLadder) stackNote = { ...fromLadder, source: "ladder" };
+    else {
+      const local = db2.prepare("SELECT note, link FROM stack_notes_local WHERE ladder_id = ? AND item_id = ? AND stack_id = ?").get(ladderId2, item.id, stack);
+      if (local) stackNote = { ...local, source: "local" };
+    }
+  }
+  const ids = [
+    ...db2.prepare("SELECT id FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND disagreed_at IS NULL ORDER BY at DESC").all(ladderId2, item.id),
+    ...db2.prepare("SELECT id FROM pending_questions WHERE ladder_id = ? AND item_id = ? AND rating IS NOT NULL").all(ladderId2, item.id),
+    ...db2.prepare("SELECT id FROM drill_attempts WHERE ladder_id = ? AND item_id = ? AND void = 0").all(ladderId2, item.id)
+  ].map((r) => r.id);
+  return {
+    ladder_id: ladderId2,
+    item_id: item.id,
+    title: item.title,
+    state: status.state,
+    needs: status.needs,
+    stack,
+    stack_note: stackNote,
+    study: item.study,
+    spot,
+    evidence_ids: ids.slice(0, 20)
+  };
+}
+function saveStackNote(db2, loaded, input2) {
+  const found = findItem(loaded.ladder, input2.item_id);
+  if (!found) throw new StoreError(`Unknown ladder item '${input2.item_id}'`);
+  if (found.item.stack_notes[input2.stack_id]) throw new StoreError(`The ladder already has a note for ${input2.stack_id}; use that one`);
+  if (!/^https:\/\/\S+$/.test(input2.link)) throw new StoreError("Stack note links must start with https://");
+  db2.prepare("INSERT OR REPLACE INTO stack_notes_local (ladder_id, item_id, stack_id, note, link) VALUES (?, ?, ?, ?, ?)").run(
+    loaded.ladder_id,
+    input2.item_id,
+    input2.stack_id,
+    input2.note,
+    input2.link
+  );
+  return { saved: true };
+}
+function checkItemArea(db2, area) {
+  const ofItem = [
+    db2.prepare("SELECT 1 FROM skill_evidence WHERE id = ? AND ladder_id = ? AND item_id = ?"),
+    db2.prepare("SELECT 1 FROM pending_questions WHERE id = ? AND ladder_id = ? AND item_id = ? AND rating IS NOT NULL"),
+    db2.prepare("SELECT 1 FROM drill_attempts WHERE id = ? AND ladder_id = ? AND item_id = ?")
+  ];
+  for (const id2 of area.evidence_ids) {
+    if (!ofItem.some((q) => q.get(id2, area.ladder_id, area.item_id))) throw new StoreError(`'${id2}' is not evidence for ${area.item_id}`);
+  }
+  if (area.spot) {
+    const base = area.spot.file.replaceAll("\\", "/").split("/").pop() ?? area.spot.file;
+    if (!area.exercise.toLowerCase().includes(base.toLowerCase())) throw new StoreError(`The exercise must name the spot's file (${base}), so it is about the developer's own code`);
+  } else if (!/\bticket\b/i.test(area.exercise)) {
+    throw new StoreError("Give the exercise a real spot in the developer's code, or tie it to their next ticket");
+  }
+}
+
+// src/coach/status.ts
+import { randomUUID as randomUUID6 } from "node:crypto";
+
+// src/git/diff.ts
+import { createHash as createHash2 } from "node:crypto";
+function cleanPath(raw) {
+  let path = raw.trim();
+  if (path === "/dev/null") return null;
+  if (path.startsWith('"') && path.endsWith('"')) {
+    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
+  }
+  return path.replace(/^[ab]\//, "");
+}
+var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+function parseUnifiedDiff(text2) {
+  const files = [];
+  let file2 = null;
+  let inHunk = false;
+  let oldLine = 0;
+  let newLine = 0;
+  for (const rawLine of text2.split("\n")) {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    if (line.startsWith("diff --git ")) {
+      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
+      files.push(file2);
+      inHunk = false;
+      continue;
+    }
+    if (!file2) continue;
+    if (!inHunk) {
+      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
+      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
+      else if (line.startsWith("--- ")) {
+        const old = cleanPath(line.slice(4));
+        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
+        if (old) file2.path = file2.path || old;
+      } else if (line.startsWith("+++ ")) {
+        const next = cleanPath(line.slice(4));
+        if (next) file2.path = next;
+        else if (file2.oldPath === null) {
+        }
+      } else if (line.startsWith("Binary files ")) file2.binary = true;
+    }
+    const hunk = HUNK.exec(line);
+    if (hunk) {
+      inHunk = true;
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[2]);
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
+    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
+    else if (line.startsWith(" ")) {
+      oldLine++;
+      newLine++;
+    }
+  }
+  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
+  return files;
+}
+async function commitDiff(root, sha, exec = run2) {
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
+  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
+  return parseUnifiedDiff(result.stdout);
+}
+function changeId(diff) {
+  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
++${f.added.map((l) => l.text).join("\n")}
+-${f.removed.map((l) => l.text).join("\n")}`);
+  return createHash2("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
+}
+
+// src/git/log.ts
+var SEP = "";
+async function repoTopLevel(cwd, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
+  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
+}
+async function currentBranch(root, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
+  const name2 = result.stdout.trim();
+  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
+}
+async function developerEmails(root, extra, exec = run2) {
+  const result = await exec("git", ["config", "user.email"], root);
+  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
+  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
+}
+async function listCommits(root, opts) {
+  const exec = opts.exec ?? run2;
+  const args2 = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
+  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
+  const result = await exec("git", args2, root);
+  if (result.code !== 0) return [];
+  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
+  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
+    const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
+    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
+  }).filter((c) => emails.has(c.authorEmail)).reverse();
+}
+async function defaultBranchCommits(root, exec = run2) {
+  for (const ref of ["origin/HEAD", "main", "master"]) {
+    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
+    if (found.code !== 0) continue;
+    const list = await exec("git", ["rev-list", ref], root);
+    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+  }
+  return /* @__PURE__ */ new Set();
+}
+
+// src/coach/attribution.ts
+import { createHash as createHash3 } from "node:crypto";
+function normalizeLine(line) {
+  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
+  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
+  return s.length >= 4 ? s : null;
+}
+function lineHash(normalized) {
+  return createHash3("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+function aiHashesFor(db2, repoRoot, filePath) {
+  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
+  return new Set(rows2.map((r) => r.hash));
+}
+function firstHashAt(db2, repoRoot) {
+  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
+  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
+}
+function sqliteTime(date5) {
+  return date5.toISOString().replace("T", " ").slice(0, 19);
+}
+function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
+  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
+  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
+}
+
+// src/coach/capture.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+
+// src/rules/engine.ts
+var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
+var IMPORT_LINES = [
+  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
+  /^\s*using\s+[\w.]+\s*;\s*$/,
+  /^\s*package\s+[\w.]+\s*;?\s*$/,
+  /^\s*from\s+[\w.]+\s+import\s.+$/,
+  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
+];
+function isCodeLine(line) {
+  if (line.trim() === "") return false;
+  if (COMMENT.test(line)) return false;
+  return !IMPORT_LINES.some((re) => re.test(line));
+}
+function extensionOf(filePath) {
+  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
+  const dot = name2.lastIndexOf(".");
+  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
+}
+function checkFlags(rule) {
+  for (const re of [rule.pattern, rule.unless]) {
+    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
+  }
+}
+function ruleMatches(rule, filePath, line) {
+  checkFlags(rule);
+  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
+  if (!isCodeLine(line)) return false;
+  if (!rule.pattern.test(line)) return false;
+  return !(rule.unless && rule.unless.test(line));
+}
+function matchLine(rules, filePath, line) {
+  return rules.filter((rule) => ruleMatches(rule, filePath, line));
+}
+
+// src/coach/capture.ts
+function isGeneratedPath(path) {
+  const p = path.replaceAll("\\", "/").toLowerCase();
+  const name2 = p.split("/").pop() ?? "";
+  if (["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "npm-shrinkwrap.json"].includes(name2) || name2.endsWith(".lock")) return true;
+  if (/(^|\/)(dist|build|vendor|node_modules|__generated__)\//.test(p)) return true;
+  return /\.min\.[a-z0-9]+$/.test(name2) || /\.generated\.[a-z0-9]+$/.test(name2);
+}
+var MAX_ADDED_LINES = 3e3;
+function isoWeek(isoDate) {
+  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
+  const date5 = new Date(Date.UTC(y, m - 1, d));
+  const day = (date5.getUTCDay() + 6) % 7;
+  date5.setUTCDate(date5.getUTCDate() - day + 3);
+  const year = date5.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(year, 0, 4));
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - (firstThursday.getUTCDay() + 6) % 7 + 3);
+  const week = 1 + Math.round((date5.getTime() - firstThursday.getTime()) / (7 * 864e5));
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+function ticketForCommit(c, ctx) {
+  const key = /\b[A-Z][A-Z0-9]+-\d+\b/.exec(c.subject);
+  if (key) return key[0];
+  if (!ctx.onDefault && ctx.branch) return ctx.branch;
+  return `week:${isoWeek(c.authorDate)}`;
+}
+async function showFile(root, rev, path, exec) {
+  const result = await exec("git", ["show", `${rev}:${path}`], root);
+  return result.code === 0 ? result.stdout : null;
+}
+function targetsBySignal(ladders) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const l of ladders) {
+    for (const area of l.ladder.areas) {
+      for (const level of LEVELS) {
+        for (const item of area.levels[level]) {
+          for (const ref of item.signals) {
+            const list = map2.get(ref.id) ?? [];
+            list.push({ ladder_id: l.ladder_id, item_id: item.id, ref });
+            map2.set(ref.id, list);
+          }
+        }
+      }
+    }
+  }
+  return map2;
+}
+async function symbolsFor(path, source, lines) {
+  const out2 = /* @__PURE__ */ new Map();
+  for (const line of lines) {
+    out2.set(line, source !== null && isSupported(path) ? (await symbolAtLine(path, source, line))?.name ?? null : null);
+  }
+  return out2;
+}
+async function readCommit(db2, top, sha, diff, targets, exec) {
+  const rows2 = /* @__PURE__ */ new Map();
+  const fixes = /* @__PURE__ */ new Map();
+  for (const file2 of diff) {
+    if (file2.binary || isGeneratedPath(file2.path) || file2.added.length > MAX_ADDED_LINES) continue;
+    const hits = [];
+    for (const added of file2.added) {
+      for (const rule of matchLine(SIGNALS, file2.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+    }
+    if (hits.length > 0) {
+      const ai = aiHashesFor(db2, top, file2.path);
+      const source = await showFile(top, sha, file2.path, exec);
+      const symbols = await symbolsFor(file2.path, source, [...new Set(hits.map((h) => h.line))]);
+      for (const hit of hits) {
+        const normalized = normalizeLine(hit.text);
+        const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
+        const symbol2 = symbols.get(hit.line) ?? null;
+        for (const t of targets.get(hit.signal) ?? []) {
+          const key = [t.ladder_id, t.item_id, hit.signal, file2.path, symbol2 ?? "", author].join("\0");
+          if (!rows2.has(key)) {
+            rows2.set(key, {
+              ladder_id: t.ladder_id,
+              item_id: t.item_id,
+              polarity: t.ref.polarity,
+              author,
+              regresses: t.ref.regresses === true,
+              file_path: file2.path,
+              symbol: symbol2,
+              signal_id: hit.signal
+            });
+          }
+        }
+      }
+    }
+    const removedHits = [];
+    for (const removed of file2.removed) {
+      for (const rule of matchLine(SIGNALS, file2.path, removed.text)) {
+        if ((targets.get(rule.id) ?? []).some((t) => t.ref.polarity === "negative")) removedHits.push({ line: removed.line, signal: rule.id });
+      }
+    }
+    if (removedHits.length > 0) {
+      const oldPath = file2.oldPath ?? file2.path;
+      const source = await showFile(top, `${sha}^`, oldPath, exec);
+      const symbols = await symbolsFor(oldPath, source, [...new Set(removedHits.map((h) => h.line))]);
+      for (const hit of removedHits) {
+        const fix = { signal_id: hit.signal, file_path: file2.path, symbol: symbols.get(hit.line) ?? null };
+        fixes.set([fix.signal_id, fix.file_path, fix.symbol ?? ""].join("\0"), fix);
+      }
+    }
+  }
+  return { rows: [...rows2.values()], fixes: [...fixes.values()] };
+}
+async function catchUp(db2, opts) {
+  const exec = opts.exec ?? run2;
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const t = opts.ladders[0]?.thresholds ?? DEFAULT_THRESHOLDS;
+  const nothing = (note) => ({
+    started: note === void 0,
+    ...note === void 0 ? {} : { note },
+    commits_read: 0,
+    evidence_added: 0,
+    faults_fixed: 0,
+    more_left: false
+  });
+  pruneAiLines(db2, t.hash_keep_days, now);
+  const top = await repoTopLevel(opts.root, exec);
+  if (top === null) return nothing("This folder is not a git repo, so Coach has no commits to read.");
+  const emails = await developerEmails(top, opts.extraEmails ?? [], exec);
+  if (emails.length === 0) return nothing("No git user.email is set, so Coach can't tell which commits are yours.");
+  const since = firstHashAt(db2, top);
+  if (since === null) return nothing("Coach starts reading commits after Claude's first edit in this repo.");
+  const seen = new Set(db2.prepare("SELECT sha FROM commits_seen WHERE repo_root = ?").all(top).map((r) => r.sha));
+  const unseen = (await listCommits(top, { authorEmails: emails, sinceIso: since, exec })).filter((c) => !seen.has(c.sha));
+  const batch = unseen.slice(0, t.catchup_max);
+  if (batch.length === 0) return nothing();
+  const onDefault = await defaultBranchCommits(top, exec);
+  const branch = await currentBranch(top, exec);
+  const targets = targetsBySignal(opts.ladders);
+  const sameChange = db2.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
+  const markSeen = db2.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
+  const insert = db2.prepare(`
+    INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, regresses, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at)
+    VALUES (?, ?, ?, 'rule', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const fix = db2.prepare(`
+    UPDATE skill_evidence SET fixed_at = ?, fixed_ticket = ?
+    WHERE repo_root = ? AND polarity = 'negative' AND fixed_at IS NULL AND signal_id = ? AND file_path = ? AND symbol IS ? AND at < ?`);
+  let evidenceAdded = 0;
+  let faultsFixed = 0;
+  for (const c of batch) {
+    const diff = await commitDiff(top, c.sha, exec);
+    const id2 = changeId(diff);
+    if (sameChange.get(top, id2)) {
+      markSeen.run(top, c.sha, id2);
+      continue;
+    }
+    const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
+    const { rows: rows2, fixes } = await readCommit(db2, top, c.sha, diff, targets, exec);
+    transaction(db2, () => {
+      for (const r of rows2) {
+        insert.run(randomUUID5(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        evidenceAdded++;
+      }
+      for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
+      markSeen.run(top, c.sha, id2);
+    });
+  }
+  return { started: true, commits_read: batch.length, evidence_added: evidenceAdded, faults_fixed: faultsFixed, more_left: unseen.length > batch.length };
+}
 
 // src/coach/status.ts
 var capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -44214,6 +44339,19 @@ function renderProgress(s) {
   if (s.not_written.length > 0) lines.push(`Not written yet: ${s.not_written.join(", ")}`);
   return lines.join("\n");
 }
+function focusFrames(db2, results, stacks) {
+  const recentFaultItems = /* @__PURE__ */ new Set();
+  const workedAreas = /* @__PURE__ */ new Set();
+  for (const { loaded, statuses } of results) {
+    for (const s of statuses.values()) if (s.open_faults > 0) recentFaultItems.add(s.item_id);
+    const items = db2.prepare("SELECT DISTINCT item_id FROM skill_evidence WHERE ladder_id = ? AND disagreed_at IS NULL").all(loaded.ladder_id);
+    for (const { item_id } of items) {
+      const found = findItem(loaded.ladder, item_id);
+      if (found) workedAreas.add(`${loaded.ladder_id}:${found.area.id}`);
+    }
+  }
+  return pickFocus(results, { recentFaultItems, workedAreas }).map(({ loaded, status }) => buildFrame(db2, status, { ladder: loaded, stacks }));
+}
 async function coachStatus(db2, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const tracks = getTracks(db2);
@@ -44237,6 +44375,7 @@ async function coachStatus(db2, opts) {
   for (const r of results) recordStateChanges(db2, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
   const questions = proposeQuestions(db2, results, ladders[0]?.thresholds.max_questions ?? 3);
+  const focus = focusFrames(db2, results, stacks);
   const status = {
     ...base,
     ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...l.warning ? { warning: l.warning } : {} })),
@@ -44244,6 +44383,7 @@ async function coachStatus(db2, opts) {
     catch_up,
     areas,
     not_written: notWritten,
+    focus,
     questions,
     drills_ready: drillsReady(db2, results, now)
   };
@@ -44723,8 +44863,12 @@ var saveGrowthPlanInput = external_exports.strictObject({
   focus_areas: external_exports.array(
     external_exports.strictObject({
       claim: shortText,
-      evidence_ids: external_exports.array(id).min(1).max(20).describe("Observation ids that support the claim"),
-      exercise: longText.describe("One concrete thing to practise")
+      evidence_ids: external_exports.array(id).min(1).max(20).describe("Ids that support the claim: the focus frame's evidence_ids (with item_id), or observation ids (old plans)"),
+      exercise: longText.describe("One concrete thing to practise. With a spot, it must name the spot's file; without one, the next ticket"),
+      item_id: itemId.optional().describe("The focus frame's ladder item"),
+      ladder_id: external_exports.string().trim().min(1).max(200).optional(),
+      spot: external_exports.strictObject({ file: external_exports.string().trim().min(1).max(500), symbol: external_exports.string().trim().min(1).max(200).nullable().optional() }).optional().describe("The focus frame's spot in the developer's code"),
+      stack: external_exports.string().trim().min(1).max(50).optional().describe("The focus frame's stack")
     })
   ).min(1).max(3)
 });
@@ -44779,6 +44923,12 @@ var scoreDrillInput = external_exports.strictObject({
   question_id: id,
   hits: external_exports.array(scoredPoint).max(10).describe("Key points the answer hits"),
   red_flags: external_exports.array(scoredPoint).max(10).describe("Red flags the answer shows")
+});
+var saveStackNoteInput = external_exports.strictObject({
+  item_id: itemId,
+  stack_id: external_exports.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/, "stack ids are lowercase, like fastify"),
+  note: shortText.describe("Best practice for this item in this stack, in 1 to 3 plain lines. No code"),
+  link: external_exports.string().trim().max(500).describe("One link to the stack's official docs, starting with https://")
 });
 
 // src/mcp/server.ts
@@ -44946,10 +45096,17 @@ function createServer2(db2, tickets2, options = {}) {
     "save_growth_plan",
     {
       title: "Save growth plan",
-      description: "Save a growth plan with 1 to 3 focus areas. Each claim must cite observation ids. The server marks a claim 'tentative' when it rests on a single observation. Words only: code, secrets and client names are rejected.",
+      description: "Save a growth plan with 1 to 3 focus areas. With item_id (from a coach_status focus frame), a claim cites that item's evidence ids and the exercise names the frame's spot file, or the next ticket when there is no spot; the server refuses anything general. Old plans cite observation ids. The server marks a claim 'tentative' when it rests on one piece of evidence. Words only: code, secrets and client names are rejected.",
       inputSchema: saveGrowthPlanInput
     },
-    (input2) => write2(input2, (i2) => saveGrowthPlan(db2, i2))
+    (input2) => write2(
+      input2,
+      (i2) => saveGrowthPlan(db2, i2, (area) => {
+        const { loaded } = ladderForItem(root, area.item_id, { ...home, ...area.ladder_id ? { ladderId: area.ladder_id } : {} });
+        checkItemArea(db2, { ...area, ladder_id: loaded.ladder_id });
+        return loaded.ladder_id;
+      })
+    )
   );
   server2.registerTool(
     "coach_status",
@@ -45063,6 +45220,18 @@ function createServer2(db2, tickets2, options = {}) {
       const row = db2.prepare("SELECT item_id, ladder_id FROM pending_questions WHERE id = ? AND kind = 'drill'").get(input2.question_id);
       if (!row) throw new StoreError(`Question '${input2.question_id}' is not a drill`);
       return scoreDrill(db2, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input2);
+    })
+  );
+  server2.registerTool(
+    "save_stack_note",
+    {
+      title: "Save stack note",
+      description: "Save a short best-practice note for a ladder item in a stack the ladder does not cover yet (a focus frame with a stack but no stack_note). Written once and reused. Refused when the ladder already has a note for that stack.",
+      inputSchema: saveStackNoteInput
+    },
+    (input2) => write2(input2, (i2) => {
+      const { loaded } = ladderForItem(root, i2.item_id, home);
+      return saveStackNote(db2, loaded, i2);
     })
   );
   return server2;

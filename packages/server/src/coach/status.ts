@@ -12,7 +12,7 @@ import { drillsReady } from "./drills.js";
 import { toIso, factsForItem } from "./facts.js";
 import { findItem, loadActiveLadders, loadLadder, type LoadedLadder } from "./ladder/load.js";
 import { LEVELS, type LadderItem, type Level, type Track } from "./ladder/schema.js";
-import type { FocusFrame } from "./plan.js";
+import { buildFrame, pickFocus, type FocusFrame } from "./plan.js";
 import { proposeQuestions, type QuestionView } from "./questions.js";
 import { getExtraEmails, getTracks } from "./settings.js";
 import { detectStacks, type StackHit } from "./stack.js";
@@ -184,6 +184,21 @@ export function renderProgress(s: Omit<CoachStatus, "text">): string {
   return lines.join("\n");
 }
 
+/** Up to 3 focus items, each with its fixed frame. */
+function focusFrames(db: Db, results: LadderStatuses[], stacks: StackHit[]): FocusFrame[] {
+  const recentFaultItems = new Set<string>();
+  const workedAreas = new Set<string>();
+  for (const { loaded, statuses } of results) {
+    for (const s of statuses.values()) if (s.open_faults > 0) recentFaultItems.add(s.item_id);
+    const items = db.prepare("SELECT DISTINCT item_id FROM skill_evidence WHERE ladder_id = ? AND disagreed_at IS NULL").all(loaded.ladder_id) as { item_id: string }[];
+    for (const { item_id } of items) {
+      const found = findItem(loaded.ladder, item_id);
+      if (found) workedAreas.add(`${loaded.ladder_id}:${found.area.id}`);
+    }
+  }
+  return pickFocus(results, { recentFaultItems, workedAreas }).map(({ loaded, status }) => buildFrame(db, status, { ladder: loaded, stacks }));
+}
+
 /** Loads the active ladders, catches up on commits, and works out every state. */
 export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachStatus> {
   const now = opts.now ?? new Date();
@@ -209,6 +224,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
   for (const r of results) recordStateChanges(db, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
   const questions = proposeQuestions(db, results, ladders[0]?.thresholds.max_questions ?? 3);
+  const focus = focusFrames(db, results, stacks);
   const status = {
     ...base,
     ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...(l.warning ? { warning: l.warning } : {}) })),
@@ -216,6 +232,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     catch_up,
     areas,
     not_written: notWritten,
+    focus,
     questions,
     drills_ready: drillsReady(db, results, now),
   };

@@ -8,12 +8,14 @@ import { updatePrDecisions } from "../pr/update.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
 import { openQuestion, rateAnswer } from "../coach/questions.js";
 import { scoreDrill, startDrill } from "../coach/drills.js";
+import { checkItemArea, saveStackNote } from "../coach/plan.js";
 import { coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
 import {
   askQuestionInput,
+  saveStackNoteInput,
   scoreDrillInput,
   startDrillInput,
   rateAnswerInput,
@@ -259,10 +261,18 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
     {
       title: "Save growth plan",
       description:
-        "Save a growth plan with 1 to 3 focus areas. Each claim must cite observation ids. The server marks a claim 'tentative' when it rests on a single observation. Words only: code, secrets and client names are rejected.",
+        "Save a growth plan with 1 to 3 focus areas. With item_id (from a coach_status focus frame), a claim cites that item's evidence ids and the exercise names the frame's spot file, or the next ticket when there is no spot; the server refuses anything general. Old plans cite observation ids. The server marks a claim 'tentative' when it rests on one piece of evidence. Words only: code, secrets and client names are rejected.",
       inputSchema: saveGrowthPlanInput,
     },
-    (input) => write(input, (i) => store.saveGrowthPlan(db, i)),
+    (input) =>
+      write(input, (i) =>
+        store.saveGrowthPlan(db, i, (area) => {
+          // The item must be in the active ladder, and the area must rest on that item's own evidence.
+          const { loaded } = ladderForItem(root, area.item_id, { ...home, ...(area.ladder_id ? { ladderId: area.ladder_id } : {}) });
+          checkItemArea(db, { ...area, ladder_id: loaded.ladder_id });
+          return loaded.ladder_id;
+        }),
+      ),
   );
 
   server.registerTool(
@@ -401,6 +411,21 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
           | undefined;
         if (!row) throw new StoreError(`Question '${input.question_id}' is not a drill`);
         return scoreDrill(db, ladderForItem(root, row.item_id, { ...home, ladderId: row.ladder_id }), input);
+      }),
+  );
+
+  server.registerTool(
+    "save_stack_note",
+    {
+      title: "Save stack note",
+      description:
+        "Save a short best-practice note for a ladder item in a stack the ladder does not cover yet (a focus frame with a stack but no stack_note). Written once and reused. Refused when the ladder already has a note for that stack.",
+      inputSchema: saveStackNoteInput,
+    },
+    (input) =>
+      write(input, (i) => {
+        const { loaded } = ladderForItem(root, i.item_id, home);
+        return saveStackNote(db, loaded, i);
       }),
   );
 

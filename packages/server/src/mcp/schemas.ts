@@ -136,8 +136,19 @@ export const saveGrowthPlanInput = z.strictObject({
     .array(
       z.strictObject({
         claim: shortText,
-        evidence_ids: z.array(id).min(1).max(20).describe("Observation ids that support the claim"),
-        exercise: longText.describe("One concrete thing to practise"),
+        evidence_ids: z
+          .array(id)
+          .min(1)
+          .max(20)
+          .describe("Ids that support the claim: the focus frame's evidence_ids (with item_id), or observation ids (old plans)"),
+        exercise: longText.describe("One concrete thing to practise. With a spot, it must name the spot's file; without one, the next ticket"),
+        item_id: itemId.optional().describe("The focus frame's ladder item"),
+        ladder_id: z.string().trim().min(1).max(200).optional(),
+        spot: z
+          .strictObject({ file: z.string().trim().min(1).max(500), symbol: z.string().trim().min(1).max(200).nullable().optional() })
+          .optional()
+          .describe("The focus frame's spot in the developer's code"),
+        stack: z.string().trim().min(1).max(50).optional().describe("The focus frame's stack"),
       }),
     )
     .min(1)
@@ -208,6 +219,13 @@ export const scoreDrillInput = z.strictObject({
   question_id: id,
   hits: z.array(scoredPoint).max(10).describe("Key points the answer hits"),
   red_flags: z.array(scoredPoint).max(10).describe("Red flags the answer shows"),
+});
+
+export const saveStackNoteInput = z.strictObject({
+  item_id: itemId,
+  stack_id: z.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/, "stack ids are lowercase, like fastify"),
+  note: shortText.describe("Best practice for this item in this stack, in 1 to 3 plain lines. No code"),
+  link: z.string().trim().max(500).describe("One link to the stack's official docs, starting with https://"),
 });
 
 export type ImportTicketInput = z.infer<typeof importTicketInput>;

@@ -20538,6 +20538,9 @@ function latestGrowthPlan(db2, developerId = localDeveloperId()) {
         claim: area.claim,
         tentative: area.tentative,
         exercise: area.exercise,
+        ...area.item_id ? { item_id: area.item_id } : {},
+        ...area.spot ? { spot: area.spot } : {},
+        ...area.stack ? { stack: area.stack } : {},
         evidence: area.evidence_ids.map((e) => observations.get(e)).filter((o) => o !== void 0),
         annotations: annotationsFor(db2, id)
       };

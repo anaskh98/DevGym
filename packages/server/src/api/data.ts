@@ -143,6 +143,9 @@ export function latestGrowthPlan(db: Db, developerId: string = localDeveloperId(
     evidence_ids: string[];
     tentative: boolean;
     exercise: string;
+    item_id?: string;
+    spot?: { file: string; symbol: string | null };
+    stack?: string;
   }[];
   return {
     id: plan.id,
@@ -156,6 +159,9 @@ export function latestGrowthPlan(db: Db, developerId: string = localDeveloperId(
         claim: area.claim,
         tentative: area.tentative,
         exercise: area.exercise,
+        ...(area.item_id ? { item_id: area.item_id } : {}),
+        ...(area.spot ? { spot: area.spot } : {}),
+        ...(area.stack ? { stack: area.stack } : {}),
         evidence: area.evidence_ids.map((e) => observations.get(e)).filter((o) => o !== undefined),
         annotations: annotationsFor(db, id),
       };

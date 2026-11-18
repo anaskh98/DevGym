@@ -365,7 +365,13 @@ export interface SavedFocusArea {
   evidence_ids: string[];
   tentative: boolean;
   exercise: string;
+  item_id?: string;
+  ladder_id?: string;
+  spot?: { file: string; symbol: string | null };
+  stack?: string;
 }
+
+export type FocusAreaInput = SaveGrowthPlanInput["focus_areas"][number];
 
 /**
  * The server decides "tentative", not the model: a claim resting on one observation is tentative.
@@ -373,11 +379,28 @@ export interface SavedFocusArea {
 export function saveGrowthPlan(
   db: Db,
   input: SaveGrowthPlanInput,
+  /** Checks a focus area that names a ladder item and returns its ladder id. Without it, such areas are refused. */
+  checkItemArea?: (area: FocusAreaInput & { item_id: string }) => string,
 ): { growth_plan_id: string; focus_areas: SavedFocusArea[] } {
   const developerId = input.developer_id ?? localDeveloperId();
   const ownsObservation = db.prepare("SELECT 1 FROM observations WHERE id = ? AND developer_id = ?");
-  const focusAreas = input.focus_areas.map((area) => {
+  const focusAreas = input.focus_areas.map((area): SavedFocusArea => {
     const evidence = [...new Set(area.evidence_ids)];
+    if (area.item_id !== undefined) {
+      if (!checkItemArea) throw new StoreError("A focus area with a ladder item cannot be checked here");
+      const ladderId = checkItemArea({ ...area, item_id: area.item_id, evidence_ids: evidence });
+      return {
+        id: randomUUID(),
+        claim: area.claim,
+        evidence_ids: evidence,
+        tentative: evidence.length < 2,
+        exercise: area.exercise,
+        item_id: area.item_id,
+        ladder_id: ladderId,
+        ...(area.spot ? { spot: { file: area.spot.file, symbol: area.spot.symbol ?? null } } : {}),
+        ...(area.stack ? { stack: area.stack } : {}),
+      };
+    }
     for (const evidenceId of evidence) {
       if (!ownsObservation.get(evidenceId, developerId)) {
         throw new StoreError(`Evidence '${evidenceId}' is not an observation of developer '${developerId}'`);
