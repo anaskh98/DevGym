@@ -32,7 +32,12 @@ function withThresholds(ladder: Ladder): Thresholds {
 function unknownSignals(ladder: Ladder): string[] {
   const missing = new Set<string>();
   for (const area of ladder.areas) {
-    for (const level of LEVELS) for (const item of area.levels[level]) for (const s of item.signals) if (!signalById(s.id)) missing.add(s.id);
+    for (const level of LEVELS) {
+      for (const item of area.levels[level]) {
+        for (const s of item.signals) if (!signalById(s.id)) missing.add(s.id);
+        for (const id of item.exposure_signals ?? []) if (!signalById(id)) missing.add(id);
+      }
+    }
   }
   return [...missing];
 }

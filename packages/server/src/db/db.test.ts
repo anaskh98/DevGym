@@ -24,6 +24,7 @@ const TABLES = [
   "pending_questions",
   "pointers",
   "skill_evidence",
+  "skill_exposure",
   "stack_notes_local",
   "tickets",
   "trail_sessions",
@@ -53,6 +54,10 @@ describe("migrate", () => {
 
   it("creates the coach level tables (migration 7)", () => {
     expect(db.prepare("SELECT name FROM schema_migrations WHERE id = 7").get()).toEqual({ name: "coach_levels" });
+  });
+
+  it("creates the exposure table (migration 8)", () => {
+    expect(db.prepare("SELECT name FROM schema_migrations WHERE id = 8").get()).toEqual({ name: "coach_exposure" });
   });
 
   it("leaves migration ids 4, 5 and 6 unused", () => {

@@ -20,6 +20,16 @@ describe("built-in ladders", () => {
     for (const l of [backend, frontend]) for (const i of items(l)) for (const s of i.signals) expect(signalById(s.id), `${i.id} -> ${s.id}`).toBeDefined();
   });
 
+  it("only references exposure signals that exist, and sets the planned ones", () => {
+    for (const l of [backend, frontend]) for (const i of items(l)) for (const id of i.exposure_signals ?? []) expect(signalById(id), `${i.id} -> ${id}`).toBeDefined();
+    const ex = (l: Ladder, id: string) => items(l).find((i) => i.id === id)!.exposure_signals ?? [];
+    expect(ex(backend, "BE.ERR.M2")).toEqual(["io.outside-call"]);
+    expect(ex(backend, "BE.ERR.J2")).toEqual(["io.outside-call", "io.db-query"]);
+    expect(ex(backend, "BE.ERR.X1")).toEqual([]);
+    expect(ex(frontend, "FE.FETCH.M2")).toEqual(["fetch.request"]);
+    expect(ex(frontend, "FE.FETCH.X1")).toEqual([]);
+  });
+
   it("writes ERR and FETCH fully: every level has at least one item", () => {
     const err = backend.areas.find((a) => a.id === "ERR")!;
     const fetch = frontend.areas.find((a) => a.id === "FETCH")!;

@@ -36,6 +36,8 @@ export interface LadderItem {
   drills: Drill[];
   study: string[];
   stack_notes: Record<string, StackNote>;
+  /** Signals that show the developer had the chance to use this skill, used or not. Optional for old company files. */
+  exposure_signals?: string[];
 }
 export interface Area {
   id: string;
@@ -53,6 +55,10 @@ export interface Thresholds {
   max_questions: number;
   hash_keep_days: number;
   catchup_max: number;
+  exposure_window_days: number;
+  exposure_low: number;
+  exposure_medium: number;
+  exposure_high: number;
 }
 export interface Ladder {
   track: Track;
@@ -71,6 +77,10 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   max_questions: 3,
   hash_keep_days: 120,
   catchup_max: 200,
+  exposure_window_days: 90,
+  exposure_low: 1,
+  exposure_medium: 3,
+  exposure_high: 6,
 };
 
 /** How many key points a drill answer must hit: the drill's own number, or two thirds rounded up. */
@@ -106,6 +116,7 @@ const itemSchema = z.strictObject({
   explain_angles: z.array(text).min(1).max(3),
   drills: z.array(drillSchema).min(1).max(3),
   study: z.array(text).min(2).max(4),
+  exposure_signals: z.array(shortId).max(10).optional(),
   stack_notes: z.record(
     shortId,
     z.strictObject({ note: text, link: z.string().regex(/^https:\/\/\S+$/, "stack note links must start with https://") }),

@@ -97,6 +97,10 @@ describe("DEFAULT_THRESHOLDS", () => {
       max_questions: 3,
       hash_keep_days: 120,
       catchup_max: 200,
+      exposure_window_days: 90,
+      exposure_low: 1,
+      exposure_medium: 3,
+      exposure_high: 6,
     });
   });
 });

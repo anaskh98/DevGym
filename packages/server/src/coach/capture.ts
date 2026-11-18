@@ -99,6 +99,33 @@ function targetsBySignal(ladders: LoadedLadder[]): Map<string, Target[]> {
   return map;
 }
 
+/** For each exposure signal id: the ladder items it shows a chance for. */
+function exposureBySignal(ladders: LoadedLadder[]): Map<string, { ladder_id: string; item_id: string }[]> {
+  const map = new Map<string, { ladder_id: string; item_id: string }[]>();
+  for (const l of ladders) {
+    for (const area of l.ladder.areas) {
+      for (const level of LEVELS) {
+        for (const item of area.levels[level]) {
+          for (const id of item.exposure_signals ?? []) {
+            const list = map.get(id) ?? [];
+            list.push({ ladder_id: l.ladder_id, item_id: item.id });
+            map.set(id, list);
+          }
+        }
+      }
+    }
+  }
+  return map;
+}
+
+interface ExposureRow {
+  ladder_id: string;
+  item_id: string;
+  file_path: string;
+  symbol: string | null;
+  signal_id: string;
+}
+
 async function symbolsFor(path: string, source: string | null, lines: number[]): Promise<Map<number, string | null>> {
   const out = new Map<number, string | null>();
   for (const line of lines) {
@@ -131,22 +158,38 @@ async function readCommit(
   sha: string,
   diff: FileDiff[],
   targets: Map<string, Target[]>,
+  exposureTargets: Map<string, { ladder_id: string; item_id: string }[]>,
   exec: Run,
-): Promise<{ rows: NewRow[]; fixes: Fix[] }> {
+): Promise<{ rows: NewRow[]; fixes: Fix[]; exposure: ExposureRow[] }> {
   const rows = new Map<string, NewRow>();
   const fixes = new Map<string, Fix>();
+  const exposure = new Map<string, ExposureRow>();
   for (const file of diff) {
     if (file.binary || isGeneratedPath(file.path) || file.added.length > MAX_ADDED_LINES) continue;
 
     // Added lines: evidence for or against items.
     const hits: { line: number; text: string; signal: string }[] = [];
+    // Exposure: a chance to use a skill, whoever wrote the line (the task needed the skill either way).
+    const chances: { line: number; signal: string }[] = [];
     for (const added of file.added) {
-      for (const rule of matchLine(SIGNALS, file.path, added.text)) if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+      for (const rule of matchLine(SIGNALS, file.path, added.text)) {
+        if (targets.has(rule.id)) hits.push({ ...added, signal: rule.id });
+        if (exposureTargets.has(rule.id)) chances.push({ line: added.line, signal: rule.id });
+      }
+    }
+    const symbols =
+      hits.length > 0 || chances.length > 0
+        ? await symbolsFor(file.path, await showFile(top, sha, file.path, exec), [...new Set([...hits, ...chances].map((h) => h.line))])
+        : new Map<number, string | null>();
+    for (const chance of chances) {
+      const symbol = symbols.get(chance.line) ?? null;
+      for (const t of exposureTargets.get(chance.signal) ?? []) {
+        const key = [t.ladder_id, t.item_id, chance.signal, file.path, symbol ?? ""].join("\0");
+        if (!exposure.has(key)) exposure.set(key, { ...t, file_path: file.path, symbol, signal_id: chance.signal });
+      }
     }
     if (hits.length > 0) {
       const ai = aiHashesFor(db, repoKey, file.path);
-      const source = await showFile(top, sha, file.path, exec);
-      const symbols = await symbolsFor(file.path, source, [...new Set(hits.map((h) => h.line))]);
       for (const hit of hits) {
         const normalized = normalizeLine(hit.text);
         const author = normalized !== null && ai.has(lineHash(normalized)) ? "ai" : "dev";
@@ -186,7 +229,7 @@ async function readCommit(
       }
     }
   }
-  return { rows: [...rows.values()], fixes: [...fixes.values()] };
+  return { rows: [...rows.values()], fixes: [...fixes.values()], exposure: [...exposure.values()] };
 }
 
 /** The moment capture starts in a repo: Claude's first edit there, saved once. Null before any edit. */
@@ -231,6 +274,10 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
   const onDefault = await defaultBranchCommits(top, exec);
   const branch = await currentBranch(top, exec);
   const targets = targetsBySignal(opts.ladders);
+  const exposureTargets = exposureBySignal(opts.ladders);
+  const insertExposure = db.prepare(
+    "INSERT INTO skill_exposure (id, ladder_id, item_id, repo_root, commit_sha, file_path, symbol, ticket, signal_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
   const sameChange = db.prepare("SELECT 1 FROM commits_seen WHERE repo_root = ? AND change_id = ?");
   const markSeen = db.prepare("INSERT OR IGNORE INTO commits_seen (repo_root, sha, change_id) VALUES (?, ?, ?)");
   const insert = db.prepare(`
@@ -257,19 +304,20 @@ export async function catchUp(db: Db, opts: CatchUpOptions): Promise<CatchUpResu
       continue;
     }
     const ticket = ticketForCommit(c, { onDefault: onDefault.has(c.sha), branch });
-    let found: { rows: NewRow[]; fixes: Fix[] };
+    let found: { rows: NewRow[]; fixes: Fix[]; exposure: ExposureRow[] };
     try {
-      found = await readCommit(db, top, key, c.sha, diff, targets, exec);
+      found = await readCommit(db, top, key, c.sha, diff, targets, exposureTargets, exec);
     } catch {
       markSeen.run(key, c.sha, id);
       continue;
     }
-    const { rows, fixes } = found;
+    const { rows, fixes, exposure } = found;
     transaction(db, () => {
       for (const r of rows) {
         insert.run(randomUUID(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, key, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
         evidenceAdded++;
       }
+      for (const x of exposure) insertExposure.run(randomUUID(), x.ladder_id, x.item_id, key, c.sha, x.file_path, x.symbol, ticket, x.signal_id, c.authorDate);
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, key, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
       markSeen.run(key, c.sha, id);
     });

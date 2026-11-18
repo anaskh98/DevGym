@@ -14,6 +14,12 @@ const PLANNED = [
   "fetch.abort-controller",
   "fetch.loading-state",
   "fetch.error-boundary",
+  "io.outside-call",
+  "io.db-query",
+  "err.try-catch",
+  "err.throw",
+  "api.request-body",
+  "fetch.request",
 ];
 
 describe("SIGNALS", () => {

@@ -12,37 +12,92 @@
             "good_looks_like": [
               "Every screen that loads data shows a loading state, an error state with a way to retry, and an empty state."
             ],
-            "signals": [{ "id": "fetch.loading-state", "polarity": "positive" }],
-            "explain_angles": ["What does the user see while this loads?", "What does the user see if it fails?"],
+            "signals": [
+              {
+                "id": "fetch.loading-state",
+                "polarity": "positive"
+              }
+            ],
+            "explain_angles": [
+              "What does the user see while this loads?",
+              "What does the user see if it fails?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "A list page fetches orders. Describe every state the page can be in and what the user sees in each.",
                 "key_points": [
-                  { "id": "k1", "text": "Loading: a spinner or skeleton" },
-                  { "id": "k2", "text": "Error: a message and a retry action" },
-                  { "id": "k3", "text": "Empty: a clear 'no orders yet' state" },
-                  { "id": "k4", "text": "Success: the list" }
+                  {
+                    "id": "k1",
+                    "text": "Loading: a spinner or skeleton"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Error: a message and a retry action"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Empty: a clear 'no orders yet' state"
+                  },
+                  {
+                    "id": "k4",
+                    "text": "Success: the list"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Only handles the success case" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Only handles the success case"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "Users say a page 'goes blank' on slow networks. What is probably missing, and how do you fix it?",
                 "key_points": [
-                  { "id": "k1", "text": "No loading state while data is on its way" },
-                  { "id": "k2", "text": "Possibly no error state when the request fails" },
-                  { "id": "k3", "text": "Add explicit states and test with a slow network in dev tools" }
+                  {
+                    "id": "k1",
+                    "text": "No loading state while data is on its way"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Possibly no error state when the request fails"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Add explicit states and test with a slow network in dev tools"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Blames the network and changes nothing" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Blames the network and changes nothing"
+                  }
+                ]
               }
             ],
-            "study": ["loading, error and empty states", "skeleton screens", "testing with network throttling"],
+            "study": [
+              "loading, error and empty states",
+              "skeleton screens",
+              "testing with network throttling"
+            ],
             "stack_notes": {
-              "react": { "note": "Model loading, error and data as explicit state, or use a data library that gives isLoading and error.", "link": "https://react.dev/reference/react/Suspense" },
-              "nextjs": { "note": "Add loading.js and error.js next to the route for loading and error states.", "link": "https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming" },
-              "angular": { "note": "Track loading and error in the component or a signal, and show them in the template.", "link": "https://angular.dev/guide/http/making-requests" }
-            }
+              "react": {
+                "note": "Model loading, error and data as explicit state, or use a data library that gives isLoading and error.",
+                "link": "https://react.dev/reference/react/Suspense"
+              },
+              "nextjs": {
+                "note": "Add loading.js and error.js next to the route for loading and error states.",
+                "link": "https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming"
+              },
+              "angular": {
+                "note": "Track loading and error in the component or a signal, and show them in the template.",
+                "link": "https://angular.dev/guide/http/making-requests"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           },
           {
             "id": "FE.FETCH.J2",
@@ -51,38 +106,92 @@
               "A failed request is shown to the user or handled on purpose; it is never only logged to the console."
             ],
             "signals": [
-              { "id": "fetch.console-only", "polarity": "negative", "regresses": true },
-              { "id": "err.empty-catch", "polarity": "negative" }
+              {
+                "id": "fetch.console-only",
+                "polarity": "negative",
+                "regresses": true
+              },
+              {
+                "id": "err.empty-catch",
+                "polarity": "negative"
+              }
             ],
-            "explain_angles": ["What does the user see when this request fails?", "Why is a console message not enough here?"],
+            "explain_angles": [
+              "What does the user see when this request fails?",
+              "Why is a console message not enough here?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "A save button calls the API with .catch(console.error). What does the user experience when the save fails, and what would you do?",
                 "key_points": [
-                  { "id": "k1", "text": "The user thinks it saved; their change is silently lost" },
-                  { "id": "k2", "text": "Show an error and keep their input so they can retry" },
-                  { "id": "k3", "text": "Report the error to monitoring, not only the console" }
+                  {
+                    "id": "k1",
+                    "text": "The user thinks it saved; their change is silently lost"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Show an error and keep their input so they can retry"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Report the error to monitoring, not only the console"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Says console.error is enough" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Says console.error is enough"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "When is it fine to ignore a failed request in the UI? Give an example.",
                 "key_points": [
-                  { "id": "k1", "text": "When the data is optional and the page works without it" },
-                  { "id": "k2", "text": "A concrete example such as a non-critical recommendation widget" },
-                  { "id": "k3", "text": "Still report it so the team knows it fails" }
+                  {
+                    "id": "k1",
+                    "text": "When the data is optional and the page works without it"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "A concrete example such as a non-critical recommendation widget"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Still report it so the team knows it fails"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Any request can be ignored" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Any request can be ignored"
+                  }
+                ]
               }
             ],
-            "study": ["promise error handling", "user feedback on failure", "frontend error monitoring"],
+            "study": [
+              "promise error handling",
+              "user feedback on failure",
+              "frontend error monitoring"
+            ],
             "stack_notes": {
-              "react": { "note": "Put the error in state and render it; do not end a promise chain with console.error.", "link": "https://react.dev/reference/react/useEffect#fetching-data-with-effects" },
-              "nextjs": { "note": "Let errors reach an error.js boundary or show them in the form state.", "link": "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
-              "angular": { "note": "Handle errors in the subscribe error callback or catchError and show them to the user.", "link": "https://angular.dev/guide/http/making-requests" }
-            }
+              "react": {
+                "note": "Put the error in state and render it; do not end a promise chain with console.error.",
+                "link": "https://react.dev/reference/react/useEffect#fetching-data-with-effects"
+              },
+              "nextjs": {
+                "note": "Let errors reach an error.js boundary or show them in the form state.",
+                "link": "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              "angular": {
+                "note": "Handle errors in the subscribe error callback or catchError and show them to the user.",
+                "link": "https://angular.dev/guide/http/making-requests"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           }
         ],
         "mid": [
@@ -92,36 +201,88 @@
             "good_looks_like": [
               "Checks the HTTP status before reading the body, and turns a failed status into a real error."
             ],
-            "signals": [{ "id": "fetch.res-ok-check", "polarity": "positive" }],
-            "explain_angles": ["What happens here if the server answers 500?", "Why check the status before reading the body?"],
+            "signals": [
+              {
+                "id": "fetch.res-ok-check",
+                "polarity": "positive"
+              }
+            ],
+            "explain_angles": [
+              "What happens here if the server answers 500?",
+              "Why check the status before reading the body?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "fetch() resolved, so the code calls res.json() and renders it. The server answered 500 with an HTML page. What happens, and how should the code be written?",
                 "key_points": [
-                  { "id": "k1", "text": "fetch only rejects on network errors, not on 4xx or 5xx" },
-                  { "id": "k2", "text": "res.json() fails on HTML or the app renders an error body as data" },
-                  { "id": "k3", "text": "Check res.ok or the status first and throw a real error" }
+                  {
+                    "id": "k1",
+                    "text": "fetch only rejects on network errors, not on 4xx or 5xx"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "res.json() fails on HTML or the app renders an error body as data"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Check res.ok or the status first and throw a real error"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Believes fetch rejects on HTTP errors" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Believes fetch rejects on HTTP errors"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "Where would you put response checking so every screen gets it, and what would it return?",
                 "key_points": [
-                  { "id": "k1", "text": "In one shared API client or wrapper" },
-                  { "id": "k2", "text": "It throws a typed error with status and message" },
-                  { "id": "k3", "text": "Screens then handle one error shape" }
+                  {
+                    "id": "k1",
+                    "text": "In one shared API client or wrapper"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "It throws a typed error with status and message"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Screens then handle one error shape"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Copies the check into every component" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Copies the check into every component"
+                  }
+                ]
               }
             ],
-            "study": ["fetch vs axios error behaviour", "a typed API client", "HTTP status classes"],
+            "study": [
+              "fetch vs axios error behaviour",
+              "a typed API client",
+              "HTTP status classes"
+            ],
             "stack_notes": {
-              "react": { "note": "Wrap fetch in one client function that checks res.ok and throws a typed error.", "link": "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok" },
-              "nextjs": { "note": "Check res.ok in server fetches too, and call notFound() or throw for error.js.", "link": "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
-              "angular": { "note": "HttpClient errors on non-2xx; use an interceptor to map them to one error type.", "link": "https://angular.dev/guide/http/interceptors" }
-            }
+              "react": {
+                "note": "Wrap fetch in one client function that checks res.ok and throws a typed error.",
+                "link": "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok"
+              },
+              "nextjs": {
+                "note": "Check res.ok in server fetches too, and call notFound() or throw for error.js.",
+                "link": "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              "angular": {
+                "note": "HttpClient errors on non-2xx; use an interceptor to map them to one error type.",
+                "link": "https://angular.dev/guide/http/interceptors"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           },
           {
             "id": "FE.FETCH.M2",
@@ -129,36 +290,89 @@
             "good_looks_like": [
               "When the user moves on or types again, old requests are cancelled or ignored so a slow old answer never overwrites a new one."
             ],
-            "signals": [{ "id": "fetch.abort-controller", "polarity": "positive" }],
-            "explain_angles": ["What happens if the user types fast here?", "What happens if they leave the page before it loads?"],
+            "signals": [
+              {
+                "id": "fetch.abort-controller",
+                "polarity": "positive"
+              }
+            ],
+            "explain_angles": [
+              "What happens if the user types fast here?",
+              "What happens if they leave the page before it loads?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "A search box fetches results on each key press. Sometimes old results appear after new ones. Why, and how do you fix it?",
                 "key_points": [
-                  { "id": "k1", "text": "Responses can arrive out of order: a race" },
-                  { "id": "k2", "text": "Cancel the previous request (AbortController, switchMap) or ignore stale answers" },
-                  { "id": "k3", "text": "Debounce the input to send fewer requests" }
+                  {
+                    "id": "k1",
+                    "text": "Responses can arrive out of order: a race"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Cancel the previous request (AbortController, switchMap) or ignore stale answers"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Debounce the input to send fewer requests"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Says requests always come back in order" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Says requests always come back in order"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "A component starts a fetch and the user navigates away before it finishes. What can go wrong, and what do you do?",
                 "key_points": [
-                  { "id": "k1", "text": "State updates on a gone component, or wasted work" },
-                  { "id": "k2", "text": "Abort in the effect cleanup or unsubscribe on destroy" },
-                  { "id": "k3", "text": "Ignore AbortError so it is not shown as a failure" }
+                  {
+                    "id": "k1",
+                    "text": "State updates on a gone component, or wasted work"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Abort in the effect cleanup or unsubscribe on destroy"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Ignore AbortError so it is not shown as a failure"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Shows the abort as an error to the user" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Shows the abort as an error to the user"
+                  }
+                ]
               }
             ],
-            "study": ["race conditions in UI fetching", "AbortController", "debouncing", "effect cleanup"],
+            "study": [
+              "race conditions in UI fetching",
+              "AbortController",
+              "debouncing",
+              "effect cleanup"
+            ],
             "stack_notes": {
-              "react": { "note": "Create an AbortController in the effect and abort it in the cleanup function.", "link": "https://react.dev/reference/react/useEffect#fetching-data-with-effects" },
-              "nextjs": { "note": "On the client, the same effect cleanup applies; prefer a data library that cancels for you.", "link": "https://nextjs.org/docs/app/building-your-application/data-fetching" },
-              "angular": { "note": "Use switchMap so a new search cancels the old request.", "link": "https://rxjs.dev/api/operators/switchMap" }
-            }
+              "react": {
+                "note": "Create an AbortController in the effect and abort it in the cleanup function.",
+                "link": "https://react.dev/reference/react/useEffect#fetching-data-with-effects"
+              },
+              "nextjs": {
+                "note": "On the client, the same effect cleanup applies; prefer a data library that cancels for you.",
+                "link": "https://nextjs.org/docs/app/building-your-application/data-fetching"
+              },
+              "angular": {
+                "note": "Use switchMap so a new search cancels the old request.",
+                "link": "https://rxjs.dev/api/operators/switchMap"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           },
           {
             "id": "FE.FETCH.M3",
@@ -167,35 +381,82 @@
               "Chooses how long data can be stale, avoids fetching the same data twice, and refreshes it after a change."
             ],
             "signals": [],
-            "explain_angles": ["How fresh must this data be?", "When is this cache refreshed?"],
+            "explain_angles": [
+              "How fresh must this data be?",
+              "When is this cache refreshed?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "Three components on one page each fetch the current user. What problems does that cause, and how do you fix it?",
                 "key_points": [
-                  { "id": "k1", "text": "Three requests for the same data: waste and possible mismatch" },
-                  { "id": "k2", "text": "Share one cached query or lift the fetch up" },
-                  { "id": "k3", "text": "Decide when the cached user is refreshed" }
+                  {
+                    "id": "k1",
+                    "text": "Three requests for the same data: waste and possible mismatch"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Share one cached query or lift the fetch up"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Decide when the cached user is refreshed"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Caches forever with no way to refresh" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Caches forever with no way to refresh"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "After a user edits their profile, the header still shows the old name. Why, and what is the right fix?",
                 "key_points": [
-                  { "id": "k1", "text": "A cache holds the old data" },
-                  { "id": "k2", "text": "Invalidate or update the cached data after the change" },
-                  { "id": "k3", "text": "Optionally update it right away and roll back on failure" }
+                  {
+                    "id": "k1",
+                    "text": "A cache holds the old data"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Invalidate or update the cached data after the change"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Optionally update it right away and roll back on failure"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Forces a full page reload" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Forces a full page reload"
+                  }
+                ]
               }
             ],
-            "study": ["stale-while-revalidate", "query keys and invalidation", "request deduping"],
+            "study": [
+              "stale-while-revalidate",
+              "query keys and invalidation",
+              "request deduping"
+            ],
             "stack_notes": {
-              "react": { "note": "Use a server-state library (for example TanStack Query) with query keys and invalidation.", "link": "https://tanstack.com/query/latest/docs/framework/react/overview" },
-              "nextjs": { "note": "Know the fetch cache and revalidate after a change with revalidatePath or revalidateTag.", "link": "https://nextjs.org/docs/app/building-your-application/caching" },
-              "angular": { "note": "Share one observable with shareReplay or a store, and refresh it after writes.", "link": "https://rxjs.dev/api/operators/shareReplay" }
-            }
+              "react": {
+                "note": "Use a server-state library (for example TanStack Query) with query keys and invalidation.",
+                "link": "https://tanstack.com/query/latest/docs/framework/react/overview"
+              },
+              "nextjs": {
+                "note": "Know the fetch cache and revalidate after a change with revalidatePath or revalidateTag.",
+                "link": "https://nextjs.org/docs/app/building-your-application/caching"
+              },
+              "angular": {
+                "note": "Share one observable with shareReplay or a store, and refresh it after writes.",
+                "link": "https://rxjs.dev/api/operators/shareReplay"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           }
         ],
         "senior": [
@@ -206,35 +467,83 @@
               "The app stays usable on slow or dropping connections: safe retries, optimistic updates with rollback, and clear offline states."
             ],
             "signals": [],
-            "explain_angles": ["What does this screen do on a train with a weak signal?", "What happens to the user's change if the request fails?"],
+            "explain_angles": [
+              "What does this screen do on a train with a weak signal?",
+              "What happens to the user's change if the request fails?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "Users on mobile complain that 'liking' a post feels slow and sometimes gets lost. How would you redesign it?",
                 "key_points": [
-                  { "id": "k1", "text": "Optimistic update: show the like at once" },
-                  { "id": "k2", "text": "Roll back and tell the user if the request finally fails" },
-                  { "id": "k3", "text": "Retry safely; the server action must be idempotent" }
+                  {
+                    "id": "k1",
+                    "text": "Optimistic update: show the like at once"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Roll back and tell the user if the request finally fails"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Retry safely; the server action must be idempotent"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Shows success with no rollback when it fails" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Shows success with no rollback when it fails"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "Which requests should the frontend retry automatically, and which never? Why?",
                 "key_points": [
-                  { "id": "k1", "text": "Retry safe reads and idempotent writes" },
-                  { "id": "k2", "text": "Never auto-retry non-idempotent writes like a payment without a key" },
-                  { "id": "k3", "text": "Use backoff and a cap" }
+                  {
+                    "id": "k1",
+                    "text": "Retry safe reads and idempotent writes"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Never auto-retry non-idempotent writes like a payment without a key"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Use backoff and a cap"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Retries every failed request" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Retries every failed request"
+                  }
+                ]
               }
             ],
-            "study": ["optimistic UI with rollback", "idempotent writes", "offline-first basics", "retry policies"],
+            "study": [
+              "optimistic UI with rollback",
+              "idempotent writes",
+              "offline-first basics",
+              "retry policies"
+            ],
             "stack_notes": {
-              "react": { "note": "Use optimistic updates with rollback (useOptimistic or your data library's onMutate).", "link": "https://react.dev/reference/react/useOptimistic" },
-              "nextjs": { "note": "Combine server actions with useOptimistic and show pending state.", "link": "https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations" },
-              "angular": { "note": "Use rxjs retry with a delay for safe calls, and update state optimistically with rollback.", "link": "https://rxjs.dev/api/operators/retry" }
-            }
+              "react": {
+                "note": "Use optimistic updates with rollback (useOptimistic or your data library's onMutate).",
+                "link": "https://react.dev/reference/react/useOptimistic"
+              },
+              "nextjs": {
+                "note": "Combine server actions with useOptimistic and show pending state.",
+                "link": "https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations"
+              },
+              "angular": {
+                "note": "Use rxjs retry with a delay for safe calls, and update state optimistically with rollback.",
+                "link": "https://rxjs.dev/api/operators/retry"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           },
           {
             "id": "FE.FETCH.S2",
@@ -242,36 +551,88 @@
             "good_looks_like": [
               "A crash in one part of the screen is caught and replaced with a fallback, so the rest of the app keeps working, and the error is reported."
             ],
-            "signals": [{ "id": "fetch.error-boundary", "polarity": "positive" }],
-            "explain_angles": ["Why put the boundary here and not higher?", "What does the user see when this part breaks?"],
+            "signals": [
+              {
+                "id": "fetch.error-boundary",
+                "polarity": "positive"
+              }
+            ],
+            "explain_angles": [
+              "Why put the boundary here and not higher?",
+              "What does the user see when this part breaks?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "A bug in a sidebar widget makes the whole dashboard go white. How do you stop one widget from taking down the page?",
                 "key_points": [
-                  { "id": "k1", "text": "Wrap the widget in its own error boundary" },
-                  { "id": "k2", "text": "Show a small fallback with a retry" },
-                  { "id": "k3", "text": "Report the error to monitoring" }
+                  {
+                    "id": "k1",
+                    "text": "Wrap the widget in its own error boundary"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Show a small fallback with a retry"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Report the error to monitoring"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "One boundary around the whole app only" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "One boundary around the whole app only"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "Which errors does an error boundary NOT catch, and how do you handle those?",
                 "key_points": [
-                  { "id": "k1", "text": "Errors in event handlers and async code" },
-                  { "id": "k2", "text": "Handle them in the handler or put them in state so they render" },
-                  { "id": "k3", "text": "Global handlers for unhandled rejections, for reporting" }
+                  {
+                    "id": "k1",
+                    "text": "Errors in event handlers and async code"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Handle them in the handler or put them in state so they render"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Global handlers for unhandled rejections, for reporting"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Says a boundary catches every error" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Says a boundary catches every error"
+                  }
+                ]
               }
             ],
-            "study": ["error boundaries", "fallback UI design", "frontend error reporting"],
+            "study": [
+              "error boundaries",
+              "fallback UI design",
+              "frontend error reporting"
+            ],
             "stack_notes": {
-              "react": { "note": "Place error boundaries around independent parts of the screen.", "link": "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary" },
-              "nextjs": { "note": "Add error.js at route segments so one segment fails alone.", "link": "https://nextjs.org/docs/app/building-your-application/routing/error-handling" },
-              "angular": { "note": "Provide a custom ErrorHandler for reporting and show fallbacks per component.", "link": "https://angular.dev/api/core/ErrorHandler" }
-            }
+              "react": {
+                "note": "Place error boundaries around independent parts of the screen.",
+                "link": "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary"
+              },
+              "nextjs": {
+                "note": "Add error.js at route segments so one segment fails alone.",
+                "link": "https://nextjs.org/docs/app/building-your-application/routing/error-handling"
+              },
+              "angular": {
+                "note": "Provide a custom ErrorHandler for reporting and show fallbacks per component.",
+                "link": "https://angular.dev/api/core/ErrorHandler"
+              }
+            },
+            "exposure_signals": [
+              "fetch.request"
+            ]
           }
         ],
         "staff": [
@@ -282,46 +643,158 @@
               "Chooses one data-fetching approach, one API client and one error shape for the whole app, and makes them easy to use right."
             ],
             "signals": [],
-            "explain_angles": ["Why should every screen fetch data this way?", "How do new screens get this right by default?"],
+            "explain_angles": [
+              "Why should every screen fetch data this way?",
+              "How do new screens get this right by default?"
+            ],
             "drills": [
               {
                 "id": "d1",
                 "prompt": "Your app mixes three ways of fetching data and bugs keep coming from stale data and missing errors. What standard would you set and how would you move the app to it?",
                 "key_points": [
-                  { "id": "k1", "text": "Pick one server-state approach and one API client" },
-                  { "id": "k2", "text": "One error shape and shared loading and error components" },
-                  { "id": "k3", "text": "Migrate screen by screen, with lint rules or review checks" },
-                  { "id": "k4", "text": "Measure it, for example with error reports or bug counts" }
+                  {
+                    "id": "k1",
+                    "text": "Pick one server-state approach and one API client"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "One error shape and shared loading and error components"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Migrate screen by screen, with lint rules or review checks"
+                  },
+                  {
+                    "id": "k4",
+                    "text": "Measure it, for example with error reports or bug counts"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Big-bang rewrite with no measures" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Big-bang rewrite with no measures"
+                  }
+                ]
               },
               {
                 "id": "d2",
                 "prompt": "How would you decide what data is fetched on the server and what on the client?",
                 "key_points": [
-                  { "id": "k1", "text": "Server for first paint, SEO and secrets" },
-                  { "id": "k2", "text": "Client for user-specific, fast-changing or interactive data" },
-                  { "id": "k3", "text": "Consider caching and how fresh each kind must be" }
+                  {
+                    "id": "k1",
+                    "text": "Server for first paint, SEO and secrets"
+                  },
+                  {
+                    "id": "k2",
+                    "text": "Client for user-specific, fast-changing or interactive data"
+                  },
+                  {
+                    "id": "k3",
+                    "text": "Consider caching and how fresh each kind must be"
+                  }
                 ],
-                "red_flags": [{ "id": "r1", "text": "Everything on the client by habit" }]
+                "red_flags": [
+                  {
+                    "id": "r1",
+                    "text": "Everything on the client by habit"
+                  }
+                ]
               }
             ],
-            "study": ["server-state vs client-state", "API client design", "migration strategies", "lint rules as guard rails"],
+            "study": [
+              "server-state vs client-state",
+              "API client design",
+              "migration strategies",
+              "lint rules as guard rails"
+            ],
             "stack_notes": {
-              "react": { "note": "Standardise on one server-state library and a typed API client.", "link": "https://react.dev/learn/synchronizing-with-effects#fetching-data" },
-              "nextjs": { "note": "Decide server vs client fetching per route and document caching rules.", "link": "https://nextjs.org/docs/app/building-your-application/data-fetching" },
-              "angular": { "note": "Use one HttpClient wrapper with interceptors and one state approach.", "link": "https://angular.dev/guide/http" }
-            }
+              "react": {
+                "note": "Standardise on one server-state library and a typed API client.",
+                "link": "https://react.dev/learn/synchronizing-with-effects#fetching-data"
+              },
+              "nextjs": {
+                "note": "Decide server vs client fetching per route and document caching rules.",
+                "link": "https://nextjs.org/docs/app/building-your-application/data-fetching"
+              },
+              "angular": {
+                "note": "Use one HttpClient wrapper with interceptors and one state approach.",
+                "link": "https://angular.dev/guide/http"
+              }
+            },
+            "exposure_signals": []
           }
         ]
       }
     },
-    { "id": "STATE", "name": "State and data flow", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
-    { "id": "COMP", "name": "Components and structure", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
-    { "id": "RENDER", "name": "Rendering performance", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
-    { "id": "A11Y", "name": "Accessibility", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
-    { "id": "SEC", "name": "Security", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
-    { "id": "TEST", "name": "Testing", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } },
-    { "id": "REQ", "name": "Requirements and scope", "levels": { "junior": [], "mid": [], "senior": [], "staff": [] } }
+    {
+      "id": "STATE",
+      "name": "State and data flow",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    },
+    {
+      "id": "COMP",
+      "name": "Components and structure",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    },
+    {
+      "id": "RENDER",
+      "name": "Rendering performance",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    },
+    {
+      "id": "A11Y",
+      "name": "Accessibility",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    },
+    {
+      "id": "SEC",
+      "name": "Security",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    },
+    {
+      "id": "TEST",
+      "name": "Testing",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    },
+    {
+      "id": "REQ",
+      "name": "Requirements and scope",
+      "levels": {
+        "junior": [],
+        "mid": [],
+        "senior": [],
+        "staff": []
+      }
+    }
   ]
 }

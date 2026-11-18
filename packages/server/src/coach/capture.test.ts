@@ -281,3 +281,25 @@ describe("review fixes: one repo identity for every worktree", () => {
     expect(evidence().find((e) => e.signal_id === "err.timeout-set")?.author).toBe("ai");
   });
 });
+
+describe("exposure capture", () => {
+  const exposure = () =>
+    db.prepare("SELECT item_id, signal_id, file_path, symbol FROM skill_exposure ORDER BY item_id").all().map((r) => ({ ...r })) as Record<string, unknown>[];
+  const PLAIN_CALL = "  const res = await fetch(url);";
+
+  it("stores a chance to use a skill even when the skill was not used", async () => {
+    startCapture();
+    commit({ "src/pay.ts": PAY(PLAIN_CALL) }, "PAY-1 call the provider");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(exposure()).toContainEqual({ item_id: "BE.ERR.M2", signal_id: "io.outside-call", file_path: "src/pay.ts", symbol: "charge" });
+    expect(evidence().filter((e) => e.item_id === "BE.ERR.M2")).toEqual([]);
+  });
+
+  it("counts an AI-written call as exposure, never as credit (Review Focus 4)", async () => {
+    startCapture();
+    saveAiLines(db, top, "src/pay.ts", "s1", [PLAIN_CALL]);
+    commit({ "src/pay.ts": PAY(PLAIN_CALL) }, "PAY-1 call the provider");
+    await catchUp(db, { root: repo, ladders, now: NOW });
+    expect(exposure().some((e) => e.item_id === "BE.ERR.M2")).toBe(true);
+  });
+});

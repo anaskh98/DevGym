@@ -150,6 +150,67 @@ export const SIGNALS: readonly SignalRule[] = [
       miss: [tsx("<Boundary>"), tsx('import { ErrorBoundary } from "react-error-boundary";')],
     },
   },
+  // Exposure signals: they show the developer had the chance to use a skill, not that they used it well.
+  {
+    id: "io.outside-call",
+    meaning: "a call to an outside service",
+    pattern: /\bfetch\(|\baxios(\.\w+)?\(|\bgot\(|\bhttps?\.(request|get)\(|\brequests\.(get|post|put|patch|delete)\(|\b(RestTemplate|WebClient|HttpClient)\b|\bhttp\.(Get|Post|Do)\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const res = await fetch(url);"), ts("const r = await axios.get(url);"), py("r = requests.post(url, json=body)"), go("resp, err := http.Get(url)")],
+      miss: [ts("const fetched = true;"), ts("refetch();")],
+    },
+  },
+  {
+    id: "io.db-query",
+    meaning: "a database query",
+    pattern: /\.(query|execute|findOne|findUnique|findMany|findById|findAll|aggregate|insertOne|updateOne)\(|\bSELECT\s+.+\s+FROM\b/i,
+    extensions: CODE,
+    examples: {
+      hit: [ts('const rows = await db.query("SELECT 1");'), ts("const user = await prisma.user.findUnique({ where: { id } });"), ts("const u = await User.findById(id);")],
+      miss: [ts("const item = items.find((x) => x.id === id);"), ts("const q = query;")],
+    },
+  },
+  {
+    id: "err.try-catch",
+    meaning: "code that catches an error",
+    pattern: /\btry\s*\{|^\s*try\s*:?\s*$|\bcatch\s*(\(|\{)|^\s*except\b/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("  try {"), ts("} catch (e) {"), py("try:"), py("except ValueError:")],
+      miss: [ts("const tryAgain = 1;"), ts("retry();")],
+    },
+  },
+  {
+    id: "err.throw",
+    meaning: "code that raises an error",
+    pattern: /\bthrow\s+\w|\braise\s+\w|\bpanic\(|\berrors\.New\(|\bfmt\.Errorf\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts('throw new Error("bad input");'), py('raise ValueError("bad input")'), go('return fmt.Errorf("charge: %w", err)')],
+      miss: [ts("const thrown = false;"), ts("const throwaway = 1;")],
+    },
+  },
+  {
+    id: "api.request-body",
+    meaning: "code that reads input from a request",
+    pattern: /\breq\.(body|query|params)\b|@(RequestBody|RequestParam|PathVariable|Body|Query|Param)\(|\brequest\.(json|form|args)\b|\bc\.(Bind|ShouldBind)\w*\(/,
+    extensions: CODE,
+    examples: {
+      hit: [ts("const { name } = req.body;"), java("public User create(@RequestBody() UserDto dto) {"), py("data = request.json")],
+      miss: [ts('const body = "x";'), ts("request();")],
+    },
+  },
+  {
+    id: "fetch.request",
+    meaning: "a request for server data from the screen",
+    pattern: /\bfetch\(|\buse(Query|SWR|Mutation)\(|\baxios(\.\w+)?\(|\bthis\.http\.(get|post|put|delete)\b/,
+    extensions: WEB,
+    examples: {
+      hit: [tsx('const res = await fetch("/api/orders");'), tsx('const { data } = useQuery({ queryKey: ["o"], queryFn });'), tsx('return this.http.get<Order[]>("/api/orders");')],
+      miss: [tsx("const fetched = 1;"), tsx("refetch();")],
+    },
+  },
 ];
 
 const BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
