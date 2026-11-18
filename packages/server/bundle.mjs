@@ -23,6 +23,8 @@ const shared = {
 await build({ ...shared, entryPoints: [join(here, "src", "mcp", "stdio.ts")], outfile: join(out, "index.mjs") });
 // The hook runs on every file edit, so it is a separate small file without the MCP library.
 await build({ ...shared, entryPoints: [join(here, "src", "hook", "post-tool-use.ts")], outfile: join(out, "hook.mjs") });
+// The prompt hook runs on every message the developer sends: it saves the answer to an open Coach question.
+await build({ ...shared, entryPoints: [join(here, "src", "hook", "prompt-submit.ts")], outfile: join(out, "prompt.mjs") });
 // The REST API for the local web app. Uses only Node's own http module.
 await build({ ...shared, entryPoints: [join(here, "src", "api", "main.ts")], outfile: join(out, "api.mjs") });
 
@@ -37,4 +39,4 @@ const wasm = [
 mkdirSync(join(out, "wasm"), { recursive: true });
 for (const [pkg, file] of wasm) copyFileSync(join(here, "node_modules", pkg, file), join(out, "wasm", file));
 
-console.log("Bundled -> packages/plugin/server/index.mjs, hook.mjs, api.mjs, wasm/");
+console.log("Bundled -> packages/plugin/server/index.mjs, hook.mjs, prompt.mjs, api.mjs, wasm/");

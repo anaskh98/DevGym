@@ -1,0 +1,53 @@
+// UserPromptSubmit hook: when a Coach question is open in this session, save the developer's message as its
+// answer, exactly as typed. The AI never writes the answer. A hook must never break the session, so every
+// failure ends quietly with exit code 0, and the prompt is never blocked.
+import { existsSync } from "node:fs";
+import { captureAnswer } from "../coach/questions.js";
+import { defaultDbPath, openDb } from "../db/connection.js";
+import { migrate } from "../db/migrations.js";
+import { containsBlockedName, loadDenylist } from "../privacy/denylist.js";
+import { findRuleHit } from "../privacy/rules.js";
+
+interface PromptInput {
+  session_id?: unknown;
+  prompt?: unknown;
+}
+
+async function readStdin(): Promise<string> {
+  let data = "";
+  for await (const chunk of process.stdin) data += chunk;
+  return data;
+}
+
+/** The privacy check for an answer: no client names, nothing that looks like code or a secret. */
+function answerAllowed(text: string): boolean {
+  return !containsBlockedName(text, loadDenylist()) && findRuleHit(text) === null;
+}
+
+async function main(): Promise<void> {
+  const input = JSON.parse(await readStdin()) as PromptInput;
+  if (typeof input.session_id !== "string" || typeof input.prompt !== "string") return;
+  // No database means no question was ever asked. Do not create one just to find that out.
+  if (!existsSync(defaultDbPath())) return;
+
+  const db = openDb();
+  try {
+    migrate(db);
+    const result = captureAnswer(db, input.session_id, input.prompt, new Date(), answerAllowed);
+    if (!result.captured) return;
+    const note =
+      result.closed === "answered"
+        ? `Coach: saved this message as the answer to question ${result.question_id}. Rate it with rate_answer (or score_drill for a drill).`
+        : `Coach: kept question ${result.question_id} for later. Do not rate it.`;
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: note } }));
+  } finally {
+    db.close();
+  }
+}
+
+try {
+  await main();
+} catch (err) {
+  console.error(`fork-trail-coach prompt hook: ${err instanceof Error ? err.message : String(err)}`);
+}
+process.exitCode = 0;

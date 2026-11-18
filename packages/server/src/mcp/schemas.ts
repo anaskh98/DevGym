@@ -177,6 +177,22 @@ export const disagreeInput = z.strictObject({
   reason: z.string().trim().min(8).max(500).describe("The developer's reason, in their own words"),
 });
 
+export const askQuestionInput = z
+  .strictObject({
+    session_id: id.describe("The Claude Code session id"),
+    question_id: id.optional().describe("A pending question from coach_status"),
+    decision_id: id.optional().describe("Or: a decision to ask an explain-back about"),
+    item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none"),
+    text: shortText.describe("The question exactly as you will ask it. It must not give the answer away"),
+  })
+  .refine((i) => (i.question_id === undefined) !== (i.decision_id === undefined), { message: "Give exactly one of question_id or decision_id" });
+
+export const rateAnswerInput = z.strictObject({
+  question_id: id,
+  rating: z.enum(RATINGS),
+  tradeoff_quote: z.string().trim().min(12).max(500).optional().describe("Words copied exactly from the answer that name the trade-off. Leave out if it names none"),
+});
+
 export type ImportTicketInput = z.infer<typeof importTicketInput>;
 export type SaveAssumptionsInput = z.infer<typeof saveAssumptionsInput>;
 export type StartTrailInput = z.infer<typeof startTrailInput>;

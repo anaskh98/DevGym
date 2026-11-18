@@ -12,7 +12,7 @@ import { toIso, factsForItem } from "./facts.js";
 import { findItem, loadActiveLadders, loadLadder, type LoadedLadder } from "./ladder/load.js";
 import { LEVELS, type LadderItem, type Level, type Track } from "./ladder/schema.js";
 import type { FocusFrame } from "./plan.js";
-import type { QuestionView } from "./questions.js";
+import { proposeQuestions, type QuestionView } from "./questions.js";
 import { getExtraEmails, getTracks } from "./settings.js";
 import { detectStacks, type StackHit } from "./stack.js";
 import { areaLevel, itemStatus, type ItemState, type ItemStatus } from "./state.js";
@@ -207,6 +207,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
   const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db, loaded, now) }));
   for (const r of results) recordStateChanges(db, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
+  const questions = proposeQuestions(db, results, ladders[0]?.thresholds.max_questions ?? 3);
   const status = {
     ...base,
     ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...(l.warning ? { warning: l.warning } : {}) })),
@@ -214,6 +215,7 @@ export async function coachStatus(db: Db, opts: StatusOptions): Promise<CoachSta
     catch_up,
     areas,
     not_written: notWritten,
+    questions,
   };
   return { ...status, text: renderProgress(status) };
 }

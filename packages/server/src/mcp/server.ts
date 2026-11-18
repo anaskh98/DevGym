@@ -6,11 +6,14 @@ import { StoreError } from "../errors.js";
 import { enrichPointer, resolvePointers } from "../pointers/service.js";
 import { updatePrDecisions } from "../pr/update.js";
 import { setExtraEmails, setTracks } from "../coach/settings.js";
+import { openQuestion, rateAnswer } from "../coach/questions.js";
 import { coachStatus, disagree, itemDetail, ladderForItem, proposeEvidence, stateHistory } from "../coach/status.js";
 import { PrivacyGuard } from "../privacy/guard.js";
 import * as store from "../store.js";
 import type { TicketAdapter } from "../tickets/adapter.js";
 import {
+  askQuestionInput,
+  rateAnswerInput,
   coachHistoryInput,
   coachItemInput,
   coachStatusInput,
@@ -332,6 +335,37 @@ export function createServer(db: Db, tickets: TicketAdapter, options: ServerOpti
       inputSchema: disagreeInput,
     },
     (input) => write(input, (i) => disagree(db, i)),
+  );
+
+  server.registerTool(
+    "ask_question",
+    {
+      title: "Ask coach question",
+      description:
+        "Call this right before you ask the developer a Coach question, with the question exactly as you will ask it. Their next message is then saved as the answer by a hook, word for word; you never write it. Ask one question at a time.",
+      inputSchema: askQuestionInput,
+    },
+    (input) =>
+      write(input, (i) => {
+        let ladderId: string | undefined;
+        if (i.decision_id !== undefined) {
+          const decision = db.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i.decision_id) as { item_id: string | null } | undefined;
+          const item = i.item_id ?? decision?.item_id ?? undefined;
+          if (item) ladderId = ladderForItem(root, item, home).loaded.ladder_id;
+        }
+        return openQuestion(db, { ...i, ...(ladderId ? { ladder_id: ladderId } : {}) });
+      }),
+  );
+
+  server.registerTool(
+    "rate_answer",
+    {
+      title: "Rate answer",
+      description:
+        "Rate the developer's saved answer to a Coach question: clear, partial or not_yet. Rate what they said, not what they meant. To mark that it names the trade-off, copy the exact words from the answer into tradeoff_quote; the server checks them. An answer is rated once.",
+      inputSchema: rateAnswerInput,
+    },
+    (input) => reply(() => rateAnswer(db, input)),
   );
 
   return server;

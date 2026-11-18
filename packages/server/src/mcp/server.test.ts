@@ -80,6 +80,7 @@ describe("tool list", () => {
   it("offers exactly the expected tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
+      "ask_question",
       "coach_history",
       "coach_item",
       "coach_status",
@@ -92,6 +93,7 @@ describe("tool list", () => {
       "log_decision",
       "open_report",
       "propose_evidence",
+      "rate_answer",
       "record_explain_back",
       "resolve_pointers",
       "save_assumptions",

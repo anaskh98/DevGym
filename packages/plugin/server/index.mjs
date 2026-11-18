@@ -42284,14 +42284,14 @@ async function updatePrDecisions(db2, options, deps = {}) {
   };
   if (options.dryRun) return { ...result, note: note ?? "Preview only. The pull request was not changed." };
   if (!repo || !pr) throw new StoreError(note ?? "No pull request was found.");
-  const view = await exec("gh", ["pr", "view", String(pr.number), "--repo", repo, "--json", "body"], options.root);
-  if (view.code === null) {
+  const view2 = await exec("gh", ["pr", "view", String(pr.number), "--repo", repo, "--json", "body"], options.root);
+  if (view2.code === null) {
     throw new StoreError("The GitHub CLI (gh) is not installed, so the pull request cannot be updated. Install it and sign in, or paste the section by hand.");
   }
-  if (view.code !== 0) {
-    throw new StoreError(`The GitHub CLI could not read the pull request: ${view.stderr.trim().split("\n")[0] ?? "unknown error"}`);
+  if (view2.code !== 0) {
+    throw new StoreError(`The GitHub CLI could not read the pull request: ${view2.stderr.trim().split("\n")[0] ?? "unknown error"}`);
   }
-  const body2 = JSON.parse(view.stdout).body ?? "";
+  const body2 = JSON.parse(view2.stdout).body ?? "";
   const next = mergeSection(body2.replace(/\r\n/g, "\n"), section.markdown);
   const dir = await mkdtemp(join6(tmpdir(), "ftc-pr-"));
   try {
@@ -42408,182 +42408,14 @@ function setExtraEmails(db2, emails) {
   write(db2, "extra_emails", [...new Set(emails.map((e) => e.trim().toLowerCase()))]);
 }
 
-// src/coach/status.ts
-import { randomUUID as randomUUID4 } from "node:crypto";
-
-// src/git/diff.ts
-import { createHash } from "node:crypto";
-function cleanPath(raw) {
-  let path = raw.trim();
-  if (path === "/dev/null") return null;
-  if (path.startsWith('"') && path.endsWith('"')) {
-    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
-  }
-  return path.replace(/^[ab]\//, "");
-}
-var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-function parseUnifiedDiff(text2) {
-  const files = [];
-  let file2 = null;
-  let inHunk = false;
-  let oldLine = 0;
-  let newLine = 0;
-  for (const rawLine of text2.split("\n")) {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-    if (line.startsWith("diff --git ")) {
-      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
-      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
-      files.push(file2);
-      inHunk = false;
-      continue;
-    }
-    if (!file2) continue;
-    if (!inHunk) {
-      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
-      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
-      else if (line.startsWith("--- ")) {
-        const old = cleanPath(line.slice(4));
-        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
-        if (old) file2.path = file2.path || old;
-      } else if (line.startsWith("+++ ")) {
-        const next = cleanPath(line.slice(4));
-        if (next) file2.path = next;
-        else if (file2.oldPath === null) {
-        }
-      } else if (line.startsWith("Binary files ")) file2.binary = true;
-    }
-    const hunk = HUNK.exec(line);
-    if (hunk) {
-      inHunk = true;
-      oldLine = Number(hunk[1]);
-      newLine = Number(hunk[2]);
-      continue;
-    }
-    if (!inHunk) continue;
-    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
-    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
-    else if (line.startsWith(" ")) {
-      oldLine++;
-      newLine++;
-    }
-  }
-  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
-  return files;
-}
-async function commitDiff(root, sha, exec = run2) {
-  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
-  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
-  return parseUnifiedDiff(result.stdout);
-}
-function changeId(diff) {
-  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
-+${f.added.map((l) => l.text).join("\n")}
--${f.removed.map((l) => l.text).join("\n")}`);
-  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
-}
-
-// src/git/log.ts
-var SEP = "";
-async function repoTopLevel(cwd, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
-  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
-}
-async function currentBranch(root, exec = run2) {
-  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
-  const name2 = result.stdout.trim();
-  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
-}
-async function developerEmails(root, extra, exec = run2) {
-  const result = await exec("git", ["config", "user.email"], root);
-  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
-  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
-}
-async function listCommits(root, opts) {
-  const exec = opts.exec ?? run2;
-  const args2 = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
-  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
-  const result = await exec("git", args2, root);
-  if (result.code !== 0) return [];
-  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
-  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
-    const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
-    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
-  }).filter((c) => emails.has(c.authorEmail)).reverse();
-}
-async function defaultBranchCommits(root, exec = run2) {
-  for (const ref of ["origin/HEAD", "main", "master"]) {
-    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
-    if (found.code !== 0) continue;
-    const list = await exec("git", ["rev-list", ref], root);
-    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
-  }
-  return /* @__PURE__ */ new Set();
-}
-
-// src/coach/attribution.ts
-import { createHash as createHash2 } from "node:crypto";
-function normalizeLine(line) {
-  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
-  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
-  return s.length >= 4 ? s : null;
-}
-function lineHash(normalized) {
-  return createHash2("sha256").update(normalized).digest("hex").slice(0, 16);
-}
-function aiHashesFor(db2, repoRoot, filePath) {
-  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
-  return new Set(rows2.map((r) => r.hash));
-}
-function firstHashAt(db2, repoRoot) {
-  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
-  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
-}
-function sqliteTime(date5) {
-  return date5.toISOString().replace("T", " ").slice(0, 19);
-}
-function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
-  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
-  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
-}
-
-// src/coach/capture.ts
+// src/coach/questions.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 
-// src/rules/engine.ts
-var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
-var IMPORT_LINES = [
-  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
-  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
-  /^\s*using\s+[\w.]+\s*;\s*$/,
-  /^\s*package\s+[\w.]+\s*;?\s*$/,
-  /^\s*from\s+[\w.]+\s+import\s.+$/,
-  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
-];
-function isCodeLine(line) {
-  if (line.trim() === "") return false;
-  if (COMMENT.test(line)) return false;
-  return !IMPORT_LINES.some((re) => re.test(line));
-}
-function extensionOf(filePath) {
-  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
-  const dot = name2.lastIndexOf(".");
-  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
-}
-function checkFlags(rule) {
-  for (const re of [rule.pattern, rule.unless]) {
-    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
-  }
-}
-function ruleMatches(rule, filePath, line) {
-  checkFlags(rule);
-  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
-  if (!isCodeLine(line)) return false;
-  if (!rule.pattern.test(line)) return false;
-  return !(rule.unless && rule.unless.test(line));
-}
-function matchLine(rules, filePath, line) {
-  return rules.filter((rule) => ruleMatches(rule, filePath, line));
+// src/coach/quote.ts
+var squeeze = (text2) => text2.replace(/\s+/g, " ").trim().toLowerCase();
+function quoteIn(answer, quote) {
+  const q = squeeze(quote);
+  return q.length >= 12 && squeeze(answer).includes(q);
 }
 
 // src/coach/signals.ts
@@ -42724,6 +42556,316 @@ var SIGNALS = [
 var BY_ID = new Map(SIGNALS.map((s) => [s.id, s]));
 function signalById(id2) {
   return BY_ID.get(id2);
+}
+
+// src/coach/questions.ts
+var EVIDENCE_REF = "evidence:";
+function aboutEvidence(row) {
+  const meaning = row.signal_id && signalById(row.signal_id)?.meaning || row.note || "a choice";
+  const where = row.file_path ? ` in ${row.file_path}${row.symbol ? ` (${row.symbol})` : ""}` : "";
+  return `${row.polarity === "negative" ? "A fault: " : ""}${meaning}${where}`;
+}
+function aboutFor(db2, row) {
+  if (row.target_ref?.startsWith(EVIDENCE_REF)) {
+    const e = db2.prepare("SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE id = ?").get(row.target_ref.slice(EVIDENCE_REF.length));
+    if (e) return aboutEvidence(e);
+  }
+  if (row.decision_id !== null) {
+    const d = db2.prepare("SELECT summary FROM decisions WHERE id = ?").get(row.decision_id);
+    if (d) return d.summary;
+  }
+  return row.question ?? "";
+}
+function view(db2, row) {
+  return { question_id: row.id, kind: row.kind, item_id: row.item_id, ticket: row.ticket, about: aboutFor(db2, row), opened: row.open_session !== null };
+}
+function proposeQuestions(db2, results, max) {
+  const active = new Map(results.map((r) => [r.loaded.ladder_id, new Set(r.statuses.keys())]));
+  const inLadder = (ladderId2, itemId2) => active.get(ladderId2)?.has(itemId2) === true;
+  const pending = db2.prepare("SELECT * FROM pending_questions WHERE answered_at IS NULL AND kind != 'drill' AND (closed_reason IS NULL OR closed_reason IN ('later', 'timeout')) ORDER BY created_at, rowid").all().filter((q) => inLadder(q.ladder_id, q.item_id));
+  const out2 = [];
+  const usedItems = /* @__PURE__ */ new Set();
+  for (const q of pending) {
+    if (out2.length >= max || usedItems.has(q.item_id)) continue;
+    out2.push(view(db2, q));
+    usedItems.add(q.item_id);
+  }
+  const insert = db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, target_ref, decision_id, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const newestDevRow = db2.prepare(
+    "SELECT id, polarity, signal_id, file_path, symbol, note, ticket FROM skill_evidence WHERE ladder_id = ? AND item_id = ? AND author = 'dev' AND disagreed_at IS NULL ORDER BY at DESC LIMIT 1"
+  );
+  const askedAbout = db2.prepare("SELECT 1 FROM pending_questions WHERE target_ref = ? LIMIT 1");
+  for (const { loaded, statuses } of results) {
+    for (const status of statuses.values()) {
+      if (out2.length >= max) break;
+      if (usedItems.has(status.item_id) || status.state !== "not_seen" && status.state !== "learning") continue;
+      const row = newestDevRow.get(loaded.ladder_id, status.item_id);
+      if (!row || askedAbout.get(`${EVIDENCE_REF}${row.id}`)) continue;
+      const about = aboutEvidence(row);
+      const id2 = randomUUID3();
+      insert.run(id2, "why", loaded.ladder_id, status.item_id, `${EVIDENCE_REF}${row.id}`, null, row.ticket);
+      out2.push({ question_id: id2, kind: "why", item_id: status.item_id, ticket: row.ticket, about, opened: false });
+      usedItems.add(status.item_id);
+    }
+  }
+  const decisions = db2.prepare(
+    `SELECT d.id, d.ladder_id, d.item_id, d.ticket_id, d.summary FROM decisions d
+       WHERE d.item_id IS NOT NULL AND d.origin = 'ai'
+         AND NOT EXISTS (SELECT 1 FROM explain_backs e WHERE e.decision_id = d.id)
+         AND NOT EXISTS (SELECT 1 FROM pending_questions q WHERE q.decision_id = d.id)
+       ORDER BY d.created_at, d.rowid`
+  ).all();
+  for (const d of decisions) {
+    if (out2.length >= max) break;
+    if (usedItems.has(d.item_id) || !inLadder(d.ladder_id, d.item_id)) continue;
+    const id2 = randomUUID3();
+    insert.run(id2, "explain_back", d.ladder_id, d.item_id, null, d.id, d.ticket_id);
+    out2.push({ question_id: id2, kind: "explain_back", item_id: d.item_id, ticket: d.ticket_id, about: d.summary, opened: false });
+    usedItems.add(d.item_id);
+  }
+  return out2;
+}
+function openQuestion(db2, input2, now = /* @__PURE__ */ new Date()) {
+  if (input2.question_id === void 0 === (input2.decision_id === void 0)) {
+    throw new StoreError("Give exactly one of question_id or decision_id");
+  }
+  let id2 = input2.question_id;
+  if (input2.decision_id !== void 0) {
+    const d = db2.prepare("SELECT id, ticket_id, ladder_id, item_id, summary FROM decisions WHERE id = ?").get(input2.decision_id);
+    if (!d) throw new StoreError(`Decision '${input2.decision_id}' does not exist`);
+    const itemId2 = input2.item_id ?? d.item_id;
+    const ladderId2 = input2.ladder_id ?? d.ladder_id;
+    if (!itemId2 || !ladderId2) throw new StoreError("This decision has no ladder item. Pass item_id with the ladder item it is about");
+    id2 = randomUUID3();
+    db2.prepare("INSERT INTO pending_questions (id, kind, ladder_id, item_id, decision_id, ticket) VALUES (?, 'explain_back', ?, ?, ?, ?)").run(
+      id2,
+      ladderId2,
+      itemId2,
+      d.id,
+      d.ticket_id
+    );
+  }
+  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(id2);
+  if (!row) throw new StoreError(`Question '${id2}' does not exist`);
+  if (row.answered_at !== null) throw new StoreError("This question was already answered");
+  db2.prepare("UPDATE pending_questions SET closed_reason = 'later', open_session = NULL WHERE open_session = ? AND answered_at IS NULL AND id != ?").run(input2.session_id, row.id);
+  db2.prepare("UPDATE pending_questions SET question = ?, opened_at = ?, open_session = ?, closed_reason = NULL WHERE id = ?").run(
+    input2.text,
+    now.toISOString(),
+    input2.session_id,
+    row.id
+  );
+  return view(db2, { ...row, question: input2.text, open_session: input2.session_id });
+}
+function rateAnswer(db2, input2) {
+  const row = db2.prepare("SELECT * FROM pending_questions WHERE id = ?").get(input2.question_id);
+  if (!row) throw new StoreError(`Question '${input2.question_id}' does not exist`);
+  if (row.kind === "drill") throw new StoreError("This is a drill. Use score_drill for it");
+  if (row.answered_at === null || row.answer === null) throw new StoreError("This question has no answer yet. Ask it and wait for the developer's reply");
+  if (row.rating !== null) throw new StoreError("This answer was already rated");
+  let namesTradeoff = false;
+  let note;
+  if (input2.tradeoff_quote !== void 0) {
+    namesTradeoff = quoteIn(row.answer, input2.tradeoff_quote);
+    if (!namesTradeoff) note = "The quote is not in the answer, so the trade-off flag was dropped.";
+  }
+  db2.prepare("UPDATE pending_questions SET rating = ?, names_tradeoff = ?, tradeoff_quote = ?, rated_at = ? WHERE id = ?").run(
+    input2.rating,
+    namesTradeoff ? 1 : 0,
+    namesTradeoff ? input2.tradeoff_quote : null,
+    (/* @__PURE__ */ new Date()).toISOString(),
+    row.id
+  );
+  if (row.kind === "explain_back" && row.decision_id !== null) {
+    db2.prepare("INSERT INTO explain_backs (id, decision_id, question, answer, rating, question_id, item_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      randomUUID3(),
+      row.decision_id,
+      row.question ?? "",
+      row.answer,
+      input2.rating,
+      row.id,
+      row.item_id
+    );
+  }
+  return { rating: input2.rating, names_tradeoff: namesTradeoff, ...note ? { note } : {} };
+}
+
+// src/coach/status.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+
+// src/git/diff.ts
+import { createHash } from "node:crypto";
+function cleanPath(raw) {
+  let path = raw.trim();
+  if (path === "/dev/null") return null;
+  if (path.startsWith('"') && path.endsWith('"')) {
+    path = path.slice(1, -1).replace(/\\(["\\])/g, "$1").replace(/\\t/g, "	");
+  }
+  return path.replace(/^[ab]\//, "");
+}
+var HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+function parseUnifiedDiff(text2) {
+  const files = [];
+  let file2 = null;
+  let inHunk = false;
+  let oldLine = 0;
+  let newLine = 0;
+  for (const rawLine of text2.split("\n")) {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    if (line.startsWith("diff --git ")) {
+      const match = /^diff --git (?:"?a\/)(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+      file2 = { path: match?.[2] ?? "", oldPath: null, added: [], removed: [], binary: false };
+      files.push(file2);
+      inHunk = false;
+      continue;
+    }
+    if (!file2) continue;
+    if (!inHunk) {
+      if (line.startsWith("rename from ")) file2.oldPath = line.slice("rename from ".length);
+      else if (line.startsWith("rename to ")) file2.path = line.slice("rename to ".length);
+      else if (line.startsWith("--- ")) {
+        const old = cleanPath(line.slice(4));
+        if (old && file2.oldPath === null && old !== file2.path) file2.oldPath = old;
+        if (old) file2.path = file2.path || old;
+      } else if (line.startsWith("+++ ")) {
+        const next = cleanPath(line.slice(4));
+        if (next) file2.path = next;
+        else if (file2.oldPath === null) {
+        }
+      } else if (line.startsWith("Binary files ")) file2.binary = true;
+    }
+    const hunk = HUNK.exec(line);
+    if (hunk) {
+      inHunk = true;
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[2]);
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith("+")) file2.added.push({ line: newLine++, text: line.slice(1) });
+    else if (line.startsWith("-")) file2.removed.push({ line: oldLine++, text: line.slice(1) });
+    else if (line.startsWith(" ")) {
+      oldLine++;
+      newLine++;
+    }
+  }
+  for (const f of files) if (f.oldPath === f.path) f.oldPath = null;
+  return files;
+}
+async function commitDiff(root, sha, exec = run2) {
+  const result = await exec("git", ["show", "--format=", "--no-color", "--no-ext-diff", "--text", "--no-textconv", "-U0", "-M", sha], root);
+  if (result.code !== 0) throw new Error(`git show ${sha} failed: ${result.stderr.trim()}`);
+  return parseUnifiedDiff(result.stdout);
+}
+function changeId(diff) {
+  const parts2 = [...diff].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0).map((f) => `${f.path}
++${f.added.map((l) => l.text).join("\n")}
+-${f.removed.map((l) => l.text).join("\n")}`);
+  return createHash("sha256").update(parts2.join("\n\0\n")).digest("hex").slice(0, 16);
+}
+
+// src/git/log.ts
+var SEP = "";
+async function repoTopLevel(cwd, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--show-toplevel"], cwd);
+  return result.code === 0 && result.stdout.trim() !== "" ? result.stdout.trim() : null;
+}
+async function currentBranch(root, exec = run2) {
+  const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
+  const name2 = result.stdout.trim();
+  return result.code === 0 && name2 !== "" && name2 !== "HEAD" ? name2 : null;
+}
+async function developerEmails(root, extra, exec = run2) {
+  const result = await exec("git", ["config", "user.email"], root);
+  const own2 = result.code === 0 ? [result.stdout.trim()] : [];
+  return [...new Set([...own2, ...extra].map((e) => e.trim().toLowerCase()).filter((e) => e !== ""))];
+}
+async function listCommits(root, opts) {
+  const exec = opts.exec ?? run2;
+  const args2 = ["log", "--branches", "--no-merges", `--format=%H${SEP}%ae${SEP}%aI${SEP}%s`];
+  if (opts.sinceIso) args2.push(`--since=${opts.sinceIso}`);
+  const result = await exec("git", args2, root);
+  if (result.code !== 0) return [];
+  const emails = new Set(opts.authorEmails.map((e) => e.toLowerCase()));
+  return result.stdout.split("\n").filter((line) => line.includes(SEP)).map((line) => {
+    const [sha = "", authorEmail = "", authorDate = "", ...subject] = line.split(SEP);
+    return { sha, authorEmail: authorEmail.toLowerCase(), authorDate, subject: subject.join(SEP) };
+  }).filter((c) => emails.has(c.authorEmail)).reverse();
+}
+async function defaultBranchCommits(root, exec = run2) {
+  for (const ref of ["origin/HEAD", "main", "master"]) {
+    const found = await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], root);
+    if (found.code !== 0) continue;
+    const list = await exec("git", ["rev-list", ref], root);
+    if (list.code === 0) return new Set(list.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+  }
+  return /* @__PURE__ */ new Set();
+}
+
+// src/coach/attribution.ts
+import { createHash as createHash2 } from "node:crypto";
+function normalizeLine(line) {
+  let s = line.replace(/\s+/g, "").replace(/['`]/g, '"');
+  if (s.endsWith(",") || s.endsWith(";")) s = s.slice(0, -1);
+  return s.length >= 4 ? s : null;
+}
+function lineHash(normalized) {
+  return createHash2("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+function aiHashesFor(db2, repoRoot, filePath) {
+  const rows2 = db2.prepare("SELECT hash FROM ai_line_hashes WHERE repo_root = ? AND file_path = ?").all(repoRoot, filePath);
+  return new Set(rows2.map((r) => r.hash));
+}
+function firstHashAt(db2, repoRoot) {
+  const row = db2.prepare("SELECT MIN(created_at) AS first FROM ai_line_hashes WHERE repo_root = ?").get(repoRoot);
+  return row.first ? `${row.first.replace(" ", "T")}Z` : null;
+}
+function sqliteTime(date5) {
+  return date5.toISOString().replace("T", " ").slice(0, 19);
+}
+function pruneAiLines(db2, keepDays, now = /* @__PURE__ */ new Date()) {
+  const cutoff = sqliteTime(new Date(now.getTime() - keepDays * 864e5));
+  return Number(db2.prepare("DELETE FROM ai_line_hashes WHERE created_at < ?").run(cutoff).changes);
+}
+
+// src/coach/capture.ts
+import { randomUUID as randomUUID4 } from "node:crypto";
+
+// src/rules/engine.ts
+var COMMENT = /^\s*(\/\/|#|--|\/\*|\*|<!--)/;
+var IMPORT_LINES = [
+  /^\s*import\s.+\sfrom\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/,
+  /^\s*(const|let|var)\s+[\w{}\s,:]+\s*=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?\s*$/,
+  /^\s*using\s+[\w.]+\s*;\s*$/,
+  /^\s*package\s+[\w.]+\s*;?\s*$/,
+  /^\s*from\s+[\w.]+\s+import\s.+$/,
+  /^\s*import\s+[\w.]+(\s+as\s+\w+)?\s*;?\s*$/
+];
+function isCodeLine(line) {
+  if (line.trim() === "") return false;
+  if (COMMENT.test(line)) return false;
+  return !IMPORT_LINES.some((re) => re.test(line));
+}
+function extensionOf(filePath) {
+  const name2 = filePath.replace(/\\/g, "/").split("/").pop() ?? "";
+  const dot = name2.lastIndexOf(".");
+  return dot > 0 ? name2.slice(dot).toLowerCase() : "";
+}
+function checkFlags(rule) {
+  for (const re of [rule.pattern, rule.unless]) {
+    if (re && (re.global || re.sticky)) throw new Error(`Rule ${rule.id} uses a g or y flag; remove it`);
+  }
+}
+function ruleMatches(rule, filePath, line) {
+  checkFlags(rule);
+  if (rule.extensions.length > 0 && !rule.extensions.includes(extensionOf(filePath))) return false;
+  if (!isCodeLine(line)) return false;
+  if (!rule.pattern.test(line)) return false;
+  return !(rule.unless && rule.unless.test(line));
+}
+function matchLine(rules, filePath, line) {
+  return rules.filter((rule) => ruleMatches(rule, filePath, line));
 }
 
 // src/coach/capture.ts
@@ -42879,7 +43021,7 @@ async function catchUp(db2, opts) {
     const { rows: rows2, fixes } = await readCommit(db2, top, c.sha, diff, targets, exec);
     transaction(db2, () => {
       for (const r of rows2) {
-        insert.run(randomUUID3(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
+        insert.run(randomUUID4(), r.ladder_id, r.item_id, r.polarity, r.author, r.regresses ? 1 : 0, top, c.sha, r.file_path, r.symbol, ticket, r.signal_id, c.authorDate);
         evidenceAdded++;
       }
       for (const f of fixes) faultsFixed += Number(fix.run(c.authorDate, ticket, top, f.signal_id, f.file_path, f.symbol, c.authorDate).changes);
@@ -43892,7 +44034,7 @@ function recordStateChanges(db2, ladderId2, statuses, reason = reasonFor) {
   for (const s of statuses) {
     const from = last.get(ladderId2, s.item_id)?.to_state ?? "not_seen";
     if (from === s.state) continue;
-    insert.run(randomUUID4(), ladderId2, s.item_id, from, s.state, reason(s));
+    insert.run(randomUUID5(), ladderId2, s.item_id, from, s.state, reason(s));
     written++;
   }
   return written;
@@ -43991,13 +44133,15 @@ async function coachStatus(db2, opts) {
   const results = ladders.map((loaded) => ({ loaded, statuses: computeStatuses(db2, loaded, now) }));
   for (const r of results) recordStateChanges(db2, r.loaded.ladder_id, [...r.statuses.values()]);
   const { areas, notWritten } = areaViews(results);
+  const questions = proposeQuestions(db2, results, ladders[0]?.thresholds.max_questions ?? 3);
   const status = {
     ...base,
     ladders: ladders.map((l) => ({ ladder_id: l.ladder_id, track: l.track, source: l.source, ...l.warning ? { warning: l.warning } : {} })),
     stacks,
     catch_up,
     areas,
-    not_written: notWritten
+    not_written: notWritten,
+    questions
   };
   return { ...status, text: renderProgress(status) };
 }
@@ -44042,7 +44186,7 @@ async function proposeEvidence(db2, root, input2, exec = run2) {
   const source = await exec("git", ["show", `${sha}:${file2.path}`], top);
   const symbol2 = source.code === 0 && isSupported(file2.path) ? (await symbolAtLine(file2.path, source.stdout, devLine.line))?.name ?? null : null;
   const ticket = ticketForCommit({ sha, authorEmail: email3, authorDate, subject }, { onDefault: (await defaultBranchCommits(top, exec)).has(sha), branch: await currentBranch(top, exec) });
-  const id2 = randomUUID4();
+  const id2 = randomUUID5();
   db2.prepare(
     "INSERT INTO skill_evidence (id, ladder_id, item_id, kind, polarity, author, repo_root, commit_sha, file_path, symbol, ticket, note, at) VALUES (?, ?, ?, 'judge', 'positive', 'dev', ?, ?, ?, ?, ?, ?, ?)"
   ).run(id2, loaded.ladder_id, input2.item_id, top, sha, file2.path, symbol2, ticket, input2.why, authorDate);
@@ -44506,6 +44650,18 @@ var disagreeInput = external_exports.strictObject({
   target_id: id.describe("The id of a piece of evidence or a drill attempt"),
   reason: external_exports.string().trim().min(8).max(500).describe("The developer's reason, in their own words")
 });
+var askQuestionInput = external_exports.strictObject({
+  session_id: id.describe("The Claude Code session id"),
+  question_id: id.optional().describe("A pending question from coach_status"),
+  decision_id: id.optional().describe("Or: a decision to ask an explain-back about"),
+  item_id: itemId.optional().describe("With decision_id: the ladder item, when the decision has none"),
+  text: shortText.describe("The question exactly as you will ask it. It must not give the answer away")
+}).refine((i2) => i2.question_id === void 0 !== (i2.decision_id === void 0), { message: "Give exactly one of question_id or decision_id" });
+var rateAnswerInput = external_exports.strictObject({
+  question_id: id,
+  rating: external_exports.enum(RATINGS),
+  tradeoff_quote: external_exports.string().trim().min(12).max(500).optional().describe("Words copied exactly from the answer that name the trade-off. Leave out if it names none")
+});
 
 // src/mcp/server.ts
 var SERVER_NAME = "fork-trail-coach";
@@ -44739,6 +44895,32 @@ function createServer2(db2, tickets2, options = {}) {
       inputSchema: disagreeInput
     },
     (input2) => write2(input2, (i2) => disagree(db2, i2))
+  );
+  server2.registerTool(
+    "ask_question",
+    {
+      title: "Ask coach question",
+      description: "Call this right before you ask the developer a Coach question, with the question exactly as you will ask it. Their next message is then saved as the answer by a hook, word for word; you never write it. Ask one question at a time.",
+      inputSchema: askQuestionInput
+    },
+    (input2) => write2(input2, (i2) => {
+      let ladderId2;
+      if (i2.decision_id !== void 0) {
+        const decision = db2.prepare("SELECT item_id FROM decisions WHERE id = ?").get(i2.decision_id);
+        const item = i2.item_id ?? decision?.item_id ?? void 0;
+        if (item) ladderId2 = ladderForItem(root, item, home).loaded.ladder_id;
+      }
+      return openQuestion(db2, { ...i2, ...ladderId2 ? { ladder_id: ladderId2 } : {} });
+    })
+  );
+  server2.registerTool(
+    "rate_answer",
+    {
+      title: "Rate answer",
+      description: "Rate the developer's saved answer to a Coach question: clear, partial or not_yet. Rate what they said, not what they meant. To mark that it names the trade-off, copy the exact words from the answer into tradeoff_quote; the server checks them. An answer is rated once.",
+      inputSchema: rateAnswerInput
+    },
+    (input2) => reply(() => rateAnswer(db2, input2))
   );
   return server2;
 }
