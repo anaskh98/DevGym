@@ -45,3 +45,29 @@ export function evidenceLine(e: { kind: string; polarity: string; author: string
   const what = e.note ?? (e.signal ? e.signal.replace(".", " · ").replace(/-/g, " ") : e.kind);
   return [what, where, `ticket ${e.ticket}`, who, e.owned ? "owned by you: you shipped it" : ""].filter(Boolean).join(" · ");
 }
+
+export const LEVEL_ORDER = ["junior", "mid", "senior", "staff"] as const;
+
+/** The ladder as steps: levels reached, the one being worked toward, and the rest. */
+export function ladderSteps(area: Pick<GrowArea, "level" | "working_toward">): { level: (typeof LEVEL_ORDER)[number]; status: "done" | "current" | "todo" }[] {
+  const reached = area.level ? LEVEL_ORDER.indexOf(area.level) : -1;
+  const target = area.working_toward ? LEVEL_ORDER.indexOf(area.working_toward) : -1;
+  return LEVEL_ORDER.map((level, i) => ({ level, status: i <= reached ? "done" : i === target ? "current" : "todo" }));
+}
+
+/** How many skills are in each state, across all areas. */
+export function stateCounts(areas: Pick<GrowArea, "items">[]): Record<GrowState, number> {
+  const counts: Record<GrowState, number> = { not_seen: 0, not_assessed: 0, learning: 0, shown: 0, proven: 0 };
+  for (const area of areas) for (const item of area.items) counts[item.state]++;
+  return counts;
+}
+
+/** The mastery bar has 3 segments: Learning 1, Shown 2, Proven 3. Not assessed and Not seen are empty. */
+export function masteryFill(state: GrowState): number {
+  return state === "proven" ? 3 : state === "shown" ? 2 : state === "learning" ? 1 : 0;
+}
+
+/** The exposure meter has 3 bars: low 1, medium 2, high 3. */
+export function exposureBars(level: GrowExposure): number {
+  return level === "high" ? 3 : level === "medium" ? 2 : level === "low" ? 1 : 0;
+}

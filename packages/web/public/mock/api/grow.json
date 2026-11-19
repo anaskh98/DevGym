@@ -1,5 +1,5 @@
 {
-  "tracks": ["backend"],
+  "tracks": ["backend", "frontend"],
   "levels": ["junior", "mid", "senior", "staff"],
   "areas": [
     {
@@ -7,23 +7,56 @@
       "track": "backend",
       "area_id": "ERR",
       "name": "Errors and failure",
-      "level": null,
-      "working_toward": "junior",
-      "exposure": "medium",
+      "level": "junior",
+      "working_toward": "mid",
+      "exposure": "high",
       "items": [
         {
           "item_id": "BE.ERR.J1",
           "title": "Never hides an error",
           "level": "junior",
-          "state": "learning",
-          "exposure": "medium",
-          "exposure_functions": 4,
-          "shown_by": null,
-          "detail": "0 of 3 code proofs · 1 open fault",
+          "state": "proven",
+          "exposure": "high",
+          "exposure_functions": 7,
+          "shown_by": "work",
+          "detail": "drill passed 12 Nov",
           "why_it_matters": "A hidden error turns into lost data or a wrong result that nobody notices until a user complains.",
-          "needs": ["fix the open fault in pay.ts"],
+          "needs": [],
           "evidence": [
-            { "id": "e1", "kind": "rule", "polarity": "negative", "author": "ai", "decided_by": null, "owned": true, "file": "src/pay.ts", "symbol": "charge", "ticket": "PAY-4", "signal": "err.empty-catch", "note": null, "at": "2026-11-17T10:00:00.000Z", "fixed": false, "disagreed": false }
+            { "id": "p1", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "src/orders/save.ts", "symbol": "saveOrder", "ticket": "PAY-12", "signal": "err.error-cause", "note": null, "at": "2026-11-05T10:00:00.000Z", "fixed": false, "disagreed": false },
+            { "id": "p2", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "src/orders/refund.ts", "symbol": "refund", "ticket": "PAY-14", "signal": "err.error-cause", "note": null, "at": "2026-11-08T10:00:00.000Z", "fixed": false, "disagreed": false }
+          ],
+          "drills": [{ "id": "d1", "drill_id": "d1", "passed": true, "void": false, "at": "2026-11-12T10:00:00.000Z" }]
+        },
+        {
+          "item_id": "BE.ERR.J2",
+          "title": "Checks the result of calls that can fail",
+          "level": "junior",
+          "state": "proven",
+          "exposure": "high",
+          "exposure_functions": 6,
+          "shown_by": "work",
+          "detail": "drill passed 14 Nov",
+          "why_it_matters": "A missing row or a failed call that is used as if it worked becomes a crash or a wrong answer far from the cause.",
+          "needs": [],
+          "evidence": [
+            { "id": "p3", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "src/users/find.ts", "symbol": "findUser", "ticket": "PAY-12", "signal": "fetch.res-ok-check", "note": null, "at": "2026-11-06T10:00:00.000Z", "fixed": false, "disagreed": false }
+          ],
+          "drills": [{ "id": "d2", "drill_id": "d1", "passed": true, "void": false, "at": "2026-11-14T10:00:00.000Z" }]
+        },
+        {
+          "item_id": "BE.ERR.M1",
+          "title": "Validates input at the edge",
+          "level": "mid",
+          "state": "shown",
+          "exposure": "high",
+          "exposure_functions": 5,
+          "shown_by": "work",
+          "detail": "ready for a drill → /devgym:grow drill BE.ERR.M1",
+          "why_it_matters": "Bad input that gets past the edge spreads into every layer and into stored data; one check at the edge keeps the rest simple.",
+          "needs": ["pass a drill"],
+          "evidence": [
+            { "id": "p4", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "src/api/create-user.ts", "symbol": "createUser", "ticket": "PAY-15", "signal": null, "note": "Validates the request body with a schema", "at": "2026-11-10T10:00:00.000Z", "fixed": false, "disagreed": false }
           ],
           "drills": []
         },
@@ -31,29 +64,141 @@
           "item_id": "BE.ERR.M2",
           "title": "Handles the failure of an outside call on purpose",
           "level": "mid",
+          "state": "learning",
+          "exposure": "high",
+          "exposure_functions": 6,
+          "shown_by": null,
+          "detail": "1 of 3 code proofs · 1 open fault",
+          "why_it_matters": "Outside services are slow or down sometimes; without a time limit and a retry rule, one slow provider takes your service down or charges a card twice.",
+          "needs": ["fix the open fault in pay.ts", "2 more code proofs", "an answer that names the trade-off"],
+          "evidence": [
+            { "id": "f1", "kind": "rule", "polarity": "negative", "author": "ai", "decided_by": null, "owned": true, "file": "src/pay.ts", "symbol": "charge", "ticket": "PAY-16", "signal": "err.empty-catch", "note": null, "at": "2026-11-17T10:00:00.000Z", "fixed": false, "disagreed": false },
+            { "id": "p5", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "src/pay.ts", "symbol": "refund", "ticket": "PAY-14", "signal": "err.timeout-set", "note": null, "at": "2026-11-09T10:00:00.000Z", "fixed": false, "disagreed": false }
+          ],
+          "drills": [{ "id": "d3", "drill_id": "d1", "passed": false, "void": false, "at": "2026-11-16T10:00:00.000Z" }]
+        },
+        {
+          "item_id": "BE.ERR.M3",
+          "title": "Errors carry useful context without leaking data",
+          "level": "mid",
           "state": "not_assessed",
           "exposure": "low",
           "exposure_functions": 1,
           "shown_by": null,
-          "detail": "little chance in your work · drill available → /grow drill BE.ERR.M2",
-          "why_it_matters": "Outside services are slow or down sometimes; without a time limit and a retry rule, one slow provider takes your service down or charges a card twice.",
+          "detail": "little chance in your work · drill available → /devgym:grow drill BE.ERR.M3",
+          "why_it_matters": "Errors without context make every incident slow to debug, and raw errors sent to users leak internals.",
           "needs": ["more chances in your work, or take a drill"],
+          "evidence": [],
+          "drills": []
+        },
+        {
+          "item_id": "BE.ERR.S1",
+          "title": "Designs for partial failure",
+          "level": "senior",
+          "state": "not_seen",
+          "exposure": "none",
+          "exposure_functions": 0,
+          "shown_by": null,
+          "detail": "",
+          "why_it_matters": "In multi-step changes, one failed step can leave money, stock or data in a state nobody planned for.",
+          "needs": [],
+          "evidence": [],
+          "drills": []
+        }
+      ]
+    },
+    {
+      "ladder_id": "builtin/frontend",
+      "track": "frontend",
+      "area_id": "FETCH",
+      "name": "Data fetching and errors",
+      "level": null,
+      "working_toward": "junior",
+      "exposure": "medium",
+      "items": [
+        {
+          "item_id": "FE.FETCH.J1",
+          "title": "Shows loading and error states",
+          "level": "junior",
+          "state": "shown",
+          "exposure": "medium",
+          "exposure_functions": 4,
+          "shown_by": "work",
+          "detail": "ready for a drill → /devgym:grow drill FE.FETCH.J1",
+          "why_it_matters": "Without loading and error states, users see a blank or frozen screen and think the app is broken.",
+          "needs": ["pass a drill"],
           "evidence": [
-            { "id": "e2", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "src/pay.ts", "symbol": "refund", "ticket": "PAY-1", "signal": "err.timeout-set", "note": null, "at": "2026-11-10T10:00:00.000Z", "fixed": false, "disagreed": false }
+            { "id": "p6", "kind": "rule", "polarity": "positive", "author": "dev", "decided_by": null, "owned": false, "file": "web/Orders.tsx", "symbol": "Orders", "ticket": "PAY-17", "signal": "fetch.loading-state", "note": null, "at": "2026-11-11T10:00:00.000Z", "fixed": false, "disagreed": false }
           ],
+          "drills": []
+        },
+        {
+          "item_id": "FE.FETCH.J2",
+          "title": "Never swallows a failed request",
+          "level": "junior",
+          "state": "learning",
+          "exposure": "medium",
+          "exposure_functions": 3,
+          "shown_by": null,
+          "detail": "0 of 3 code proofs · 1 open fault",
+          "why_it_matters": "A failed request that is only logged loses the user's work silently and leaves them confused.",
+          "needs": ["fix the open fault in Checkout.tsx", "3 more code proofs"],
+          "evidence": [
+            { "id": "f2", "kind": "rule", "polarity": "negative", "author": "dev", "decided_by": null, "owned": false, "file": "web/Checkout.tsx", "symbol": "Checkout", "ticket": "PAY-18", "signal": "fetch.console-only", "note": null, "at": "2026-11-16T10:00:00.000Z", "fixed": false, "disagreed": false }
+          ],
+          "drills": []
+        }
+      ]
+    },
+    {
+      "ladder_id": "builtin/backend",
+      "track": "backend",
+      "area_id": "REQ",
+      "name": "Requirements and scope",
+      "level": null,
+      "working_toward": "junior",
+      "exposure": "none",
+      "items": [
+        {
+          "item_id": "BE.REQ.J1",
+          "title": "Builds what the ticket asks, and nothing extra",
+          "level": "junior",
+          "state": "not_assessed",
+          "exposure": "none",
+          "exposure_functions": 0,
+          "shown_by": null,
+          "detail": "little chance in your work · drill available → /devgym:grow drill BE.REQ.J1",
+          "why_it_matters": "Code nobody asked for still has to be reviewed, tested and maintained, and it hides the code that matters.",
+          "needs": ["more chances in your work, or take a drill"],
+          "evidence": [],
           "drills": []
         }
       ]
     }
   ],
-  "repeats": [],
-  "open_faults": [
-    { "item_id": "BE.ERR.J1", "title": "Never hides an error", "file": "src/pay.ts", "symbol": "charge", "ticket": "PAY-4", "owned": true, "author": "ai", "at": "2026-11-17T10:00:00.000Z", "note": null }
+  "repeats": [
+    { "ladder_id": "builtin/backend", "item_id": "BE.ERR.M2", "title": "Handles the failure of an outside call on purpose", "signal_id": "err.empty-catch", "times": 4, "tickets": 3, "shipped": 1, "last_at": "2026-11-17T10:00:00.000Z", "coming_back": true },
+    { "ladder_id": "builtin/frontend", "item_id": "FE.FETCH.J2", "title": "Never swallows a failed request", "signal_id": "fetch.console-only", "times": 3, "tickets": 3, "shipped": 0, "last_at": "2026-08-20T10:00:00.000Z", "coming_back": false }
   ],
-  "ready_for_assessment": ["BE.ERR.M2"],
-  "next_actions": ["Fix the open fault in src/pay.ts (charge): Never hides an error", "Take a drill for BE.ERR.M2: /devgym:grow drill BE.ERR.M2"],
-  "drill_results": [],
+  "open_faults": [
+    { "item_id": "BE.ERR.M2", "title": "Handles the failure of an outside call on purpose", "file": "src/pay.ts", "symbol": "charge", "ticket": "PAY-16", "owned": true, "author": "ai", "at": "2026-11-17T10:00:00.000Z", "note": null },
+    { "item_id": "FE.FETCH.J2", "title": "Never swallows a failed request", "file": "web/Checkout.tsx", "symbol": "Checkout", "ticket": "PAY-18", "owned": false, "author": "dev", "at": "2026-11-16T10:00:00.000Z", "note": null }
+  ],
+  "ready_for_assessment": ["BE.ERR.M1", "FE.FETCH.J1", "BE.ERR.M3"],
+  "next_actions": [
+    "Fix the open fault in src/pay.ts (charge): Handles the failure of an outside call on purpose",
+    "Take a drill for BE.ERR.M1: /devgym:grow drill BE.ERR.M1",
+    "FE.FETCH.J2: fix the open fault in Checkout.tsx"
+  ],
+  "drill_results": [
+    { "item_id": "BE.ERR.M2", "title": "Handles the failure of an outside call on purpose", "drill_id": "d1", "passed": false, "void": false, "at": "2026-11-16T10:00:00.000Z" },
+    { "item_id": "BE.ERR.J2", "title": "Checks the result of calls that can fail", "drill_id": "d1", "passed": true, "void": false, "at": "2026-11-14T10:00:00.000Z" },
+    { "item_id": "BE.ERR.J1", "title": "Never hides an error", "drill_id": "d1", "passed": true, "void": false, "at": "2026-11-12T10:00:00.000Z" }
+  ],
   "recent_changes": [
-    { "item_id": "BE.ERR.M2", "title": "Handles the failure of an outside call on purpose", "from_state": "not_seen", "to_state": "not_assessed", "reason": "some evidence, not enough to judge yet", "at": "2026-11-10T10:00:00.000Z", "direction": "up" }
+    { "item_id": "BE.ERR.M2", "title": "Handles the failure of an outside call on purpose", "from_state": "shown", "to_state": "learning", "reason": "dropped back after a serious fault", "at": "2026-11-17T10:00:00.000Z", "direction": "down" },
+    { "item_id": "BE.ERR.J2", "title": "Checks the result of calls that can fail", "from_state": "shown", "to_state": "proven", "reason": "passed a drill while shown", "at": "2026-11-14T10:00:00.000Z", "direction": "up" },
+    { "item_id": "BE.ERR.J1", "title": "Never hides an error", "from_state": "shown", "to_state": "proven", "reason": "passed a drill while shown", "at": "2026-11-12T10:00:00.000Z", "direction": "up" },
+    { "item_id": "FE.FETCH.J1", "title": "Shows loading and error states", "from_state": "not_assessed", "to_state": "shown", "reason": "3 code proofs on 2 tickets and 2 clear answers", "at": "2026-11-11T10:00:00.000Z", "direction": "up" }
   ]
 }

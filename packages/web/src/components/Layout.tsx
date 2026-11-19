@@ -4,10 +4,10 @@ import { Icon, type IconName } from "./Icon";
 import { Logo } from "./Logo";
 
 const SECTIONS: { to: string; label: string; icon: IconName }[] = [
-  { to: "/clarify", label: "Clarify", icon: "fork" },
+  { to: "/clarify", label: "Clarify", icon: "clarify" },
   { to: "/track", label: "Track", icon: "trail" },
   { to: "/grow", label: "Grow", icon: "grow" },
-  { to: "/eval", label: "Eval", icon: "eval" },
+  // The Eval page still exists at /eval; it is hidden from the menu for now.
   { to: "/my-data", label: "My data", icon: "data" },
 ];
 

@@ -171,9 +171,11 @@ export function GrowPage() {
 
   return (
     <article className="grow-page">
-      <h1 className="page-title">Grow</h1>
       <GrowthSection />
-      <h2>Your plan</h2>
+      <div className="section-head section-head--plan">
+        <h2>Your plan</h2>
+        <p>A short list, built from your own evidence. Every claim links to where it came from.</p>
+      </div>
       {report.status === "loading" && <Loading what="your growth plan" />}
       {report.status === "error" && <ErrorState error={report.error} what="your growth plan" />}
       {report.status === "ready" && <Report plan={report.data.plan} labels={report.data.labels} />}

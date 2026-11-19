@@ -126,3 +126,27 @@ describe("My data cards", () => {
     );
   });
 });
+
+import { exposureBars, ladderSteps, masteryFill, stateCounts } from "../src/lib/grow";
+
+describe("grow page helpers", () => {
+  it("draws the ladder: levels reached, the one being worked on, and the rest", () => {
+    expect(ladderSteps({ level: "mid", working_toward: "senior" } as never).map((s) => s.status)).toEqual(["done", "done", "current", "todo"]);
+    expect(ladderSteps({ level: null, working_toward: "junior" } as never).map((s) => s.status)).toEqual(["current", "todo", "todo", "todo"]);
+    expect(ladderSteps({ level: "staff", working_toward: null } as never).map((s) => s.status)).toEqual(["done", "done", "done", "done"]);
+  });
+  it("counts skills by state", () => {
+    const area = (states: string[]) => ({ items: states.map((state) => ({ state })) }) as never;
+    expect(stateCounts([area(["proven", "shown", "shown"]), area(["learning", "not_assessed", "not_seen"])])).toEqual({
+      proven: 1,
+      shown: 2,
+      learning: 1,
+      not_assessed: 1,
+      not_seen: 1,
+    });
+  });
+  it("fills the mastery bar and the exposure meter", () => {
+    expect(["not_seen", "not_assessed", "learning", "shown", "proven"].map((s) => masteryFill(s as never))).toEqual([0, 0, 1, 2, 3]);
+    expect(["none", "low", "medium", "high"].map((e) => exposureBars(e as never))).toEqual([0, 1, 2, 3]);
+  });
+});
